@@ -3,10 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+async function launchBrowser() {
+  // Vercel Serverless requires a special Chromium build
+  if (process.env.VERCEL === '1') {
+    const { default: chromium } = await import('@sparticuz/chromium');
+    const { default: puppeteerCore } = await import('puppeteer-core');
+    const executablePath = await chromium.executablePath();
+
+    return puppeteerCore.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: executablePath || undefined,
+      headless: chromium.headless,
+    });
+  }
+
+  // Local dev can use the full Puppeteer package + bundled Chrome
+  const puppeteer = (await import('puppeteer')).default;
+  return puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Dynamic import of puppeteer
-    const puppeteer = (await import('puppeteer')).default;
     
     const { slides, options, format = 'pdf' } = await request.json();
     const { 
@@ -48,10 +69,7 @@ export async function POST(request: NextRequest) {
     const filenameExtension = format === 'ppt' ? 'pptx' : 'pdf';
     const downloadFilename = `${generateFilename(firstSlideTitle)}.${filenameExtension}`;
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const browser = await launchBrowser();
     const page = await browser.newPage();
 
     // HTML Template generation

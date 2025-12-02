@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <g transform="translate(32 32) rotate(6)">
+    <rect x="-26" y="-26" width="52" height="52" rx="12" fill="#FFD700" />
+    <text
+      x="0"
+      y="1"
+      text-anchor="middle"
+      font-family="Inter, 'Segoe UI', sans-serif"
+      font-weight="700"
+      font-size="32"
+      fill="#0B0F19"
+      dominant-baseline="middle"
+    >
+      S
+    </text>
+  </g>
+</svg>
+

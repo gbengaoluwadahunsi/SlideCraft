@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Layout, 
   Menu,
@@ -19,7 +19,10 @@ import {
   BarChart3,
   LineChart,
   PieChart,
-  Trash2
+  Trash2,
+  Paperclip,
+  FileText,
+  Trash
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -47,6 +50,10 @@ interface SlideData {
   textAlign?: 'left' | 'center' | 'right';
   chartType?: 'bar' | 'line' | 'pie';
   chartData?: Array<{ name: string; value: number; }>;
+  mediaType?: 'video' | 'embed' | null;
+  mediaUrl?: string;
+  embedHtml?: string;
+  mediaAspectRatio?: number;
 }
 
 export default function DashboardPage() {
@@ -61,11 +68,20 @@ export default function DashboardPage() {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiSlideCount, setAiSlideCount] = useState(6);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image'>('select');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docUploadInputRef = useRef<HTMLInputElement>(null);
   const slideDownloadRef = useRef<HTMLDivElement>(null);
+  const slidesScrollRef = useRef<HTMLDivElement>(null);
+  const sidebarSlideRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isScrollSyncingRef = useRef(false);
+  const activeSlideIdRef = useRef(activeSlideId);
   const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
   const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
+  const [docAttachment, setDocAttachment] = useState<{ name: string; text: string; sections?: string[]; wordCount?: number; truncated?: boolean } | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [slides, setSlides] = useState<SlideData[]>([
     {
@@ -119,9 +135,74 @@ export default function DashboardPage() {
     return incomingSlides.map((slide, index) => ({
       ...slide,
       fontScale: slide.fontScale ?? 1,
+      mediaType: slide.mediaType ?? null,
+      mediaAspectRatio: slide.mediaAspectRatio ?? 16 / 9,
       id: slide.id || `${timestamp}-${index}`,
     }));
   };
+
+  useEffect(() => {
+    activeSlideIdRef.current = activeSlideId;
+  }, [activeSlideId]);
+
+  useEffect(() => {
+    if (!activeSlideId) return;
+    const sidebarNode = sidebarSlideRefs.current[activeSlideId];
+    if (sidebarNode && sidebarNode.scrollIntoView) {
+      sidebarNode.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [activeSlideId]);
+
+  useEffect(() => {
+    const container = slidesScrollRef.current;
+    if (!container) return;
+
+    const slideElements = Array.from(container.querySelectorAll('[data-slide-id]')) as HTMLElement[];
+    if (!slideElements.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (isScrollSyncingRef.current) return;
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const newId = visible.target.getAttribute('data-slide-id');
+          if (newId && newId !== activeSlideIdRef.current) {
+            setActiveSlideId(newId);
+          }
+        }
+      },
+      { root: container, threshold: 0.6 }
+    );
+
+    slideElements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [slides, setActiveSlideId]);
+
+  useEffect(() => {
+    const container = slidesScrollRef.current;
+    if (!container) return;
+    const target = container.querySelector(`[data-slide-id="${activeSlideId}"]`) as HTMLElement | null;
+    if (!target) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const buffer = containerRect.height * 0.1;
+    const fullyVisible =
+      targetRect.top >= containerRect.top + buffer &&
+      targetRect.bottom <= containerRect.bottom - buffer;
+
+    if (fullyVisible) return;
+
+    isScrollSyncingRef.current = true;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timeout = window.setTimeout(() => {
+      isScrollSyncingRef.current = false;
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeSlideId]);
 
   const goToSlideByIndex = (index: number) => {
     const target = slides[index];
@@ -144,7 +225,11 @@ export default function DashboardPage() {
       fontFamily: slides[0]?.fontFamily || 'var(--font-inter)',
       fontScale: slides[0]?.fontScale || 1,
       backgroundColor: slides[0]?.backgroundColor || '#0B0F19',
-      textColor: slides[0]?.textColor || '#ffffff'
+      textColor: slides[0]?.textColor || '#ffffff',
+      mediaType: null,
+      mediaUrl: undefined,
+      embedHtml: undefined,
+      mediaAspectRatio: 16 / 9,
     }]);
     setActiveSlideId(newId);
   };
@@ -216,20 +301,35 @@ export default function DashboardPage() {
   };
 
   const handleAiGenerate = async () => {
-    if (!aiPrompt.trim()) return;
+    const combinedSource = [docAttachment?.text, aiPrompt.trim()].filter(Boolean).join('\n\n').trim();
+    if (!combinedSource) {
+      setDocUploadError('Add a prompt or attach a document to proceed.');
+      return;
+    }
     
+    setDocUploadError(null);
     setIsGenerating(true);
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiPrompt }),
+        body: JSON.stringify({
+          text: combinedSource,
+          slideCount: aiSlideCount,
+          sourceFile: docAttachment
+            ? {
+                name: docAttachment.name,
+                wordCount: docAttachment.wordCount,
+                truncated: docAttachment.truncated,
+              }
+            : undefined,
+        }),
       });
       
       const data = await response.json();
       
       if (data.slides && Array.isArray(data.slides)) {
-        const normalized = normalizeSlides(data.slides);
+        const normalized = normalizeSlides((data.slides || []).slice(0, aiSlideCount));
         setSlides(normalized);
         if (normalized.length > 0) {
           setActiveSlideId(normalized[0].id);
@@ -272,6 +372,55 @@ export default function DashboardPage() {
     }
     // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setDocUploadError(null);
+    setIsUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/ingest', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error || 'Failed to parse document');
+      }
+
+      const data = await response.json();
+      setDocAttachment({
+        name: data.fileName || file.name,
+        text: data.text,
+        sections: data.sections || [],
+        wordCount: data.wordCount,
+        truncated: data.truncated,
+      });
+
+      if (!aiPrompt.trim()) {
+        setAiPrompt((data.text || '').slice(0, 2000));
+      }
+    } catch (error) {
+      console.error('Doc upload failed:', error);
+      setDocUploadError(error instanceof Error ? error.message : 'Failed to process file');
+    } finally {
+      setIsUploadingDoc(false);
+      if (docUploadInputRef.current) {
+        docUploadInputRef.current.value = '';
+      }
+    }
+  };
+
+  const clearDocAttachment = () => {
+    setDocAttachment(null);
+    setDocUploadError(null);
+    if (docUploadInputRef.current) docUploadInputRef.current.value = '';
   };
 
   const handleExport = async (format: 'pdf' | 'ppt') => {
@@ -417,6 +566,77 @@ export default function DashboardPage() {
             />
           </div>
         )}
+
+        <div className="space-y-3 pt-4 border-t border-gray-700">
+          <label className="text-xs text-gray-400">Media / Embeds</label>
+          <select
+            value={activeSlide.mediaType || 'none'}
+            onChange={(e) => {
+              const value = e.target.value === 'none' ? null : (e.target.value as 'video' | 'embed');
+              setSlides(slides.map(s => s.id === activeSlide.id ? {
+                ...s,
+                mediaType: value,
+                mediaUrl: value === 'video' ? s.mediaUrl : undefined,
+                embedHtml: value === 'embed' ? s.embedHtml : undefined,
+              } : s));
+            }}
+            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+          >
+            <option value="none">None</option>
+            <option value="video">Video / Map iframe</option>
+            <option value="embed">Custom embed HTML</option>
+          </select>
+
+          {activeSlide.mediaType === 'video' && (
+            <div className="space-y-2">
+              <label className="text-xs text-gray-400">Video or iframe URL</label>
+              <input
+                type="text"
+                value={activeSlide.mediaUrl || ''}
+                onChange={(e) => {
+                  const newUrl = e.target.value;
+                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
+                }}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+              />
+              <label className="text-xs text-gray-400">Aspect ratio</label>
+              <input
+                type="number"
+                min={0.5}
+                max={3}
+                step={0.05}
+                value={activeSlide.mediaAspectRatio ?? 16 / 9}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value) || 16 / 9;
+                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
+                }}
+                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+              />
+              <p className="text-[10px] text-gray-500">
+                Works best with embeddable sources like YouTube, Loom, ArcGIS, etc.
+              </p>
+            </div>
+          )}
+
+          {activeSlide.mediaType === 'embed' && (
+            <div className="space-y-2">
+              <label className="text-xs text-gray-400">Embed HTML</label>
+              <textarea
+                value={activeSlide.embedHtml || ''}
+                onChange={(e) => {
+                  const newHtml = e.target.value;
+                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, embedHtml: newHtml } : s));
+                }}
+                placeholder='<iframe src="..." ></iframe>'
+                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition resize-none h-28 font-mono"
+              />
+              <p className="text-[10px] text-gray-500">
+                Paste trusted embed snippets (charts, maps, dashboards). Scripts are not executed.
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-2">
           <label className="text-xs text-gray-400">Handle / Tag</label>
@@ -683,6 +903,7 @@ export default function DashboardPage() {
                 {slides.map((slide, index) => (
                     <div 
                         key={slide.id} 
+                        ref={(el) => { sidebarSlideRefs.current[slide.id] = el; }}
                         onClick={() => setActiveSlideId(slide.id)}
                         className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/50 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-800/30 hover:border-gray-700'}`}
                     >
@@ -735,7 +956,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Canvas Area */}
-        <div className="flex-1 relative bg-[#0B0F19] flex flex-col overflow-hidden">
+        <div 
+            className="flex-1 relative bg-[#0B0F19] flex flex-col overflow-hidden"
+        >
             {/* Grid Background */}
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
                     style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
@@ -774,17 +997,41 @@ export default function DashboardPage() {
             </div>
 
             {/* Main Viewport */}
-            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-                <div className="relative shadow-2xl rounded-none ring-1 ring-white/10 transform scale-[0.25] sm:scale-[0.35] md:scale-[0.45] lg:scale-[0.5] xl:scale-[0.6] transition-transform duration-300 origin-center">
-                     <div className="w-[1080px] h-[1080px] bg-white relative overflow-hidden">
-                        <Slide 
-                            {...activeSlide} 
-                            isEditable={true}
-                            onUpdate={(field, value) => {
-                                setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, [field]: value } : s));
-                            }}
-                        />
-                     </div>
+            <div className="flex-1 overflow-hidden px-4 pb-8">
+                <div
+                    ref={slidesScrollRef}
+                    className="relative z-10 h-full overflow-y-auto snap-y snap-mandatory scroll-smooth space-y-16 pt-28 pb-32"
+                >
+                    {slides.map((slide) => (
+                        <div
+                            key={slide.id}
+                            data-slide-id={slide.id}
+                            onClick={() => setActiveSlideId(slide.id)}
+                            className={`snap-center flex justify-center transition-opacity duration-300 ${
+                                slide.id === activeSlideId ? 'opacity-100' : 'opacity-60 hover:opacity-90 cursor-pointer'
+                            }`}
+                        >
+                            <div
+                                className={`relative shadow-2xl rounded-none ring-1 ring-white/10 transform scale-[0.25] sm:scale-[0.35] md:scale-[0.45] lg:scale-[0.5] xl:scale-[0.6] transition-transform duration-300 origin-center ${
+                                    slide.id === activeSlideId ? 'ring-[#ffd700]/70' : ''
+                                }`}
+                            >
+                                <div className="w-[1080px] h-[1080px] bg-white relative overflow-hidden">
+                                    <Slide
+                                        {...slide}
+                                        isEditable={slide.id === activeSlideId}
+                                        onUpdate={(field, value) => {
+                                            setSlides((prev) =>
+                                                prev.map((s) =>
+                                                    s.id === slide.id ? { ...s, [field]: value } : s
+                                                )
+                                            );
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -818,15 +1065,17 @@ export default function DashboardPage() {
             {/* Properties Panel */}
             {isPropertiesPanelOpen && (
                 <>
-                    <div className="absolute right-6 top-6 bottom-6 w-80 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 overflow-y-auto hidden xl:block animate-in slide-in-from-right duration-300">
-                        {renderPropertiesPanelContent()}
+                    <div className="pointer-events-none absolute top-0 right-6 hidden xl:block z-30">
+                        <div className="pointer-events-auto mt-6 w-[26rem] bg-gray-800/70 backdrop-blur-md border border-gray-700/50 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto hide-scrollbar animate-in fade-in duration-200">
+                            {renderPropertiesPanelContent()}
+                        </div>
                     </div>
                     <div className="fixed inset-0 z-40 flex xl:hidden">
                         <button
                             className="absolute inset-0 bg-black/70"
                             onClick={() => setIsPropertiesPanelOpen(false)}
                         />
-                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-[#0f1117] border-l border-gray-800 rounded-l-3xl p-6 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300">
+                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-[#0f1117] border-l border-gray-800 rounded-l-3xl p-6 overflow-y-auto hide-scrollbar shadow-2xl animate-in slide-in-from-right duration-300">
                             {renderPropertiesPanelContent()}
                         </div>
                     </div>
@@ -1304,6 +1553,110 @@ export default function DashboardPage() {
                   autoFocus
                 />
               </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-400">
+                  Attach a document (optional)
+                </label>
+                <input
+                  ref={docUploadInputRef}
+                  type="file"
+                  accept=".md,.markdown,.docx,.txt"
+                  className="hidden"
+                  onChange={handleDocUpload}
+                />
+                {docAttachment ? (
+                  <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-white font-semibold">
+                          <FileText size={16} className="text-[#ffd700]" />
+                          <span className="break-all">{docAttachment.name}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {docAttachment.wordCount ?? '—'} words
+                          {docAttachment.truncated ? ' • trimmed to first 20k characters' : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearDocAttachment}
+                        className="text-gray-400 hover:text-red-400 transition"
+                        title="Remove attachment"
+                      >
+                        <Trash size={16} />
+                      </button>
+                    </div>
+                    {docAttachment.sections && docAttachment.sections.length > 0 && (
+                      <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
+                        <p className="font-semibold text-gray-300">Detected Sections</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {docAttachment.sections.slice(0, 6).map((section, idx) => (
+                            <li key={idx}>{section}</li>
+                          ))}
+                          {docAttachment.sections.length > 6 && (
+                            <li>+ {docAttachment.sections.length - 6} more…</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => docUploadInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-300 hover:text-white hover:border-gray-500 transition"
+                  >
+                    {isUploadingDoc ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Reading document...
+                      </>
+                    ) : (
+                      <>
+                        <Paperclip size={16} />
+                        Attach .docx / .md / .txt
+                      </>
+                    )}
+                  </button>
+                )}
+                {docUploadError && (
+                  <p className="text-xs text-red-400">{docUploadError}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Target slide count
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={3}
+                    max={15}
+                    step={1}
+                    value={aiSlideCount}
+                    onChange={(e) => setAiSlideCount(parseInt(e.target.value, 10))}
+                    className="flex-1"
+                    style={{ accentColor: '#ffd700' }}
+                  />
+                  <input
+                    type="number"
+                    min={3}
+                    max={15}
+                    value={aiSlideCount}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10);
+                      if (Number.isNaN(value)) return;
+                      setAiSlideCount(Math.min(15, Math.max(3, value)));
+                    }}
+                    className="w-16 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Choose between 3 and 15 slides for AI output.
+                </p>
+              </div>
               
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -1314,7 +1667,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={handleAiGenerate}
-                  disabled={!aiPrompt.trim() || isGenerating}
+                  disabled={(!docAttachment && !aiPrompt.trim()) || isGenerating}
                   className="px-6 py-2 bg-[#ffd700] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl transition flex items-center gap-2"
                 >
                   {isGenerating ? (

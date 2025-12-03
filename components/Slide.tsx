@@ -41,6 +41,10 @@ interface SlideProps {
   // Chart specific props
   chartType?: 'bar' | 'line' | 'pie';
   chartData?: Array<{ name: string; value: number; }>;
+  mediaType?: 'video' | 'embed' | null;
+  mediaUrl?: string;
+  embedHtml?: string;
+  mediaAspectRatio?: number;
 }
 
 export const Slide: React.FC<SlideProps> = ({ 
@@ -65,7 +69,11 @@ export const Slide: React.FC<SlideProps> = ({
   isEditable = false,
   onUpdate,
   chartType,
-  chartData
+  chartData,
+  mediaType = null,
+  mediaUrl,
+  embedHtml,
+  mediaAspectRatio = 16 / 9,
 }) => {
   // Determine colors based on slide type and overrides
   const activeBgColor = (type === 'cover' && coverBackgroundColor) ? coverBackgroundColor : backgroundColor;
@@ -75,6 +83,50 @@ export const Slide: React.FC<SlideProps> = ({
   // Generate unique ID for style scoping
   const slideId = React.useId().replace(/:/g, '');
   const scopeClass = `slide-${slideId}`;
+
+  const renderMediaBlock = () => {
+    if (!mediaType) return null;
+    if (mediaType === 'video' && !mediaUrl) return null;
+    if (mediaType === 'embed' && !embedHtml) return null;
+
+    const resolvedUrl = (() => {
+      if (!mediaUrl) return '';
+      try {
+        const url = new URL(mediaUrl);
+        if (url.hostname.includes('youtube.com') && url.searchParams.get('v')) {
+          return `https://www.youtube.com/embed/${url.searchParams.get('v')}`;
+        }
+        if (url.hostname.includes('youtu.be')) {
+          return `https://www.youtube.com/embed${url.pathname}`;
+        }
+        return mediaUrl;
+      } catch {
+        return mediaUrl;
+      }
+    })();
+
+    return (
+      <div
+        className="mt-10 rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl"
+        style={{ aspectRatio: mediaAspectRatio || 16 / 9 }}
+      >
+        {mediaType === 'video' ? (
+          <iframe
+            src={resolvedUrl}
+            title="Embedded media"
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <div
+            className="w-full h-full"
+            dangerouslySetInnerHTML={{ __html: embedHtml || '' }}
+          />
+        )}
+      </div>
+    );
+  };
 
   // Styles that were previously applied via regex replacement are now handled via CSS
   // This allows content to remain clean HTML while still looking styled
@@ -290,6 +342,7 @@ export const Slide: React.FC<SlideProps> = ({
                   )
               )
             )}
+            {renderMediaBlock()}
           </div>
         ) : type === 'chart' ? (
             <div className="flex flex-col h-full">
@@ -343,6 +396,7 @@ export const Slide: React.FC<SlideProps> = ({
                         {renderChart()}
                    </div>
                </div>
+               {renderMediaBlock()}
             </div>
         ) : (
           <div className="flex flex-col h-full">
@@ -424,6 +478,7 @@ export const Slide: React.FC<SlideProps> = ({
                 )
               )}
             </div>
+            {renderMediaBlock()}
           </div>
         )}
       </div>

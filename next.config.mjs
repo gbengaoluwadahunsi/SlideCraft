@@ -5,6 +5,7 @@ const nextConfig = {
     'puppeteer-core',
     '@sparticuz/chromium',
     'groq-sdk',
+    'mammoth',
   ],
   outputFileTracingIncludes: {
     '/api/export': [

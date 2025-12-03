@@ -27,76 +27,92 @@ The design style is "Under The Hood", technical but accessible.
 Focus on clarity, brevity, and value.
 `;
 
+const OUTLINE_PROMPT = (sections: string[]) => `
+When applicable, respect the following outline extracted from the user's document. Treat each bullet as a slide candidate, but feel free to merge or expand if it improves the story:
+${sections.map((section, idx) => `${idx + 1}. ${section}`).join('\n')}
+`;
+
 export async function POST(request: NextRequest) {
   try {
-    // Dynamic import of Groq
     const Groq = (await import('groq-sdk')).default;
-    
-    const { text } = await request.json();
 
-    // Check for API Key (strictly from env)
+    const { text, slideCount, sections = [] } = await request.json();
+    const requestedSlideCount = Math.max(3, Math.min(15, Number(slideCount) || 6));
+    const combinedText = (text || '').trim();
+
+    if (!combinedText) {
+      return NextResponse.json({ slides: [] });
+    }
+
     const groqApiKey = process.env.GROQ_API_KEY;
 
     if (!groqApiKey) {
-       return NextResponse.json({
-            slides: [
-                {
-                    type: 'cover',
-                    title: 'MISSING API KEY',
-                    subtitle: 'Please provide a GROQ_API_KEY in your .env file.',
-                },
-                {
-                    type: 'content',
-                    title: 'Configuration Needed',
-                    content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY=your_key_here</p><p>3. Restart the server</p>',
-                    emoji: '⚙️'
-                }
-            ]
-        });
+      return NextResponse.json({
+        slides: [
+          {
+            type: 'cover',
+            title: 'MISSING API KEY',
+            subtitle: 'Please provide a GROQ_API_KEY in your .env file.',
+          },
+          {
+            type: 'content',
+            title: 'Configuration Needed',
+            content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY=your_key_here</p><p>3. Restart the server</p>',
+            emoji: '⚙️'
+          }
+        ]
+      });
     }
 
     const groq = new Groq({ apiKey: groqApiKey });
 
+    const outlineHint = Array.isArray(sections) && sections.length > 0 ? OUTLINE_PROMPT(sections) : '';
+
     const completion = await groq.chat.completions.create({
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Here is the content to convert:\n${text}` }
+        { role: 'system', content: SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `
+Here is the content to convert.
+Create exactly ${requestedSlideCount} slides unless the content is empty, in which case explain why no slides were generated.
+${outlineHint}
+${combinedText}`,
+        },
       ],
-      model: "llama-3.3-70b-versatile", // Using the latest Llama 3.3 70B model
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.5,
       max_tokens: 4096,
       top_p: 1,
       stream: false,
-      response_format: { type: "json_object" } // Enforce JSON mode
+      response_format: { type: 'json_object' },
     });
 
-    const content = completion.choices[0]?.message?.content || "{}";
-    
+    const content = completion.choices[0]?.message?.content || '{}';
+
     let jsonResult;
     try {
-        jsonResult = JSON.parse(content);
+      jsonResult = JSON.parse(content);
     } catch (e) {
-        // Fallback cleanup if model returns markdown
-        const cleaned = content.replace(/```json/g, '').replace(/```/g, '');
-        jsonResult = JSON.parse(cleaned);
+      const cleaned = content.replace(/```json/g, '').replace(/```/g, '');
+      jsonResult = JSON.parse(cleaned);
     }
 
-    // Add IDs to slides
-    const slidesWithIds = (jsonResult.slides || []).map((slide: any) => ({
+    const trimmedSlides = (jsonResult.slides || []).slice(0, requestedSlideCount);
+
+    const slidesWithIds = trimmedSlides.map((slide: any) => ({
       ...slide,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     }));
 
-    // Fire and forget metric increment
     incrementAndGetMetrics().catch(console.error);
 
     return NextResponse.json({ slides: slidesWithIds });
-
   } catch (error) {
     console.error('AI Generation Error:', error);
     return NextResponse.json(
       { error: 'Failed to generate content' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

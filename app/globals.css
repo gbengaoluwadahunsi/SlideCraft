@@ -37,6 +37,15 @@ body {
   background: #6b7280;
 }
 
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0) rotate(6deg);

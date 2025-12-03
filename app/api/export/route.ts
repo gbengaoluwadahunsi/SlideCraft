@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
               // Fallback / Pie (simplified as list for now in PDF export if complex)
               chartHtml = `
                   <div style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; align-items: center; height: 100%;">
-                      ${slide.chartData.map((d: any, i: number) => `
+                      ${slide.chartData.map((d: any) => `
                           <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 1rem; width: 200px;">
                               <div style="font-size: 3rem; font-weight: bold; color: ${activeAccentColor};">${d.value}%</div>
                               <div style="font-size: 1.5rem; color: ${activeTextColor}; text-align: center;">${d.name}</div>
@@ -163,6 +164,29 @@ export async function POST(request: NextRequest) {
               `;
           }
       }
+
+      const aspectRatio = slide.mediaAspectRatio || (16 / 9);
+
+      const mediaHtml = (() => {
+        if (!slide.mediaType) return '';
+        if (slide.mediaType === 'video' && slide.mediaUrl) {
+          return `
+            <div style="margin-top: 2rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
+              <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
+                <iframe src="${slide.mediaUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+              </div>
+            </div>
+          `;
+        }
+        if (slide.mediaType === 'embed' && slide.embedHtml) {
+          return `
+            <div style="margin-top: 2rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
+              ${slide.embedHtml}
+            </div>
+          `;
+        }
+        return '';
+      })();
 
       const slideCategory = (slide.category ?? category ?? '').trim();
       const categoryHtml = slideCategory
@@ -230,6 +254,7 @@ export async function POST(request: NextRequest) {
                     ${slide.subtitle}
                   </p>
                 ` : ''}
+                ${mediaHtml}
               </div>
             ` : isChart ? `
                <div style="display: flex; flex-direction: column; height: 100%;">
@@ -243,6 +268,7 @@ export async function POST(request: NextRequest) {
                 <div style="flex: 1; overflow: hidden; background: rgba(0,0,0,0.2); border-radius: 2rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1);">
                    ${chartHtml}
                 </div>
+                ${mediaHtml}
               </div>
             ` : `
               <div style="display: flex; flex-direction: column; height: 100%;">
@@ -259,6 +285,7 @@ export async function POST(request: NextRequest) {
                     </div>
                   ` : ''}
                 </div>
+                ${mediaHtml}
               </div>
             `}
           </div>

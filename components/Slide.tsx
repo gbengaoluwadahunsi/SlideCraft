@@ -1,7 +1,24 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { EditableText } from './EditableText';
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   BarChart,
   Bar,
@@ -16,6 +33,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { GripVertical } from 'lucide-react';
 
 interface SlideProps {
   type: 'cover' | 'content' | 'chart';
@@ -37,14 +55,60 @@ interface SlideProps {
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
   isEditable?: boolean;
-  onUpdate?: (field: string, value: string) => void;
+  onUpdate?: (field: string, value: any) => void;
   // Chart specific props
   chartType?: 'bar' | 'line' | 'pie';
   chartData?: Array<{ name: string; value: number; }>;
-  mediaType?: 'video' | 'embed' | null;
+  mediaType?: 'video' | 'embed' | 'image' | null;
   mediaUrl?: string;
   embedHtml?: string;
   mediaAspectRatio?: number;
+  mediaWidthPercent?: number;
+  mediaAlignment?: 'left' | 'center' | 'right';
+  elementOrder?: string[];
+}
+
+const sanitizeEmoji = (value: string | undefined | null) => {
+  if (!value) return '';
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+};
+
+// Sortable Item Component
+function SortableItem({ id, children, isEditable, className = '' }: { id: string; children: React.ReactNode; isEditable: boolean; className?: string }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled: !isEditable });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={`group/item relative ${className}`}>
+      {isEditable && (
+        <div 
+            {...attributes} 
+            {...listeners} 
+            className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white cursor-grab active:cursor-grabbing opacity-0 group-hover/item:opacity-100 transition-opacity z-50"
+            title="Drag to move"
+        >
+            <GripVertical size={16} />
+        </div>
+      )}
+      {children}
+    </div>
+  );
 }
 
 export const Slide: React.FC<SlideProps> = ({ 
@@ -74,6 +138,9 @@ export const Slide: React.FC<SlideProps> = ({
   mediaUrl,
   embedHtml,
   mediaAspectRatio = 16 / 9,
+  mediaWidthPercent = 100,
+  mediaAlignment = 'center',
+  elementOrder
 }) => {
   // Determine colors based on slide type and overrides
   const activeBgColor = (type === 'cover' && coverBackgroundColor) ? coverBackgroundColor : backgroundColor;
@@ -84,10 +151,77 @@ export const Slide: React.FC<SlideProps> = ({
   const slideId = React.useId().replace(/:/g, '');
   const scopeClass = `slide-${slideId}`;
 
+  // Sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 8, // Prevent accidental drags
+        },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Default orders if not provided
+  const getOrder = () => {
+      if (elementOrder && elementOrder.length > 0) return elementOrder;
+      if (type === 'cover') return ['title', 'subtitle', 'media'];
+      if (type === 'chart') return ['emoji', 'title', 'content', 'chart', 'media'];
+      return ['emoji', 'title', 'content', 'media'];
+  };
+
+  const currentOrder = getOrder();
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+        const oldIndex = currentOrder.indexOf(active.id as string);
+        const newIndex = currentOrder.indexOf(over?.id as string);
+        const newOrder = arrayMove(currentOrder, oldIndex, newIndex);
+        onUpdate?.('elementOrder', newOrder);
+    }
+  };
+
   const renderMediaBlock = () => {
     if (!mediaType) return null;
     if (mediaType === 'video' && !mediaUrl) return null;
     if (mediaType === 'embed' && !embedHtml) return null;
+    if (mediaType === 'image' && !mediaUrl) return null;
+
+    const isDirectVideo = mediaUrl?.startsWith('blob:') || mediaUrl?.match(/\.(mp4|webm|ogg|mov)$/i);
+    const widthPercent = Math.max(20, Math.min(100, mediaWidthPercent ?? 100));
+    const justifyContent = mediaAlignment === 'left' ? 'flex-start' : mediaAlignment === 'right' ? 'flex-end' : 'center';
+    const outerStyle: React.CSSProperties = { justifyContent };
+    const innerStyle: React.CSSProperties = {
+        width: `${widthPercent}%`,
+        minWidth: '180px',
+        maxWidth: '100%',
+    };
+
+    const preventDrag = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    if (mediaType === 'image' && mediaUrl) {
+        return (
+            <div className="mt-6 flex w-full" style={outerStyle}>
+                <div
+                    className="rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
+                    style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
+                    onDragStart={preventDrag}
+                >
+                    <img 
+                        src={mediaUrl} 
+                        alt="Slide Media" 
+                        className="w-full h-full object-cover select-none"
+                        draggable={false}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     const resolvedUrl = (() => {
       if (!mediaUrl) return '';
@@ -95,6 +229,10 @@ export const Slide: React.FC<SlideProps> = ({
         const url = new URL(mediaUrl);
         if (url.hostname.includes('youtube.com') && url.searchParams.get('v')) {
           return `https://www.youtube.com/embed/${url.searchParams.get('v')}`;
+        }
+        if (url.pathname.includes('/shorts/')) {
+            const videoId = url.pathname.split('/shorts/')[1];
+            return `https://www.youtube.com/embed/${videoId}`;
         }
         if (url.hostname.includes('youtu.be')) {
           return `https://www.youtube.com/embed${url.pathname}`;
@@ -106,35 +244,50 @@ export const Slide: React.FC<SlideProps> = ({
     })();
 
     return (
-      <div
-        className="mt-10 rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl"
-        style={{ aspectRatio: mediaAspectRatio || 16 / 9 }}
-      >
-        {mediaType === 'video' ? (
+      <div className="mt-6 flex w-full" style={outerStyle}>
+        <div
+          className="rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
+          style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
+          onDragStart={preventDrag}
+        >
+          {mediaType === 'video' ? (
+          isDirectVideo ? (
+             <video 
+               src={mediaUrl} 
+               className="w-full h-full object-cover"
+               controls
+               playsInline
+               draggable={false}
+               onDragStart={preventDrag}
+             />
+          ) : (
           <iframe
             src={resolvedUrl}
             title="Embedded media"
             className="w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
+            draggable={false}
+            onDragStart={preventDrag}
           />
+          )
         ) : (
           <div
             className="w-full h-full"
             dangerouslySetInnerHTML={{ __html: embedHtml || '' }}
+            draggable={false}
+            onDragStart={preventDrag}
           />
         )}
+        </div>
       </div>
     );
   };
 
-  // Styles that were previously applied via regex replacement are now handled via CSS
-  // This allows content to remain clean HTML while still looking styled
   const styles = `
     .${scopeClass} strong, .${scopeClass} b { color: ${activeAccentColor}; font-weight: 700; }
     .${scopeClass} em, .${scopeClass} i { background-color: ${activeAccentColor}33; color: ${activeAccentColor}; font-style: normal; padding: 0 4px; border-radius: 4px; }
     .${scopeClass} code { background-color: transparent; color: ${activeAccentColor}; padding: 0 2px; font-family: var(--font-roboto-mono), monospace; font-weight: bold; }
-    /* Add styles for font/color changes from toolbar if they use spans with styles, which works automatically */
   `;
 
   const COLORS = [activeAccentColor, '#ff9f40', '#ff6384', '#4bc0c0', '#9966ff'];
@@ -142,65 +295,61 @@ export const Slide: React.FC<SlideProps> = ({
   const renderChart = () => {
     if (!chartData || chartData.length === 0) return null;
 
-    switch (chartType) {
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
+    const chartContent = (() => {
+        switch (chartType) {
+        case 'bar':
+            return (
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff33" vertical={false} />
-              <XAxis 
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff33" vertical={false} />
+                <XAxis 
                 dataKey="name" 
                 tick={{ fill: activeTextColor, fontSize: 24 * fontScale }} 
                 axisLine={{ stroke: activeTextColor }}
                 tickLine={{ stroke: activeTextColor }}
-              />
-              <YAxis 
+                />
+                <YAxis 
                 tick={{ fill: activeTextColor, fontSize: 24 * fontScale }} 
                 axisLine={{ stroke: activeTextColor }}
                 tickLine={{ stroke: activeTextColor }}
-              />
-              <Tooltip 
+                />
+                <Tooltip 
                 contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
-              />
-              <Bar dataKey="value" fill={activeAccentColor} radius={[8, 8, 0, 0]} />
+                />
+                <Bar dataKey="value" fill={activeAccentColor} radius={[8, 8, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
-        );
-      case 'line':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
+            );
+        case 'line':
+            return (
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff33" vertical={false} />
-              <XAxis 
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff33" vertical={false} />
+                <XAxis 
                 dataKey="name" 
                 tick={{ fill: activeTextColor, fontSize: 24 * fontScale }} 
                 axisLine={{ stroke: activeTextColor }}
                 tickLine={{ stroke: activeTextColor }}
-              />
-              <YAxis 
+                />
+                <YAxis 
                 tick={{ fill: activeTextColor, fontSize: 24 * fontScale }} 
                 axisLine={{ stroke: activeTextColor }}
                 tickLine={{ stroke: activeTextColor }}
-              />
-              <Tooltip 
-                 contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
-              />
-              <Line 
+                />
+                <Tooltip 
+                    contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
+                />
+                <Line 
                 type="monotone" 
                 dataKey="value" 
                 stroke={activeAccentColor} 
                 strokeWidth={6} 
                 dot={{ fill: activeAccentColor, r: 8 }} 
                 activeDot={{ r: 10 }}
-              />
+                />
             </LineChart>
-          </ResponsiveContainer>
-        );
-      case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
+            );
+        case 'pie':
+            return (
             <PieChart>
-              <Pie
+                <Pie
                 data={chartData}
                 cx="50%"
                 cy="50%"
@@ -209,20 +358,142 @@ export const Slide: React.FC<SlideProps> = ({
                 fill="#8884d8"
                 dataKey="value"
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
+                >
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
                 ))}
-              </Pie>
-              <Tooltip 
-                 contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
-              />
+                </Pie>
+                <Tooltip 
+                    contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
+                />
             </PieChart>
-          </ResponsiveContainer>
-        );
-      default:
-        return null;
-    }
+            );
+        default:
+            return null;
+        }
+    })();
+
+    return (
+        <div className="w-full h-[400px] mt-6 bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
+             <ResponsiveContainer width="100%" height="100%">
+                {chartContent}
+             </ResponsiveContainer>
+        </div>
+    );
+  };
+
+  // Element Renderers Map
+  const renderElement = (id: string) => {
+      switch (id) {
+        case 'emoji': {
+            const emojiValue = sanitizeEmoji(emoji);
+            return (emojiValue || isEditable) ? (
+                isEditable ? (
+                    <div className="mb-6" style={{ fontSize: `${3.75 * fontScale}rem` }}>
+                        <EditableText 
+                            html={emojiValue}
+                            onChange={(val) => onUpdate?.('emoji', sanitizeEmoji(val))}
+                            tagName="div"
+                            placeholder="✨"
+                        />
+                    </div>
+                ) : emojiValue ? (
+                    <div className="mb-6" style={{ fontSize: `${3.75 * fontScale}rem` }}>{emojiValue}</div>
+                ) : null
+            ) : null;
+        }
+        case 'title':
+            return isEditable ? (
+                <EditableText 
+                    tagName="h1"
+                    className="font-bold leading-tight tracking-tight mb-6"
+                    style={{ 
+                        color: activeAccentColor, // Consistent color for simplicity in dynamic order
+                        fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
+                        textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
+                        textAlign: textAlign
+                    }}
+                    html={title}
+                    onChange={(val) => onUpdate?.('title', val)}
+                    placeholder="Title"
+                />
+            ) : (
+                <h1 
+                    className="font-bold leading-tight tracking-tight mb-6" 
+                    style={{ 
+                        color: activeAccentColor,
+                        fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
+                        textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
+                        textAlign: textAlign
+                    }}
+                    dangerouslySetInnerHTML={{ __html: title }}
+                />
+            );
+        case 'subtitle':
+            return (subtitle || isEditable) ? (
+                isEditable ? (
+                    <EditableText
+                        tagName="div"
+                        className="font-light leading-relaxed opacity-80 mb-6"
+                        style={{ 
+                            color: activeTextColor,
+                            fontSize: `${2.25 * fontScale}rem`,
+                            textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                            textAlign: textAlign
+                        }}
+                        html={subtitle || ''}
+                        onChange={(val) => onUpdate?.('subtitle', val)}
+                        placeholder="Subtitle"
+                    />
+                ) : subtitle ? (
+                    <div 
+                        className="font-light leading-relaxed opacity-80 mb-6" 
+                        style={{ 
+                            color: activeTextColor,
+                            fontSize: `${2.25 * fontScale}rem`,
+                            textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                            textAlign: textAlign
+                        }}
+                        dangerouslySetInnerHTML={{ __html: subtitle }}
+                    />
+                ) : null
+            ) : null;
+        case 'content':
+            return (content || isEditable) ? (
+                 <div className="flex-1">
+                    {isEditable ? (
+                        <EditableText 
+                            tagName="div"
+                            className="slide-content leading-relaxed font-light mb-6"
+                            style={{ 
+                                color: activeTextColor,
+                                fontSize: `${2.25 * fontScale}rem`,
+                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
+                            }} 
+                            html={content || ''}
+                            onChange={(val) => onUpdate?.('content', val)}
+                            placeholder="Content..."
+                        />
+                    ) : content ? (
+                        <div 
+                            className="slide-content leading-relaxed font-light mb-6"
+                            style={{ 
+                                color: activeTextColor,
+                                fontSize: `${2.25 * fontScale}rem`,
+                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
+                            }} 
+                            dangerouslySetInnerHTML={{ __html: content }}
+                        />
+                    ) : null}
+                 </div>
+            ) : null;
+        case 'media':
+            return renderMediaBlock();
+        case 'chart':
+            return renderChart();
+        default:
+            return null;
+      }
   };
 
   return (
@@ -239,7 +510,7 @@ export const Slide: React.FC<SlideProps> = ({
     >
       <style>{styles}</style>
       
-      {/* Background Overlay for Readability */}
+      {/* Background Overlay */}
       {backgroundImage && (
         <div 
           className="absolute inset-0 pointer-events-none"
@@ -247,7 +518,7 @@ export const Slide: React.FC<SlideProps> = ({
         />
       )}
 
-      {/* Top Tag/Category Pill */}
+      {/* Category Pill */}
       {category && category.trim() !== "" && (
         <div className="absolute top-16 left-16 z-10">
            {isEditable ? (
@@ -282,204 +553,32 @@ export const Slide: React.FC<SlideProps> = ({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 px-16 flex flex-col pt-48 pb-24 relative z-10">
-        {type === 'cover' ? (
-          <div className={`flex flex-col justify-center h-full text-${textAlign}`}>
-            {isEditable ? (
-                <EditableText 
-                    tagName="h1"
-                    className="font-bold leading-tight tracking-tight mb-12"
-                    style={{ 
-                        color: activeTextColor,
-                        fontSize: `${4.5 * fontScale}rem`,
-                        textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: textAlign
-                    }}
-                    html={title}
-                    onChange={(val) => onUpdate?.('title', val)}
-                    placeholder="Enter Title"
-                />
-            ) : (
-                <h1 
-                className="font-bold leading-tight tracking-tight mb-12" 
-                style={{ 
-                    color: activeTextColor,
-                    fontSize: `${4.5 * fontScale}rem`,
-                    textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                    textAlign: textAlign
-                }}
-                dangerouslySetInnerHTML={{ __html: title }}
-                />
-            )}
-            
-            {(subtitle || isEditable) && (
-              isEditable ? (
-                <EditableText
-                    tagName="div"
-                    className="font-light leading-relaxed max-w-5xl opacity-80"
-                    style={{ 
-                        color: activeTextColor,
-                        fontSize: `${2.25 * fontScale}rem`,
-                        textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: textAlign
-                    }}
-                    html={subtitle || ''}
-                    onChange={(val) => onUpdate?.('subtitle', val)}
-                    placeholder="Enter Subtitle..."
-                />
-              ) : (
-                  subtitle && (
-                    <div 
-                        className="font-light leading-relaxed max-w-5xl opacity-80" 
-                        style={{ 
-                        color: activeTextColor,
-                        fontSize: `${2.25 * fontScale}rem`,
-                        textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: textAlign
-                        }}
-                        dangerouslySetInnerHTML={{ __html: subtitle }}
-                    />
-                  )
-              )
-            )}
-            {renderMediaBlock()}
-          </div>
-        ) : type === 'chart' ? (
-            <div className="flex flex-col h-full">
-               {/* Chart Title */}
-               <div className="mb-8">
-                   {emoji && (
-                       <div style={{ fontSize: `${3.75 * fontScale}rem`, marginBottom: '1rem' }}>
-                           {emoji}
-                       </div>
-                   )}
-                   {isEditable ? (
-                       <EditableText
-                           tagName="h2"
-                           className="font-bold leading-tight mb-4"
-                           style={{ 
-                               color: activeAccentColor,
-                               fontSize: `${3 * fontScale}rem`,
-                               textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
-                           }}
-                           html={title}
-                           onChange={(val) => onUpdate?.('title', val)}
-                           placeholder="Chart Title"
-                       />
-                   ) : (
-                       <h2 
-                           className="font-bold leading-tight mb-4" 
-                           style={{ 
-                               color: activeAccentColor,
-                               fontSize: `${3 * fontScale}rem`,
-                               textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
-                           }}
-                           dangerouslySetInnerHTML={{ __html: title }}
-                       />
-                   )}
-                    {content && (
-                        <p 
-                            className="font-light opacity-80 leading-relaxed"
-                             style={{ 
-                                color: activeTextColor,
-                                fontSize: `${1.75 * fontScale}rem`,
-                            }}
-                        >
-                            {content.replace(/<[^>]*>?/gm, '')}
-                        </p>
-                    )}
-               </div>
-
-               {/* Chart Render Area */}
-               <div className="flex-1 w-full h-full pb-12">
-                   <div className="w-full h-full bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
-                        {renderChart()}
-                   </div>
-               </div>
-               {renderMediaBlock()}
-            </div>
+      <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full`}>
+        {isEditable ? (
+            <DndContext 
+                sensors={sensors} 
+                collisionDetection={closestCenter} 
+                onDragEnd={handleDragEnd}
+            >
+                <SortableContext 
+                    items={currentOrder} 
+                    strategy={verticalListSortingStrategy}
+                >
+                    {currentOrder.map((itemId) => (
+                        <SortableItem key={itemId} id={itemId} isEditable={isEditable} className={itemId === 'content' ? 'flex-1' : ''}>
+                            {renderElement(itemId)}
+                        </SortableItem>
+                    ))}
+                </SortableContext>
+            </DndContext>
         ) : (
-          <div className="flex flex-col h-full">
-            {/* Emoji & Title Header */}
-            <div className="mb-12">
-              {(emoji || isEditable) && (
-                 isEditable ? (
-                    <div style={{ fontSize: `${3.75 * fontScale}rem`, marginBottom: '1.5rem' }}>
-                        <EditableText 
-                            html={emoji || ''}
-                            onChange={(val) => onUpdate?.('emoji', val)}
-                            tagName="div"
-                            placeholder="✨"
-                        />
+            <>
+                {currentOrder.map((itemId) => (
+                    <div key={itemId} className={`relative ${itemId === 'content' ? 'flex-1' : ''}`}>
+                        {renderElement(itemId)}
                     </div>
-                 ) : (
-                     emoji && (
-                        <div style={{ fontSize: `${3.75 * fontScale}rem`, marginBottom: '1.5rem' }}>
-                        {emoji}
-                        </div>
-                    )
-                 )
-              )}
-              
-              {isEditable ? (
-                 <EditableText
-                    tagName="h2"
-                    className="font-bold leading-tight mb-4"
-                    style={{ 
-                        color: activeAccentColor,
-                        fontSize: `${3 * fontScale}rem`,
-                        textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
-                    }}
-                    html={title}
-                    onChange={(val) => onUpdate?.('title', val)}
-                    placeholder="Slide Title"
-                 />
-              ) : (
-                <h2 
-                    className="font-bold leading-tight mb-4" 
-                    style={{ 
-                    color: activeAccentColor,
-                    fontSize: `${3 * fontScale}rem`,
-                    textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
-                    }}
-                    dangerouslySetInnerHTML={{ __html: title }}
-                />
-              )}
-            </div>
-            
-            {/* Content Body */}
-            <div className="flex-1 overflow-hidden">
-              {(content || isEditable) && (
-                isEditable ? (
-                    <EditableText 
-                        tagName="div"
-                        className="slide-content leading-relaxed font-light"
-                        style={{ 
-                            color: activeTextColor,
-                            fontSize: `${2.25 * fontScale}rem`,
-                            textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
-                        }} 
-                        html={content || ''}
-                        onChange={(val) => onUpdate?.('content', val)}
-                        placeholder="Click to edit content..."
-                    />
-                ) : (
-                     content && (
-                        <div 
-                        className="slide-content leading-relaxed font-light"
-                        style={{ 
-                            color: activeTextColor,
-                            fontSize: `${2.25 * fontScale}rem`,
-                            textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
-                        }} 
-                        dangerouslySetInnerHTML={{ __html: content }} // Now just raw content, styled by css above
-                        />
-                    )
-                )
-              )}
-            </div>
-            {renderMediaBlock()}
-          </div>
+                ))}
+            </>
         )}
       </div>
 

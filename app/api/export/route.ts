@@ -4,6 +4,26 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function resolveVideoEmbedUrl(url?: string) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes('youtube.com') && parsed.searchParams.get('v')) {
+      return `https://www.youtube.com/embed/${parsed.searchParams.get('v')}`;
+    }
+    if (parsed.pathname.includes('/shorts/')) {
+      const videoId = parsed.pathname.split('/shorts/')[1];
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+    if (parsed.hostname.includes('youtu.be')) {
+      return `https://www.youtube.com/embed${parsed.pathname}`;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 async function launchBrowser() {
   // Vercel Serverless requires a special Chromium build
   if (process.env.VERCEL === '1') {
@@ -29,8 +49,39 @@ async function launchBrowser() {
 
 export async function POST(request: NextRequest) {
   try {
-    
-    const { slides, options, format = 'pdf' } = await request.json();
+    let slides: any[] = [];
+    let options: any = {};
+    let format = 'pdf';
+    const videoAttachments: Record<string, Buffer> = {};
+
+    // Handle FormData vs JSON content types
+    const contentType = request.headers.get('content-type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+        const formData = await request.formData();
+        const dataStr = formData.get('data') as string;
+        
+        if (!dataStr) throw new Error('Missing data field in FormData');
+        const parsedData = JSON.parse(dataStr);
+        
+        slides = parsedData.slides;
+        options = parsedData.options;
+        format = parsedData.format;
+
+        // Extract attached video files
+        for (const [key, val] of formData.entries()) {
+            if (key.startsWith('video_') && val instanceof File) {
+                const arrayBuffer = await val.arrayBuffer();
+                videoAttachments[key] = Buffer.from(arrayBuffer);
+            }
+        }
+    } else {
+        const json = await request.json();
+        slides = json.slides;
+        options = json.options;
+        format = json.format || 'pdf';
+    }
+
     const { 
       category, 
       handle, 
@@ -66,7 +117,7 @@ export async function POST(request: NextRequest) {
         .substring(0, 50); // Limit to 50 characters
     };
 
-    const firstSlideTitle = slides[0]?.title || 'slidecraft-deck';
+    const firstSlideTitle = slides[0]?.title || 'carouslk-deck';
     const filenameExtension = format === 'ppt' ? 'pptx' : 'pdf';
     const downloadFilename = `${generateFilename(firstSlideTitle)}.${filenameExtension}`;
 
@@ -99,9 +150,6 @@ export async function POST(request: NextRequest) {
       
       let chartHtml = '';
       if (isChart && slide.chartData) {
-          // For charts in export, we render a simpler static visualization using CSS/HTML
-          // since client-side JS (Recharts) won't hydrate in Puppeteer's print view easily without wait.
-          // We build simple CSS bars for robustness.
           const maxVal = Math.max(...slide.chartData.map((d: any) => d.value));
           
           if (slide.chartType === 'bar') {
@@ -117,7 +165,6 @@ export async function POST(request: NextRequest) {
                 </div>
               `;
           } else if (slide.chartType === 'line') {
-              // Simple line chart visualization using SVG
                const width = 800;
                const height = 400;
                const points = slide.chartData.map((d: any, i: number) => {
@@ -129,15 +176,12 @@ export async function POST(request: NextRequest) {
               chartHtml = `
                 <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
                      <svg width="100%" height="100%" viewBox="0 0 ${width} ${height + 50}" overflow="visible">
-                        <!-- Grid -->
                         <line x1="0" y1="0" x2="${width}" y2="0" stroke="rgba(255,255,255,0.2)" stroke-dasharray="5,5" />
                         <line x1="0" y1="${height/2}" x2="${width}" y2="${height/2}" stroke="rgba(255,255,255,0.2)" stroke-dasharray="5,5" />
                         <line x1="0" y1="${height}" x2="${width}" y2="${height}" stroke="rgba(255,255,255,0.2)" />
                         
-                        <!-- Line -->
                         <polyline points="${points}" fill="none" stroke="${activeAccentColor}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
                         
-                        <!-- Dots & Labels -->
                         ${slide.chartData.map((d: any, i: number) => {
                            const x = (i / (slide.chartData.length - 1)) * width;
                            const y = height - ((d.value / maxVal) * height);
@@ -151,7 +195,6 @@ export async function POST(request: NextRequest) {
                 </div>
               `;
           } else {
-              // Fallback / Pie (simplified as list for now in PDF export if complex)
               chartHtml = `
                   <div style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; align-items: center; height: 100%;">
                       ${slide.chartData.map((d: any) => `
@@ -167,21 +210,40 @@ export async function POST(request: NextRequest) {
 
       const aspectRatio = slide.mediaAspectRatio || (16 / 9);
 
+      const mediaWidthPercent = Math.max(20, Math.min(100, typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100));
+      const mediaAlignment = slide.mediaAlignment || 'center';
+      const mediaJustify = mediaAlignment === 'left' ? 'flex-start' : mediaAlignment === 'right' ? 'flex-end' : 'center';
+
       const mediaHtml = (() => {
         if (!slide.mediaType) return '';
+        if (slide.mediaType === 'image' && slide.mediaUrl) {
+           return `
+             <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
+                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 0; box-shadow: 0 10px 30px -5px rgba(0,0,0,0.3);">
+                  <img src="${slide.mediaUrl}" alt="Slide Media" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                </div>
+             </div>
+           `;
+        }
         if (slide.mediaType === 'video' && slide.mediaUrl) {
+          const embedUrl = resolveVideoEmbedUrl(slide.mediaUrl);
+          if (!embedUrl) return '';
           return `
-            <div style="margin-top: 2rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
-              <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
-                <iframe src="${slide.mediaUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+            <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
+              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
+                <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
+                  <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+                </div>
               </div>
             </div>
           `;
         }
         if (slide.mediaType === 'embed' && slide.embedHtml) {
           return `
-            <div style="margin-top: 2rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
-              ${slide.embedHtml}
+            <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
+              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
+                ${slide.embedHtml}
+              </div>
             </div>
           `;
         }
@@ -198,6 +260,46 @@ export async function POST(request: NextRequest) {
           </div>
         `
         : '';
+
+      // Define default order if missing
+      let currentOrder = slide.elementOrder || [];
+      if (!currentOrder.length) {
+          if (slide.type === 'cover') currentOrder = ['title', 'subtitle', 'media'];
+          else if (slide.type === 'chart') currentOrder = ['emoji', 'title', 'content', 'chart', 'media'];
+          else currentOrder = ['emoji', 'title', 'content', 'media'];
+      }
+
+      // Render logic for each element type
+      const renderElement = (id: string) => {
+          switch (id) {
+              case 'emoji':
+                  return slide.emoji ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : '';
+              case 'title':
+                  return `<h1 style="font-size: ${(isCover ? 4.5 : 3) * fontScale}rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 1.5rem; color: ${(isCover ? activeTextColor : activeAccentColor)}; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
+                      ${slide.title}
+                  </h1>`;
+              case 'subtitle':
+                  return slide.subtitle ? `<p style="font-size: ${2.25 * fontScale}rem; font-weight: 300; line-height: 1.625; opacity: 0.8; color: ${activeTextColor}; margin-bottom: 1.5rem; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
+                      ${slide.subtitle}
+                  </p>` : '';
+              case 'content':
+                  return slide.content ? `<div style="flex: 1; margin-bottom: 1.5rem;">
+                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}">
+                        ${slide.content}
+                      </div>
+                  </div>` : '';
+              case 'chart':
+                  return chartHtml ? `<div style="flex: 1; overflow: hidden; background: rgba(0,0,0,0.2); border-radius: 2rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 1.5rem;">
+                      ${chartHtml}
+                  </div>` : '';
+              case 'media':
+                  return mediaHtml;
+              default:
+                  return '';
+          }
+      };
+
+      const innerContent = currentOrder.map((id: string) => renderElement(id)).join('');
 
       return `
         <div class="slide-container" style="
@@ -243,51 +345,8 @@ export async function POST(request: NextRequest) {
           ${categoryHtml}
 
           <!-- Main Content -->
-          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10;">
-            ${isCover ? `
-              <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
-                <h1 style="font-size: ${4.5 * fontScale}rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 3rem; color: ${activeTextColor}; ${textShadowStyle}">
-                  ${slide.title}
-                </h1>
-                ${slide.subtitle ? `
-                  <p style="font-size: ${2.25 * fontScale}rem; font-weight: 300; line-height: 1.625; opacity: 0.8; color: ${activeTextColor}; max-width: 64rem; ${textShadowStyle}">
-                    ${slide.subtitle}
-                  </p>
-                ` : ''}
-                ${mediaHtml}
-              </div>
-            ` : isChart ? `
-               <div style="display: flex; flex-direction: column; height: 100%;">
-                <div style="margin-bottom: 3rem;">
-                  ${slide.emoji ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : ''}
-                  <h2 style="font-size: ${3 * fontScale}rem; font-weight: 700; line-height: 1.2; margin-bottom: 1rem; color: ${activeAccentColor}; ${textShadowStyle}">
-                    ${slide.title}
-                  </h2>
-                  ${slide.content ? `<p style="font-size: ${1.75 * fontScale}rem; font-weight: 300; opacity: 0.8; color: ${activeTextColor}; ${textShadowStyle}">${slide.content.replace(/<[^>]*>?/gm, '')}</p>` : ''}
-                </div>
-                <div style="flex: 1; overflow: hidden; background: rgba(0,0,0,0.2); border-radius: 2rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1);">
-                   ${chartHtml}
-                </div>
-                ${mediaHtml}
-              </div>
-            ` : `
-              <div style="display: flex; flex-direction: column; height: 100%;">
-                <div style="margin-bottom: 3rem;">
-                  ${slide.emoji ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : ''}
-                  <h2 style="font-size: ${3 * fontScale}rem; font-weight: 700; line-height: 1.2; margin-bottom: 1rem; color: ${activeAccentColor}; ${textShadowStyle}">
-                    ${slide.title}
-                  </h2>
-                </div>
-                <div style="flex: 1; overflow: hidden;">
-                  ${slide.content ? `
-                    <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}">
-                      ${slide.content}
-                    </div>
-                  ` : ''}
-                </div>
-                ${mediaHtml}
-              </div>
-            `}
+          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; ${isCover ? 'justify-content: center;' : ''}">
+             ${innerContent}
           </div>
 
           <!-- Footer Handle -->
@@ -366,8 +425,10 @@ export async function POST(request: NextRequest) {
       const screenshots = await Promise.all(screenshotPromises);
       
       // Add images to slides
-      screenshots.forEach(imageBuffer => {
+      screenshots.forEach((imageBuffer, index) => {
         const slide = pptx.addSlide();
+        
+        // Add the base slide image (captured from Puppeteer)
         slide.addImage({ 
             data: `data:image/png;base64,${imageBuffer}`, 
             x: 0, 
@@ -375,6 +436,38 @@ export async function POST(request: NextRequest) {
             w: 11.25, 
             h: 11.25 
         });
+
+        // If this slide had an attached video, embed it now on top
+        // The dashboard sends a marker `_videoAttachmentIndex` which aligns with `video_${index}`
+        // Check if the slide data at this index had a video attachment marker
+        const slideData = slides[index];
+        if (slideData && (slideData as any)._hasAttachedVideo) {
+             const videoKey = `video_${index}`;
+             if (videoAttachments[videoKey]) {
+                 // Convert Buffer to base64 because pptxgenjs expects data-URI or path.
+                 // For server-side nodebuffer export, passing base64 data works best.
+                 const videoB64 = videoAttachments[videoKey].toString('base64');
+                 
+                 // Add video media centered on slide. 
+                 // We use the mediaAspectRatio to determine size if possible, or default to 16:9 fit.
+                 const ratio = slideData.mediaAspectRatio || (16/9);
+                 const vW = 10; // Almost full width (11.25 is max)
+                 const vH = vW / ratio;
+                 
+                 // Center it
+                 const vX = (11.25 - vW) / 2;
+                 const vY = (11.25 - vH) / 2;
+
+                 slide.addMedia({ 
+                     type: 'video',
+                     data: `data:video/mp4;base64,${videoB64}`,
+                     x: vX,
+                     y: vY,
+                     w: vW,
+                     h: vH,
+                 });
+             }
+        }
       });
 
       buffer = await pptx.write('nodebuffer') as Buffer;

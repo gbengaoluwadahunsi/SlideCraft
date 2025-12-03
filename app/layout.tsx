@@ -25,7 +25,7 @@ const oswald = Oswald({ subsets: ["latin"], variable: "--font-oswald" });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mono" });
 
 export const metadata: Metadata = {
-  title: "SlideCraft – Carousel Builder for Every Platform",
+  title: "Carouslk – Carousel Builder for Every Platform",
   description:
     "Transform any idea into swipe-worthy carousels for LinkedIn, Instagram, X, newsletters, and pitch decks. Customize, export, and publish in minutes.",
   icons: {

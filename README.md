@@ -1,4 +1,4 @@
-# SlideCraft Carousel Generator
+# Carouslk Carousel Generator
 
 This is a Next.js application that generates "Under The Hood" style carousels for LinkedIn, Instagram, X, newsletters, pitch decks, or any other platform where you need swipe-friendly storytelling.
 

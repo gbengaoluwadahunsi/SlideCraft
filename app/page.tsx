@@ -53,9 +53,9 @@ export default function LandingPage() {
       <nav className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center">
-             <span className="text-black font-bold text-xl">S</span>
+             <span className="text-black font-bold text-xl">C</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">SlideCraft</span>
+          <span className="text-xl font-bold tracking-tight">Carouslk</span>
         </div>
         <div className="flex items-center gap-3">
           <Link 
@@ -145,7 +145,7 @@ export default function LandingPage() {
                 </div>
                 <div className="px-4 py-1.5 bg-gray-800/50 rounded-md text-xs text-gray-400 flex items-center gap-2 w-80 border border-gray-700/50">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    slidecraft.new/untitled-project
+                    carouslk.new/untitled-project
                 </div>
                 <div className="w-16"></div>
             </div>
@@ -241,8 +241,8 @@ export default function LandingPage() {
 
                                 <div className="mt-auto flex items-center justify-between pt-8 border-t border-gray-100">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-md">S</div>
-                                        <span className="text-sm font-bold text-gray-400">@slidecraft</span>
+                                        <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-md">C</div>
+                                        <span className="text-sm font-bold text-gray-400">@carouslk</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-xs font-black text-gray-900 uppercase tracking-wider bg-[#ffd700] px-3 py-1 rounded-full">
                                         Swipe <ArrowRight size={12} />
@@ -322,7 +322,7 @@ export default function LandingPage() {
          <div className="max-w-4xl mx-auto bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 sm:p-12 border border-gray-700 text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-[#ffd700]"></div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to go viral?</h2>
-            <p className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using SlideCraft to stand out on LinkedIn, Instagram, X, and every other platform.</p>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using Carouslk to stand out on LinkedIn, Instagram, X, and every other platform.</p>
             <Link 
                 href="/dashboard" 
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm sm:text-base lg:text-lg font-bold rounded-xl transition transform hover:scale-105 sm:px-8 sm:py-4"
@@ -336,9 +336,9 @@ export default function LandingPage() {
       <footer className="border-t border-gray-800 py-12 text-center text-gray-500">
         <div className="flex items-center justify-center gap-2 mb-4">
           <div className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center">
-            <span className="text-black font-bold text-xl">S</span>
+            <span className="text-black font-bold text-xl">C</span>
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">SlideCraft</span>
+          <span className="text-xl font-bold text-white tracking-tight">Carouslk</span>
         </div>
         
         <div className="mb-8 flex justify-center gap-3 sm:gap-4">
@@ -356,7 +356,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <p>&copy; {new Date().getFullYear()} SlideCraft. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Carouslk. All rights reserved.</p>
       </footer>
 
     </div>

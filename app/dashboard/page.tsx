@@ -22,7 +22,8 @@ import {
   Trash2,
   Paperclip,
   FileText,
-  Trash
+  Trash,
+  Upload
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -54,7 +55,18 @@ interface SlideData {
   mediaUrl?: string;
   embedHtml?: string;
   mediaAspectRatio?: number;
+  mediaWidthPercent?: number;
+  mediaAlignment?: 'left' | 'center' | 'right';
+  elementOrder?: string[];
 }
+
+const sanitizeEmoji = (value: string | undefined | null) => {
+  if (!value) return '';
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+};
 
 export default function DashboardPage() {
   const [activeSlideId, setActiveSlideId] = useState<string>('1');
@@ -91,11 +103,16 @@ export default function DashboardPage() {
       subtitle: 'How to create viral carousels in minutes.',
       category: 'UNDER THE HOOD',
       accentColor: '#ffd700',
-      handle: '@slidecraft',
+      handle: '@carouslk',
       fontFamily: 'var(--font-inter)',
       fontScale: 1,
       backgroundColor: '#0B0F19',
-      textColor: '#ffffff'
+      textColor: '#ffffff',
+      mediaType: null,
+      mediaAspectRatio: 16 / 9,
+      mediaWidthPercent: 100,
+      mediaAlignment: 'center',
+      elementOrder: ['title', 'subtitle', 'media'],
     },
     {
       id: '2',
@@ -105,11 +122,16 @@ export default function DashboardPage() {
       emoji: '🪝',
       category: 'UNDER THE HOOD',
       accentColor: '#ffd700',
-      handle: '@slidecraft',
+      handle: '@carouslk',
       fontFamily: 'var(--font-inter)',
       fontScale: 1,
       backgroundColor: '#0B0F19',
-      textColor: '#ffffff'
+      textColor: '#ffffff',
+      mediaType: null,
+      mediaAspectRatio: 16 / 9,
+      mediaWidthPercent: 100,
+      mediaAlignment: 'center',
+      elementOrder: ['emoji', 'title', 'content', 'media'],
     },
     {
         id: '3',
@@ -119,11 +141,16 @@ export default function DashboardPage() {
         emoji: '📖',
         category: 'UNDER THE HOOD',
         accentColor: '#ffd700',
-        handle: '@slidecraft',
+        handle: '@carouslk',
         fontFamily: 'var(--font-inter)',
         fontScale: 1,
         backgroundColor: '#0B0F19',
-        textColor: '#ffffff'
+        textColor: '#ffffff',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['emoji', 'title', 'content', 'media'],
       }
   ]);
 
@@ -137,6 +164,9 @@ export default function DashboardPage() {
       fontScale: slide.fontScale ?? 1,
       mediaType: slide.mediaType ?? null,
       mediaAspectRatio: slide.mediaAspectRatio ?? 16 / 9,
+      mediaWidthPercent: typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100,
+      mediaAlignment: slide.mediaAlignment || 'center',
+      elementOrder: slide.elementOrder || (slide.type === 'cover' ? ['title', 'subtitle', 'media'] : slide.type === 'chart' ? ['emoji', 'title', 'content', 'chart', 'media'] : ['emoji', 'title', 'content', 'media']),
       id: slide.id || `${timestamp}-${index}`,
     }));
   };
@@ -221,7 +251,7 @@ export default function DashboardPage() {
       emoji: '✨',
       category: 'UNDER THE HOOD',
       accentColor: slides[0]?.accentColor || '#ffd700',
-      handle: slides[0]?.handle || '@slidecraft',
+      handle: slides[0]?.handle || '@carouslk',
       fontFamily: slides[0]?.fontFamily || 'var(--font-inter)',
       fontScale: slides[0]?.fontScale || 1,
       backgroundColor: slides[0]?.backgroundColor || '#0B0F19',
@@ -230,6 +260,9 @@ export default function DashboardPage() {
       mediaUrl: undefined,
       embedHtml: undefined,
       mediaAspectRatio: 16 / 9,
+      mediaWidthPercent: 100,
+      mediaAlignment: 'center',
+      elementOrder: ['emoji', 'title', 'content', 'media'],
     }]);
     setActiveSlideId(newId);
   };
@@ -359,14 +392,36 @@ export default function DashboardPage() {
     }
   };
 
+  const handleMediaImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setSlides(slides.map(s => s.id === activeSlide.id ? { 
+            ...s, 
+            mediaType: 'image', 
+            mediaUrl: result 
+        } : s));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
             const result = event.target?.result as string;
-            // Apply background image to ALL slides
-            setSlides(slides.map(s => ({ ...s, backgroundImage: result })));
+            if (activeTool === 'image') {
+                 // Global image tool was clicked: Apply to ALL slides
+                 setSlides(slides.map(s => ({ ...s, backgroundImage: result })));
+                 setActiveTool('select');
+            } else {
+                 // Upload triggered from Properties Panel: Apply to CURRENT slide only
+                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result } : s));
+            }
         };
         reader.readAsDataURL(file);
     }
@@ -423,27 +478,124 @@ export default function DashboardPage() {
     if (docUploadInputRef.current) docUploadInputRef.current.value = '';
   };
 
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const url = URL.createObjectURL(file);
+    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: url } : s));
+  };
+
+  // Helper: Capture a video frame to a base64 image
+  const captureVideoFrame = async (videoSrc: string): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous'; // Try to handle CORS if possible, though blobs are local
+        video.src = videoSrc;
+        video.muted = true;
+        video.currentTime = 1; // Capture frame at 1s
+        
+        video.onloadeddata = () => {
+             // Wait a bit for seek
+             video.currentTime = 1;
+        };
+
+        video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                try {
+                    const dataUrl = canvas.toDataURL('image/png');
+                    resolve(dataUrl);
+                } catch (e) {
+                    console.warn('Canvas taint error (CORS)', e);
+                    resolve(null); 
+                }
+            } else {
+                resolve(null);
+            }
+            // Cleanup
+            video.remove();
+        };
+
+        video.onerror = () => {
+            console.warn('Video load error for capture');
+            resolve(null);
+            video.remove();
+        };
+      });
+  };
+
   const handleExport = async (format: 'pdf' | 'ppt') => {
     setIsExporting(format);
     try {
-      // Optimize payload: If all slides have the same background image, move it to options
-      // and remove from individual slides to save bandwidth/limit
-      const globalBackgroundImage = slides[0]?.backgroundImage;
-      const allSlidesHaveSameBg = slides.every(s => s.backgroundImage === globalBackgroundImage);
+      // Pre-process slides: Capture thumbnails for PDF, but keep raw blobs for PPT if needed (though standard fetch can't send blobs easily without FormData)
+      const processedSlides = await Promise.all(slides.map(async (slide) => {
+          // PDF Export: Always use thumbnail
+          if (format === 'pdf' && slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
+              const thumbnail = await captureVideoFrame(slide.mediaUrl);
+              if (thumbnail) {
+                  return {
+                      ...slide,
+                      mediaType: 'embed',
+                      embedHtml: `
+                        <div style="display: flex; flex-direction: column; align-items: center; width: 100%; gap: 1rem;">
+                            <img src="${thumbnail}" alt="Video Thumbnail" style="width: 100%; border-radius: 1rem; object-fit: cover; aspect-ratio: ${slide.mediaAspectRatio || 16/9}; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+                            <a href="${slide.mediaUrl}" target="_blank" style="color: inherit; text-decoration: underline; font-size: 1rem; opacity: 0.8; font-family: monospace;">
+                                Watch Video
+                            </a>
+                        </div>
+                      `
+                  };
+              }
+          }
+          return slide;
+      }));
+
+      // Prepare FormData to handle binary uploads for PPT video embedding
+      const formData = new FormData();
+      const slidesPayload = processedSlides.map((slide, index) => {
+           // For PPT export with local video, we need to send the file
+           if (format === 'ppt' && slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
+               // We can't easily retrieve the original File object from the blob URL here 
+               // unless we stored it. But we can fetch the blob content.
+               return { ...slide, _hasAttachedVideo: true, _videoAttachmentIndex: index };
+           }
+           return slide;
+      });
+
+      // If exporting PPT, fetch and attach video blobs
+      if (format === 'ppt') {
+          await Promise.all(slidesPayload.map(async (slide, index) => {
+              if ((slide as any)._hasAttachedVideo && slide.mediaUrl) {
+                  try {
+                      const blobRes = await fetch(slide.mediaUrl);
+                      const blob = await blobRes.blob();
+                      // Append with a unique key
+                      formData.append(`video_${index}`, blob, 'video.mp4');
+                  } catch (e) {
+                      console.error('Failed to fetch local video blob for upload', e);
+                  }
+              }
+          }));
+      }
+
+      const globalBackgroundImage = slidesPayload[0]?.backgroundImage;
+      const allSlidesHaveSameBg = slidesPayload.every(s => s.backgroundImage === globalBackgroundImage);
       
-      const slidesPayload = allSlidesHaveSameBg 
-        ? slides.map((slide) => {
+      const finalSlidesPayload = allSlidesHaveSameBg 
+        ? slidesPayload.map((slide) => {
             const clone = { ...slide };
             delete clone.backgroundImage;
             return clone;
           })
-        : slides;
+        : slidesPayload;
 
-      const response = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          slides: slidesPayload, 
+      formData.append('data', JSON.stringify({ 
+          slides: finalSlidesPayload, 
           format,
           options: {
             category: slides[0]?.category,
@@ -452,11 +604,15 @@ export default function DashboardPage() {
             fontFamily: slides[0]?.fontFamily,
             backgroundColor: slides[0]?.backgroundColor,
             textColor: slides[0]?.textColor,
-            // Pass global background if applicable
             backgroundImage: allSlidesHaveSameBg ? globalBackgroundImage : undefined,
             backgroundOverlayOpacity: slides[0]?.backgroundOverlayOpacity
           }
-        }),
+      }));
+
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        // headers: { 'Content-Type': 'multipart/form-data' }, // Do NOT set content-type manually with FormData, browser does it
+        body: formData,
       });
 
       if (!response.ok) throw new Error('Export failed');
@@ -465,7 +621,7 @@ export default function DashboardPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `slidecraft-export.${format === 'ppt' ? 'pptx' : 'pdf'}`;
+      a.download = `carouslk-export.${format === 'ppt' ? 'pptx' : 'pdf'}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -473,7 +629,6 @@ export default function DashboardPage() {
       setIsExportOpen(false);
     } catch (error) {
       console.error('Export failed:', error);
-      // Show error toast here
     } finally {
       setIsExporting(null);
     }
@@ -567,25 +722,172 @@ export default function DashboardPage() {
           </div>
         )}
 
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400">Slide Emoji / Icon</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              inputMode="text"
+              maxLength={8}
+              value={sanitizeEmoji(activeSlide.emoji)}
+              onChange={(e) => {
+                const cleaned = sanitizeEmoji(e.target.value);
+                setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: cleaned } : s));
+              }}
+              placeholder="✨"
+              className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+            />
+            {activeSlide.emoji && activeSlide.emoji.trim() !== '' && (
+              <button
+                onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: '' } : s))}
+                className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition"
+                title="Remove emoji"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-500">Leave empty to hide the emoji block.</p>
+        </div>
+
+        <div className="space-y-3 pt-4 border-t border-gray-700">
+          <label className="text-xs text-gray-400">Background Image</label>
+          
+          {activeSlide.backgroundImage ? (
+              <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
+                  <img src={activeSlide.backgroundImage} className="w-full h-full object-cover opacity-60" alt="Background" />
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
+                      <button 
+                          onClick={() => {
+                              // Trigger file input for specific slide
+                              // We can reuse the main input but need to ensure activeTool is NOT 'image'
+                              setActiveTool('select'); 
+                              fileInputRef.current?.click();
+                          }}
+                          className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600"
+                          title="Change Image"
+                      >
+                          <ImageIcon size={14} />
+                      </button>
+                      <button 
+                          onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined } : s))}
+                          className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
+                          title="Remove Image"
+                      >
+                          <Trash2 size={14} />
+                      </button>
+                  </div>
+              </div>
+          ) : (
+            <button 
+                onClick={() => {
+                    setActiveTool('select');
+                    fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800 transition group"
+            >
+                <ImageIcon size={16} className="group-hover:scale-110 transition" />
+                <span className="text-xs">Upload Background Image</span>
+            </button>
+          )}
+          
+          {activeSlide.backgroundImage && (
+             <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                    <span>Overlay Opacity</span>
+                    <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
+                </div>
+                <input
+                    type="range"
+                    min={0}
+                    max={0.9}
+                    step={0.1}
+                    value={activeSlide.backgroundOverlayOpacity ?? 0.5}
+                    onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                    }}
+                    className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                />
+             </div>
+          )}
+        </div>
+
         <div className="space-y-3 pt-4 border-t border-gray-700">
           <label className="text-xs text-gray-400">Media / Embeds</label>
           <select
             value={activeSlide.mediaType || 'none'}
             onChange={(e) => {
-              const value = e.target.value === 'none' ? null : (e.target.value as 'video' | 'embed');
+              const value = e.target.value === 'none' ? null : (e.target.value as 'video' | 'embed' | 'image');
               setSlides(slides.map(s => s.id === activeSlide.id ? {
                 ...s,
                 mediaType: value,
-                mediaUrl: value === 'video' ? s.mediaUrl : undefined,
+                mediaUrl: (value === 'video' || value === 'image') ? s.mediaUrl : undefined,
                 embedHtml: value === 'embed' ? s.embedHtml : undefined,
               } : s));
             }}
             className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
           >
             <option value="none">None</option>
+            <option value="image">Image Block</option>
             <option value="video">Video / Map iframe</option>
             <option value="embed">Custom embed HTML</option>
           </select>
+
+          {activeSlide.mediaType === 'image' && (
+             <div className="space-y-2">
+                <label className="text-xs text-gray-400">Image Source</label>
+                {activeSlide.mediaUrl ? (
+                    <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40">
+                        <img src={activeSlide.mediaUrl} className="w-full h-full object-contain" alt="Media Block" />
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
+                            <label className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600 cursor-pointer">
+                                <ImageIcon size={14} />
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                    onChange={handleMediaImageUpload}
+                                />
+                            </label>
+                            <button 
+                                onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: undefined } : s))}
+                                className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
+                                title="Remove Image"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <label className="flex items-center justify-center w-full px-3 py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group border-dashed">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleMediaImageUpload}
+                        />
+                        <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-white">
+                            <ImageIcon size={20} />
+                            <span className="text-xs">Upload Image Block</span>
+                        </div>
+                    </label>
+                )}
+                 <label className="text-xs text-gray-400 mt-2 block">Aspect ratio</label>
+                 <input
+                    type="number"
+                    min={0.5}
+                    max={3}
+                    step={0.05}
+                    value={activeSlide.mediaAspectRatio ?? 16 / 9}
+                    onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 16 / 9;
+                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                />
+             </div>
+          )}
 
           {activeSlide.mediaType === 'video' && (
             <div className="space-y-2">
@@ -600,6 +902,24 @@ export default function DashboardPage() {
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
               />
+              
+              <div className="flex items-center gap-2 my-2">
+                <div className="h-px bg-gray-700 flex-1"></div>
+                <span className="text-[10px] text-gray-500 uppercase">OR</span>
+                <div className="h-px bg-gray-700 flex-1"></div>
+              </div>
+              
+              <label className="flex items-center justify-center w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group">
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  className="hidden" 
+                  onChange={handleVideoUpload}
+                />
+                <Upload size={14} className="text-gray-400 group-hover:text-white mr-2" />
+                <span className="text-xs text-gray-300 group-hover:text-white">Upload Video</span>
+              </label>
+
               <label className="text-xs text-gray-400">Aspect ratio</label>
               <input
                 type="number"
@@ -634,6 +954,78 @@ export default function DashboardPage() {
               <p className="text-[10px] text-gray-500">
                 Paste trusted embed snippets (charts, maps, dashboards). Scripts are not executed.
               </p>
+            </div>
+          )}
+
+          {activeSlide.mediaType && (
+            <div className="space-y-3 pt-3 border-t border-gray-800">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400">Media Width</label>
+                <span className="text-xs text-gray-500">
+                  {Math.round(activeSlide.mediaWidthPercent ?? 100)}%
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={1}
+                  value={activeSlide.mediaWidthPercent ?? 100}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: value } : s));
+                  }}
+                  className="flex-1"
+                  style={{ accentColor: '#ffd700' }}
+                />
+                <input
+                  type="number"
+                  min={10}
+                  max={100}
+                  value={Math.round(activeSlide.mediaWidthPercent ?? 100)}
+                  onChange={(e) => {
+                    const value = Math.min(100, Math.max(10, parseInt(e.target.value, 10) || 10));
+                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: value } : s));
+                  }}
+                  className="w-16 bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[25, 40, 55, 70, 85, 100].map(preset => (
+                  <button
+                    key={preset}
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: preset } : s))}
+                    className={`px-3 py-1.5 rounded-lg text-xs border transition ${
+                      Math.round(activeSlide.mediaWidthPercent ?? 100) === preset
+                        ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
+                        : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                    }`}
+                  >
+                    {preset}%
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400">Alignment</label>
+                <div className="flex gap-2">
+                  {(['left', 'center', 'right'] as const).map(position => (
+                    <button
+                      key={position}
+                      onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAlignment: position } : s))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs uppercase tracking-wide border transition ${
+                        (activeSlide.mediaAlignment || 'center') === position
+                          ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
+                          : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {position}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -674,14 +1066,22 @@ export default function DashboardPage() {
           </div>
           <div className="flex bg-gray-900 rounded-lg p-1 gap-1">
             <button
-              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, type: 'cover' } : s))}
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { 
+                  ...s, 
+                  type: 'cover',
+                  elementOrder: ['title', 'subtitle', 'media'] 
+              } : s))}
               className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'cover' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
               title="Cover Slide"
             >
               <Layout size={14} /> Cover
             </button>
             <button
-              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, type: 'content' } : s))}
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { 
+                  ...s, 
+                  type: 'content',
+                  elementOrder: ['emoji', 'title', 'content', 'media']
+              } : s))}
               className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'content' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
               title="Content Slide"
             >
@@ -697,7 +1097,8 @@ export default function DashboardPage() {
                   { name: 'B', value: 30 },
                   { name: 'C', value: 20 },
                   { name: 'D', value: 27 },
-                ]
+                ],
+                elementOrder: ['emoji', 'title', 'content', 'chart', 'media']
               } : s))}
               className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'chart' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
               title="Chart Slide"
@@ -816,10 +1217,10 @@ export default function DashboardPage() {
           </Link>
           <div className="flex items-center gap-2">
              <div className="w-6 h-6 bg-[#ffd700] rounded-md rotate-3 flex items-center justify-center">
-                <span className="text-black font-bold text-xs">S</span>
+                <span className="text-black font-bold text-xs">C</span>
              </div>
              <span className="font-bold tracking-tight text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">
-                SlideCraft / {projectName}
+                Carouslk / {projectName}
              </span>
           </div>
         </div>

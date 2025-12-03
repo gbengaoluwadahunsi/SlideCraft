@@ -55,6 +55,32 @@ export const TextToolbar = () => {
     document.execCommand(command, false, value);
   };
 
+  const adjustSelectionFontSize = (delta: number) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const parentElement = range.startContainer.parentElement;
+    const computedSize = parentElement
+      ? parseFloat(window.getComputedStyle(parentElement).fontSize || '16')
+      : 16;
+    const newSize = Math.min(96, Math.max(12, computedSize + delta));
+
+    const wrapper = document.createElement('span');
+    wrapper.style.fontSize = `${newSize}px`;
+
+    wrapper.appendChild(range.extractContents());
+    range.insertNode(wrapper);
+
+    // Re-select the updated content so the user can continue editing
+    selection.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(wrapper);
+    selection.addRange(newRange);
+  };
+
   const fonts = [
     { name: 'Default', value: 'inherit', style: { fontFamily: 'inherit' } },
     { name: 'Inter', value: 'var(--font-inter)', style: { fontFamily: 'var(--font-inter)' } },
@@ -108,6 +134,26 @@ export const TextToolbar = () => {
                 ))}
             </div>
         )}
+      </div>
+
+      <div className="w-px h-4 bg-gray-700 mx-1"></div>
+
+      {/* Font size controls */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => adjustSelectionFontSize(-2)}
+          className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
+          title="Decrease font size"
+        >
+          A-
+        </button>
+        <button
+          onClick={() => adjustSelectionFontSize(2)}
+          className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
+          title="Increase font size"
+        >
+          A+
+        </button>
       </div>
 
       <div className="w-px h-4 bg-gray-700 mx-1"></div>

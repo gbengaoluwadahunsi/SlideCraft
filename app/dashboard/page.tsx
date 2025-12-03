@@ -9,24 +9,23 @@ import {
   Settings, 
   Plus, 
   Download, 
-  ArrowRight, 
   MousePointer2, 
   Type, 
   Image as ImageIcon, 
-  RefreshCw,
   ChevronLeft,
-  MoreVertical,
   PanelRight,
   X,
   Loader2,
   BarChart3,
   LineChart,
-  PieChart
+  PieChart,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
 import { TextToolbar } from '@/components/TextToolbar';
-import { THEMES, Theme } from '@/app/constants/themes';
+import { THEMES } from '@/app/constants/themes';
+import { toPng } from 'html-to-image';
 
 // Types matching Slide.tsx
 interface SlideData {
@@ -40,6 +39,7 @@ interface SlideData {
   accentColor?: string;
   handle?: string;
   fontFamily?: string;
+  fontScale?: number;
   backgroundColor?: string;
   textColor?: string;
   backgroundImage?: string;
@@ -63,6 +63,9 @@ export default function DashboardPage() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image'>('select');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const slideDownloadRef = useRef<HTMLDivElement>(null);
+  const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
+  const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [slides, setSlides] = useState<SlideData[]>([
     {
@@ -74,6 +77,7 @@ export default function DashboardPage() {
       accentColor: '#ffd700',
       handle: '@slidecraft',
       fontFamily: 'var(--font-inter)',
+      fontScale: 1,
       backgroundColor: '#0B0F19',
       textColor: '#ffffff'
     },
@@ -87,6 +91,7 @@ export default function DashboardPage() {
       accentColor: '#ffd700',
       handle: '@slidecraft',
       fontFamily: 'var(--font-inter)',
+      fontScale: 1,
       backgroundColor: '#0B0F19',
       textColor: '#ffffff'
     },
@@ -100,6 +105,7 @@ export default function DashboardPage() {
         accentColor: '#ffd700',
         handle: '@slidecraft',
         fontFamily: 'var(--font-inter)',
+        fontScale: 1,
         backgroundColor: '#0B0F19',
         textColor: '#ffffff'
       }
@@ -107,6 +113,15 @@ export default function DashboardPage() {
 
   const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
+
+  const normalizeSlides = (incomingSlides: SlideData[]) => {
+    const timestamp = Date.now();
+    return incomingSlides.map((slide, index) => ({
+      ...slide,
+      fontScale: slide.fontScale ?? 1,
+      id: slide.id || `${timestamp}-${index}`,
+    }));
+  };
 
   const goToSlideByIndex = (index: number) => {
     const target = slides[index];
@@ -127,10 +142,77 @@ export default function DashboardPage() {
       accentColor: slides[0]?.accentColor || '#ffd700',
       handle: slides[0]?.handle || '@slidecraft',
       fontFamily: slides[0]?.fontFamily || 'var(--font-inter)',
+      fontScale: slides[0]?.fontScale || 1,
       backgroundColor: slides[0]?.backgroundColor || '#0B0F19',
       textColor: slides[0]?.textColor || '#ffffff'
     }]);
     setActiveSlideId(newId);
+  };
+
+  const getSlideFilename = (slide: SlideData, index: number) => {
+    const sanitized = (slide.title || '')
+      .replace(/<[^>]*>/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 24);
+    const fallback = sanitized || `slide-${index + 1}`;
+    const suffix = (index + 1).toString().padStart(2, '0');
+    return `${fallback}-${suffix}`;
+  };
+
+  const handleDeleteSlide = (id: string) => {
+    if (slides.length === 1) {
+      alert('You need at least one slide in your project.');
+      return;
+    }
+
+    const targetIndex = slides.findIndex(s => s.id === id);
+    const updatedSlides = slides.filter(s => s.id !== id);
+    setSlides(updatedSlides);
+
+    if (activeSlideId === id && updatedSlides.length > 0) {
+      const fallbackIndex = Math.min(targetIndex, updatedSlides.length - 1);
+      setActiveSlideId(updatedSlides[fallbackIndex].id);
+    }
+  };
+
+  const handleDownloadSlideImage = async (slide: SlideData, index: number) => {
+    try {
+      setDownloadingSlideId(slide.id);
+      setSlideDownloadData(slide);
+
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+      if (!slideDownloadRef.current) {
+        throw new Error('Slide canvas not available');
+      }
+
+      const dataUrl = await toPng(slideDownloadRef.current, {
+        cacheBust: true,
+        width: 1080,
+        height: 1080,
+        pixelRatio: 2,
+      });
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${getSlideFilename(slide, index)}.png`;
+      link.click();
+    } catch (error) {
+      console.error('Single slide download failed:', error);
+    } finally {
+      setDownloadingSlideId(null);
+      setSlideDownloadData(null);
+    }
+  };
+
+  const adjustFontScale = (delta: number) => {
+    if (!activeSlide) return;
+    const current = activeSlide.fontScale ?? 1;
+    const next = Math.min(1.5, Math.max(0.7, parseFloat((current + delta).toFixed(2))));
+    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, fontScale: next } : s));
   };
 
   const handleAiGenerate = async () => {
@@ -147,9 +229,10 @@ export default function DashboardPage() {
       const data = await response.json();
       
       if (data.slides && Array.isArray(data.slides)) {
-        setSlides(data.slides);
-        if (data.slides.length > 0) {
-          setActiveSlideId(data.slides[0].id);
+        const normalized = normalizeSlides(data.slides);
+        setSlides(normalized);
+        if (normalized.length > 0) {
+          setActiveSlideId(normalized[0].id);
         }
         setIsAiModalOpen(false);
       }
@@ -200,7 +283,11 @@ export default function DashboardPage() {
       const allSlidesHaveSameBg = slides.every(s => s.backgroundImage === globalBackgroundImage);
       
       const slidesPayload = allSlidesHaveSameBg 
-        ? slides.map(({ backgroundImage, ...rest }) => rest) // Remove bg from slides
+        ? slides.map((slide) => {
+            const clone = { ...slide };
+            delete clone.backgroundImage;
+            return clone;
+          })
         : slides;
 
       const response = await fetch('/api/export', {
@@ -264,6 +351,43 @@ export default function DashboardPage() {
             }}
             className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
           />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400">Font Size</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={0.7}
+              max={1.5}
+              step={0.05}
+              aria-label="Font size"
+              value={activeSlide.fontScale ?? 1}
+              onChange={(e) => {
+                const newScale = parseFloat(e.target.value);
+                setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
+              }}
+              className="flex-1"
+              style={{ accentColor: '#ffd700' }}
+            />
+            <span className="text-xs text-gray-300 w-12 text-right">
+              {Math.round((activeSlide.fontScale ?? 1) * 100)}%
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => adjustFontScale(-0.05)}
+              className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+            >
+              A-
+            </button>
+            <button
+              onClick={() => adjustFontScale(0.05)}
+              className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+            >
+              A+
+            </button>
+          </div>
         </div>
 
         {activeSlide.type === 'cover' && (
@@ -450,6 +574,20 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#0B0F19] text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden">
       <TextToolbar />
+      <div
+        aria-hidden="true"
+        className="absolute"
+        style={{ width: 1, height: 1, top: -9999, left: -9999, pointerEvents: 'none' }}
+      >
+        <div ref={slideDownloadRef} className="w-[1080px] h-[1080px]">
+          {slideDownloadData && (
+            <Slide
+              {...slideDownloadData}
+              isEditable={false}
+            />
+          )}
+        </div>
+      </div>
       {/* Header */}
       <header className="h-14 border-b border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between shrink-0 z-20">
         <div className="flex items-center gap-4">
@@ -557,6 +695,37 @@ export default function DashboardPage() {
                             <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition flex items-center justify-center">
                                 <div className="transform scale-[0.15] origin-center pointer-events-none">
                                     <Slide {...slide} />
+                                </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                                <span className="uppercase tracking-wide text-[10px]">{slide.type}</span>
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownloadSlideImage(slide, index);
+                                        }}
+                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition disabled:opacity-40"
+                                        title="Download slide as PNG"
+                                        disabled={downloadingSlideId !== null && downloadingSlideId !== slide.id}
+                                    >
+                                        {downloadingSlideId === slide.id ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <Download size={14} />
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteSlide(slide.id);
+                                        }}
+                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-red-300 hover:border-red-500 transition disabled:opacity-40"
+                                        title={slides.length === 1 ? 'You need at least one slide' : 'Delete slide'}
+                                        disabled={slides.length === 1}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -949,6 +1118,28 @@ export default function DashboardPage() {
                         <Slide {...slide} />
                       </div>
                     </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadSlideImage(slide, index);
+                        }}
+                        className="px-3 py-1 rounded-lg border border-gray-700 text-gray-200 text-xs hover:text-white hover:border-gray-500 transition disabled:opacity-40"
+                        disabled={downloadingSlideId !== null && downloadingSlideId !== slide.id}
+                      >
+                        {downloadingSlideId === slide.id ? 'Downloading…' : 'Download'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSlide(slide.id);
+                        }}
+                        className="px-3 py-1 rounded-lg border border-gray-700 text-red-300 text-xs hover:border-red-500 transition disabled:opacity-40"
+                        disabled={slides.length === 1}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1103,7 +1294,7 @@ export default function DashboardPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  What's your carousel about?
+                  What&apos;s your carousel about?
                 </label>
                 <textarea
                   value={aiPrompt}

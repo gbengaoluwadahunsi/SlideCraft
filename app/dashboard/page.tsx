@@ -32,6 +32,15 @@ import { THEMES } from '@/app/constants/themes';
 import { toPng } from 'html-to-image';
 
 // Types matching Slide.tsx
+interface CustomBlock {
+  id: string;
+  html: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface SlideData {
   id: string;
   type: 'cover' | 'content' | 'chart';
@@ -58,6 +67,7 @@ interface SlideData {
   mediaWidthPercent?: number;
   mediaAlignment?: 'left' | 'center' | 'right';
   elementOrder?: string[];
+  customBlocks?: CustomBlock[];
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -81,8 +91,10 @@ export default function DashboardPage() {
   const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlideCount, setAiSlideCount] = useState(6);
-  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image'>('select');
+  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const docUploadInputRef = useRef<HTMLInputElement>(null);
   const slideDownloadRef = useRef<HTMLDivElement>(null);
   const slidesScrollRef = useRef<HTMLDivElement>(null);
@@ -113,6 +125,7 @@ export default function DashboardPage() {
       mediaWidthPercent: 100,
       mediaAlignment: 'center',
       elementOrder: ['title', 'subtitle', 'media'],
+      customBlocks: [],
     },
     {
       id: '2',
@@ -132,6 +145,7 @@ export default function DashboardPage() {
       mediaWidthPercent: 100,
       mediaAlignment: 'center',
       elementOrder: ['emoji', 'title', 'content', 'media'],
+      customBlocks: [],
     },
     {
         id: '3',
@@ -151,14 +165,25 @@ export default function DashboardPage() {
         mediaWidthPercent: 100,
         mediaAlignment: 'center',
         elementOrder: ['emoji', 'title', 'content', 'media'],
+        customBlocks: [],
       }
   ]);
 
   const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
 
+  const createCustomBlock = (): CustomBlock => ({
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `block-${Date.now()}-${Math.random()}`,
+    html: '<p>Text block</p>',
+    x: 100,
+    y: 400,
+    width: 360,
+    height: 140,
+  });
+
   const normalizeSlides = (incomingSlides: SlideData[]) => {
     const timestamp = Date.now();
+    const baseSlide = slides[0];
     return incomingSlides.map((slide, index) => ({
       ...slide,
       fontScale: slide.fontScale ?? 1,
@@ -166,7 +191,11 @@ export default function DashboardPage() {
       mediaAspectRatio: slide.mediaAspectRatio ?? 16 / 9,
       mediaWidthPercent: typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100,
       mediaAlignment: slide.mediaAlignment || 'center',
+      category: slide.category ?? baseSlide?.category ?? 'UNDER THE HOOD',
+      handle: slide.handle ?? baseSlide?.handle ?? '@carouslk',
+      accentColor: slide.accentColor ?? baseSlide?.accentColor,
       elementOrder: slide.elementOrder || (slide.type === 'cover' ? ['title', 'subtitle', 'media'] : slide.type === 'chart' ? ['emoji', 'title', 'content', 'chart', 'media'] : ['emoji', 'title', 'content', 'media']),
+      customBlocks: Array.isArray(slide.customBlocks) ? slide.customBlocks : [],
       id: slide.id || `${timestamp}-${index}`,
     }));
   };
@@ -263,6 +292,7 @@ export default function DashboardPage() {
       mediaWidthPercent: 100,
       mediaAlignment: 'center',
       elementOrder: ['emoji', 'title', 'content', 'media'],
+      customBlocks: [],
     }]);
     setActiveSlideId(newId);
   };
@@ -301,6 +331,7 @@ export default function DashboardPage() {
       setDownloadingSlideId(slide.id);
       setSlideDownloadData(slide);
 
+      // Wait for DOM to update and render
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
       if (!slideDownloadRef.current) {
@@ -314,10 +345,18 @@ export default function DashboardPage() {
         pixelRatio: 2,
       });
 
+      // Use download API instead of link.click() to avoid "multiple files" prompt
+      const blob = await (await fetch(dataUrl)).blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = dataUrl;
+      link.href = url;
       link.download = `${getSlideFilename(slide, index)}.png`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
     } catch (error) {
       console.error('Single slide download failed:', error);
     } finally {
@@ -377,19 +416,29 @@ export default function DashboardPage() {
     }
   };
 
-  const handleToolClick = (tool: 'select' | 'text' | 'image') => {
+  const handleToolClick = (tool: 'select' | 'text' | 'image' | 'color') => {
     setActiveTool(tool);
     if (tool === 'image') {
         fileInputRef.current?.click();
-        // Reset to select after triggering file dialog, or keep as image to allow multiple? 
-        // Usually better to reset or stay. Let's stay for now, but triggering click is one-off.
-        setTimeout(() => setActiveTool('select'), 500); 
+        // Don't reset activeTool here - let handleImageUpload do it after applying the image
     } else if (tool === 'text') {
-        // For text, we append a new paragraph to content
-        const newContent = (activeSlide.content || '') + '<p>New text block</p>';
-        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, content: newContent } : s));
-        setActiveTool('select'); // Reset to select so they can edit it
+        if (!activeSlide) return;
+        const newBlock = createCustomBlock();
+        setSlides(slides.map(s => s.id === activeSlide.id ? { 
+          ...s, 
+          customBlocks: [...(s.customBlocks || []), newBlock], 
+        } : s));
+        setActiveTool('select');
+    } else if (tool === 'color') {
+        colorInputRef.current?.click();
+        setTimeout(() => setActiveTool('select'), 100);
     }
+  };
+
+  const handleBackgroundColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const color = e.target.value;
+    // Apply to all slides
+    setSlides(slides.map(s => ({ ...s, backgroundColor: color })));
   };
 
   const handleMediaImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -415,15 +464,19 @@ export default function DashboardPage() {
         reader.onload = (event) => {
             const result = event.target?.result as string;
             if (activeTool === 'image') {
-                 // Global image tool was clicked: Apply to ALL slides
+                 // Toolbar button: Apply to ALL slides
                  setSlides(slides.map(s => ({ ...s, backgroundImage: result })));
-                 setActiveTool('select');
             } else {
-                 // Upload triggered from Properties Panel: Apply to CURRENT slide only
+                 // Properties panel button: Apply to CURRENT slide only
                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result } : s));
             }
+            // Reset tool after applying
+            setActiveTool('select');
         };
         reader.readAsDataURL(file);
+    } else {
+        // User cancelled - reset tool
+        setActiveTool('select');
     }
     // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -648,7 +701,7 @@ export default function DashboardPage() {
           <label className="text-xs text-gray-400">Title</label>
           <input
             type="text"
-            value={activeSlide.title}
+            value={activeSlide.title || ''}
             onChange={(e) => {
               const newTitle = e.target.value;
               setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
@@ -729,7 +782,7 @@ export default function DashboardPage() {
               type="text"
               inputMode="text"
               maxLength={8}
-              value={sanitizeEmoji(activeSlide.emoji)}
+              value={sanitizeEmoji(activeSlide.emoji) || ''}
               onChange={(e) => {
                 const cleaned = sanitizeEmoji(e.target.value);
                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: cleaned } : s));
@@ -751,7 +804,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400">Background Image</label>
+          <label className="text-xs text-gray-400">Background Image (Current Slide)</label>
           
           {activeSlide.backgroundImage ? (
               <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
@@ -787,7 +840,7 @@ export default function DashboardPage() {
                 className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800 transition group"
             >
                 <ImageIcon size={16} className="group-hover:scale-110 transition" />
-                <span className="text-xs">Upload Background Image</span>
+                <span className="text-xs">Upload for This Slide</span>
             </button>
           )}
           
@@ -1153,7 +1206,7 @@ export default function DashboardPage() {
                   <div key={idx} className="flex gap-2 items-center">
                     <input
                       type="text"
-                      value={point.name}
+                      value={point.name || ''}
                       onChange={(e) => {
                         const newData = [...(activeSlide.chartData || [])];
                         newData[idx].name = e.target.value;
@@ -1164,7 +1217,7 @@ export default function DashboardPage() {
                     />
                     <input
                       type="number"
-                      value={point.value}
+                      value={point.value ?? 0}
                       onChange={(e) => {
                         const newData = [...(activeSlide.chartData || [])];
                         newData[idx].value = parseInt(e.target.value) || 0;
@@ -1368,11 +1421,13 @@ export default function DashboardPage() {
             {/* Toolbar */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-gray-800/90 backdrop-blur-md border border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20">
                 <div 
-                    onClick={() => handleToolClick('select')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer shadow-lg transition ${activeTool === 'select' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Select / Edit"
+                    onClick={() => handleToolClick('color')}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[#ffd700]' : 'hover:ring-2 hover:ring-gray-500'}`}
+                    title="Change Background Color for All Slides"
+                    style={{ backgroundColor: slides[0]?.backgroundColor || '#0B0F19' }}
                 >
-                    <MousePointer2 size={16} />
+                    <div className="absolute inset-0 bg-black/20" />
+                    <Palette size={16} className="relative z-10 text-white drop-shadow-md" />
                 </div>
                 <div 
                     onClick={() => handleToolClick('text')}
@@ -1384,7 +1439,7 @@ export default function DashboardPage() {
                 <div 
                     onClick={() => handleToolClick('image')}
                     className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Set Background Image"
+                    title="Set Background Image for All Slides"
                 >
                     <ImageIcon size={16} />
                 </div>
@@ -1394,6 +1449,13 @@ export default function DashboardPage() {
                     className="hidden" 
                     accept="image/*"
                     onChange={handleImageUpload}
+                />
+                <input 
+                    type="color" 
+                    ref={colorInputRef} 
+                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0"
+                    value={slides[0]?.backgroundColor || '#0B0F19'}
+                    onChange={handleBackgroundColorChange}
                 />
             </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { EditableText } from './EditableText';
 import {
   DndContext, 
@@ -33,7 +33,17 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
+import { Rnd } from 'react-rnd';
+
+type CustomBlock = {
+  id: string;
+  html: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 interface SlideProps {
   type: 'cover' | 'content' | 'chart';
@@ -66,6 +76,7 @@ interface SlideProps {
   mediaWidthPercent?: number;
   mediaAlignment?: 'left' | 'center' | 'right';
   elementOrder?: string[];
+  customBlocks?: CustomBlock[];
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -117,7 +128,7 @@ export const Slide: React.FC<SlideProps> = ({
   subtitle, 
   content, 
   emoji, 
-  category = "UNDER THE HOOD", 
+  category = "", 
   handle = "@yourhandle",
   backgroundColor = "#111c24",
   textColor = "#ffffff",
@@ -140,8 +151,16 @@ export const Slide: React.FC<SlideProps> = ({
   mediaAspectRatio = 16 / 9,
   mediaWidthPercent = 100,
   mediaAlignment = 'center',
-  elementOrder
+  elementOrder,
+  customBlocks = []
 }) => {
+  // Track client-side mount to avoid hydration mismatch
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Determine colors based on slide type and overrides
   const activeBgColor = (type === 'cover' && coverBackgroundColor) ? coverBackgroundColor : backgroundColor;
   const activeTextColor = (type === 'cover' && coverTextColor) ? coverTextColor : textColor;
@@ -181,6 +200,20 @@ export const Slide: React.FC<SlideProps> = ({
         const newOrder = arrayMove(currentOrder, oldIndex, newIndex);
         onUpdate?.('elementOrder', newOrder);
     }
+  };
+
+  const handleCustomBlockChange = (blockId: string, updates: Partial<CustomBlock>) => {
+    if (!onUpdate) return;
+    const updatedBlocks = customBlocks.map((block) =>
+      block.id === blockId ? { ...block, ...updates } : block
+    );
+    onUpdate('customBlocks', updatedBlocks);
+  };
+
+  const handleRemoveCustomBlock = (blockId: string) => {
+    if (!onUpdate) return;
+    const updatedBlocks = customBlocks.filter((block) => block.id !== blockId);
+    onUpdate('customBlocks', updatedBlocks);
   };
 
   const renderMediaBlock = () => {
@@ -382,6 +415,110 @@ export const Slide: React.FC<SlideProps> = ({
     );
   };
 
+  const renderCustomBlocks = () => {
+    if (!customBlocks?.length) return null;
+
+    return customBlocks.map((block) => {
+      if (isEditable) {
+        return (
+          <Rnd
+            key={block.id}
+            bounds="parent"
+            size={{ width: block.width, height: block.height }}
+            position={{ x: block.x, y: block.y }}
+            onDragStop={(_, data) => handleCustomBlockChange(block.id, { x: data.x, y: data.y })}
+            onResizeStop={(_, __, ref, ___, position) =>
+              handleCustomBlockChange(block.id, {
+                width: parseFloat(ref.style.width),
+                height: parseFloat(ref.style.height),
+                x: position.x,
+                y: position.y,
+              })
+            }
+            dragHandleClassName="drag-handle"
+            minWidth={160}
+            minHeight={40}
+            className="pointer-events-auto group/block"
+            style={{ zIndex: 40 }}
+            enableResizing={{
+              top: false,
+              right: true,
+              bottom: true,
+              left: false,
+              topRight: false,
+              bottomRight: true,
+              bottomLeft: false,
+              topLeft: false,
+            }}
+          >
+            <div className="w-full h-full relative group">
+              <div
+                className="drag-handle absolute -top-2 -left-2 w-6 h-6 bg-[#ffd700] rounded-full flex items-center justify-center cursor-move shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                title="Drag to move"
+              >
+                <GripVertical size={12} className="text-black" />
+              </div>
+              <button
+                onClick={() => handleRemoveCustomBlock(block.id)}
+                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+                title="Delete block"
+              >
+                <Trash2 size={12} />
+              </button>
+              <div className="w-full h-full text-left overflow-auto cursor-text">
+                <EditableText
+                  tagName="div"
+                  className="leading-relaxed text-lg w-full h-full"
+                  style={{
+                    color: activeTextColor,
+                  }}
+                  html={block.html}
+                  onChange={(val) => {
+                    // Auto-delete if content is empty
+                    const strippedVal = val.replace(/<[^>]*>/g, '').trim();
+                    if (!strippedVal) {
+                      handleRemoveCustomBlock(block.id);
+                    } else {
+                      handleCustomBlockChange(block.id, { html: val });
+                    }
+                  }}
+                  placeholder="Text block"
+                />
+              </div>
+            </div>
+          </Rnd>
+        );
+      }
+
+      // For non-editable view (download/export), only render if block has actual content
+      const strippedContent = block.html?.replace(/<[^>]*>/g, '').trim();
+      if (!strippedContent) return null;
+
+      return (
+        <div
+          key={block.id}
+          className="absolute"
+          style={{
+            left: block.x,
+            top: block.y,
+            width: block.width,
+            height: block.height,
+            zIndex: 40,
+          }}
+        >
+          <div 
+            className="w-full h-full text-left leading-relaxed text-lg"
+            style={{ 
+              color: activeTextColor,
+              overflow: 'visible',
+            }}
+            dangerouslySetInnerHTML={{ __html: block.html }}
+          />
+        </div>
+      );
+    });
+  };
+
   // Element Renderers Map
   const renderElement = (id: string) => {
       switch (id) {
@@ -552,9 +689,16 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       )}
 
+      {/* Custom Blocks Layer */}
+      {customBlocks && customBlocks.length > 0 ? (
+        <div className="absolute inset-0 z-30 pointer-events-none">
+          {renderCustomBlocks()}
+        </div>
+      ) : null}
+
       {/* Main Content Area */}
       <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full`}>
-        {isEditable ? (
+        {isEditable && isMounted ? (
             <DndContext 
                 sensors={sensors} 
                 collisionDetection={closestCenter} 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Permanent_Marker, Inter, Playfair_Display, Oswald, Roboto_Mono } from "next/font/google";
 import { ToasterProvider } from "@/components/ToasterProvider";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
       >
         {children}
         <ToasterProvider />
+        <ScrollToTop />
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import {
   Sparkles, 
   Palette, 
   Settings, 
+  Pencil,
   Plus, 
   Download, 
   MousePointer2, 
@@ -80,7 +81,7 @@ const sanitizeEmoji = (value: string | undefined | null) => {
 
 export default function DashboardPage() {
   const [activeSlideId, setActiveSlideId] = useState<string>('1');
-  const [isPropertiesPanelOpen, setIsPropertiesPanelOpen] = useState(true);
+  const [isPropertiesPanelOpen, setIsPropertiesPanelOpen] = useState(false);
   const [isMobileSlidesOpen, setIsMobileSlidesOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -104,11 +105,22 @@ export default function DashboardPage() {
         else if (width >= 1024) setCurrentScale(0.5); // lg
         else if (width >= 768) setCurrentScale(0.45); // md
         else if (width >= 640) setCurrentScale(0.35); // sm
-        else setCurrentScale(0.25);                   // default
+        else {
+            // Mobile: Calculate exact scale to fit screen width minus padding
+            // 1080px slide, 32px padding (16px on each side)
+            const mobileScale = (width - 32) / 1080;
+            setCurrentScale(Math.min(mobileScale, 0.35));
+        }
     };
 
     handleResize(); // Initial call
     window.addEventListener('resize', handleResize);
+    
+    // Open mobile sidebar by default on small screens
+    if (window.innerWidth < 1024) {
+        setIsMobileSidebarOpen(true);
+    }
+
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -132,7 +144,7 @@ export default function DashboardPage() {
       type: 'cover',
       title: 'THE SECRET SAUCE',
       subtitle: 'How to create viral carousels in minutes.',
-      category: 'UNDER THE HOOD',
+      category: '',
       accentColor: '#ffd700',
       handle: '@carouslk',
       fontFamily: 'var(--font-inter)',
@@ -149,12 +161,12 @@ export default function DashboardPage() {
     {
       id: '2',
       type: 'content',
-      title: 'Hook Your Audience',
-      content: '<p>Stop the scroll with a <strong>bold promise</strong> or a challenging question.</p>',
-      emoji: '🪝',
-      category: 'UNDER THE HOOD',
-      accentColor: '#ffd700',
-      handle: '@carouslk',
+        title: 'Hook Your Audience',
+        content: '<p>Stop the scroll with a <strong>bold promise</strong> or a challenging question.</p>',
+        emoji: '🪝',
+        category: '',
+        accentColor: '#ffd700',
+        handle: '@carouslk',
       fontFamily: 'var(--font-inter)',
       fontScale: 1,
       backgroundColor: '#0B0F19',
@@ -172,7 +184,7 @@ export default function DashboardPage() {
         title: 'Tell a Story',
         content: '<p>Facts tell, but <em>stories sell</em>. Connect emotionally.</p>',
         emoji: '📖',
-        category: 'UNDER THE HOOD',
+        category: '',
         accentColor: '#ffd700',
         handle: '@carouslk',
         fontFamily: 'var(--font-inter)',
@@ -210,7 +222,7 @@ export default function DashboardPage() {
       mediaAspectRatio: slide.mediaAspectRatio ?? 16 / 9,
       mediaWidthPercent: typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100,
       mediaAlignment: slide.mediaAlignment || 'center',
-      category: slide.category ?? baseSlide?.category ?? 'UNDER THE HOOD',
+      category: slide.category ?? baseSlide?.category ?? '',
       handle: slide.handle ?? baseSlide?.handle ?? '@carouslk',
       accentColor: slide.accentColor ?? baseSlide?.accentColor,
       elementOrder: slide.elementOrder || (slide.type === 'cover' ? ['title', 'subtitle', 'media'] : slide.type === 'chart' ? ['emoji', 'title', 'content', 'chart', 'media'] : ['emoji', 'title', 'content', 'media']),
@@ -297,7 +309,7 @@ export default function DashboardPage() {
       title: 'New Slide',
       content: '<p>Edit this content...</p>',
       emoji: '✨',
-      category: 'UNDER THE HOOD',
+      category: '',
       accentColor: slides[0]?.accentColor || '#ffd700',
       handle: slides[0]?.handle || '@carouslk',
       fontFamily: slides[0]?.fontFamily || 'var(--font-inter)',
@@ -1283,7 +1295,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden">
+    <div className="min-h-screen bg-[#0B0F19] text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden">
       <TextToolbar />
       <div
         aria-hidden="true"
@@ -1309,8 +1321,8 @@ export default function DashboardPage() {
              <div className="w-6 h-6 bg-[#ffd700] rounded-md rotate-3 flex items-center justify-center">
                 <span className="text-black font-bold text-xs">C</span>
              </div>
-             <span className="font-bold tracking-tight text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">
-                Carouslk / {projectName}
+             <span className="font-bold tracking-tight text-sm sm:text-base whitespace-nowrap">
+                <span className="hidden sm:inline">Carouslk / </span>{projectName}
              </span>
           </div>
         </div>
@@ -1324,21 +1336,21 @@ export default function DashboardPage() {
              </button>
              <button 
                 onClick={() => setIsPropertiesPanelOpen(!isPropertiesPanelOpen)}
-                className={`p-2 rounded-lg transition ${isPropertiesPanelOpen ? 'text-[#ffd700] bg-[#ffd700]/10' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                className={`hidden lg:flex p-2 rounded-lg transition ${isPropertiesPanelOpen ? 'text-[#ffd700] bg-[#ffd700]/10' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
                 title="Toggle Properties Panel"
              >
                 <PanelRight size={20} />
              </button>
-             <div className="w-px h-6 bg-gray-800 mx-1"></div>
+             <div className="hidden lg:block w-px h-6 bg-gray-800 mx-1"></div>
              <button 
                 onClick={() => setIsAiModalOpen(true)}
-                className="px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center gap-2"
+                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition items-center gap-2"
              >
                 <Sparkles size={16} /> AI Generate
              </button>
              <button 
                 onClick={() => setIsExportOpen(true)}
-                className="px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-lg transition flex items-center gap-2"
+                className="hidden lg:flex px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-lg transition items-center gap-2"
              >
                 Export <Download size={16} />
              </button>
@@ -1456,7 +1468,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Toolbar */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-gray-800/90 backdrop-blur-md border border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20">
+            <div className="hidden lg:flex absolute top-6 left-1/2 -translate-x-1/2 bg-gray-800/90 backdrop-blur-md border border-gray-700/50 p-1.5 rounded-full items-center gap-1 shadow-2xl z-20">
                 <div 
                     onClick={() => handleToolClick('color')}
                     className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[#ffd700]' : 'hover:ring-2 hover:ring-gray-500'}`}
@@ -1497,39 +1509,66 @@ export default function DashboardPage() {
             </div>
 
             {/* Main Viewport */}
-            <div className="flex-1 overflow-hidden px-4 pb-8">
+            <div className="flex-1 overflow-hidden px-0 lg:px-4 pb-0 lg:pb-8">
                 <div
                     ref={slidesScrollRef}
-                    className="relative z-10 h-full overflow-y-auto snap-y snap-mandatory scroll-smooth space-y-16 pt-28 pb-32"
+                    className="relative z-10 h-full overflow-y-auto lg:snap-y lg:snap-mandatory scroll-smooth space-y-4 lg:space-y-16 pt-4 lg:pt-28 pb-24 lg:pb-32 no-scrollbar"
                 >
                     {slides.map((slide) => (
                         <div
                             key={slide.id}
                             data-slide-id={slide.id}
                             onClick={() => setActiveSlideId(slide.id)}
-                            className={`snap-center flex justify-center transition-opacity duration-300 ${
+                            className={`lg:snap-center flex justify-center transition-opacity duration-300 ${
                                 slide.id === activeSlideId ? 'opacity-100' : 'opacity-60 hover:opacity-90 cursor-pointer'
                             }`}
                         >
                             <div
-                                className={`relative shadow-2xl rounded-none ring-1 ring-white/10 transform scale-[0.25] sm:scale-[0.35] md:scale-[0.45] lg:scale-[0.5] xl:scale-[0.6] transition-transform duration-300 origin-center ${
-                                    slide.id === activeSlideId ? 'ring-[#ffd700]/70' : ''
-                                }`}
+                                style={{
+                                    width: 1080 * currentScale,
+                                    height: 1080 * currentScale,
+                                }}
+                                className="relative"
                             >
-                                <div className="w-[1080px] h-[1080px] bg-white relative overflow-hidden">
-                                    <Slide
-                                        {...slide}
-                                        isEditable={slide.id === activeSlideId}
-                                        scale={currentScale}
-                                        onUpdate={(field, value) => {
-                                            setSlides((prev) =>
-                                                prev.map((s) =>
-                                                    s.id === slide.id ? { ...s, [field]: value } : s
-                                                )
-                                            );
-                                        }}
-                                    />
+                                <div
+                                    style={{
+                                        transform: `scale(${currentScale})`,
+                                        transformOrigin: 'top left',
+                                        transition: 'transform 0.3s ease-out'
+                                    }}
+                                    className={`absolute top-0 left-0 shadow-2xl rounded-none ring-1 ring-white/10 transition-transform duration-300 origin-top-left ${
+                                        slide.id === activeSlideId ? 'ring-[#ffd700]/70' : ''
+                                    }`}
+                                >
+                                    <div className="w-[1080px] h-[1080px] bg-white relative overflow-hidden">
+                                        <Slide
+                                            {...slide}
+                                            isEditable={slide.id === activeSlideId}
+                                            scale={currentScale}
+                                            onUpdate={(field, value) => {
+                                                setSlides((prev) =>
+                                                    prev.map((s) =>
+                                                        s.id === slide.id ? { ...s, [field]: value } : s
+                                                    )
+                                                );
+                                            }}
+                                        />
+                                    </div>
                                 </div>
+
+                                {/* Mobile Edit Overlay Button */}
+                                {slide.id === activeSlideId && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsPropertiesPanelOpen(true);
+                                        }}
+                                        className="lg:hidden absolute top-4 right-4 z-50 bg-[#ffd700] text-black p-3 rounded-full shadow-xl animate-in fade-in zoom-in duration-300 hover:bg-yellow-400 active:scale-90 transition-all border-2 border-black/10"
+                                        title="Edit Slide Properties"
+                                    >
+                                        <Pencil size={20} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -1546,13 +1585,24 @@ export default function DashboardPage() {
                 >
                     <ChevronLeft size={20} />
                 </button>
-                <button
-                    onClick={() => setIsMobileSlidesOpen(true)}
-                    className="flex-1 px-4 py-3 rounded-2xl border border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg"
-                >
-                    <span className="text-xs uppercase tracking-wider text-gray-500">Current Slide</span>
-                    <span className="text-base font-semibold text-white">#{activeSlideIndex + 1} / {slides.length}</span>
-                </button>
+                
+                <div className="flex-1 flex gap-2">
+                    <button
+                        onClick={() => setIsMobileSlidesOpen(true)}
+                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg"
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-gray-500">Slides</span>
+                        <span className="text-sm font-semibold text-white">#{activeSlideIndex + 1} / {slides.length}</span>
+                    </button>
+                    <button
+                        onClick={() => setIsPropertiesPanelOpen(true)}
+                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg active:bg-gray-800"
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-gray-500">Edit</span>
+                        <Settings size={18} className="text-white" />
+                    </button>
+                </div>
+
                 <button
                     onClick={() => goToSlideByIndex(activeSlideIndex + 1)}
                     disabled={activeSlideIndex >= slides.length - 1}
@@ -1917,12 +1967,57 @@ export default function DashboardPage() {
                 <X size={16} />
               </button>
             </div>
+            
+            {/* Quick Tools Grid */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+                <button
+                  onClick={() => {
+                    handleToolClick('text');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                >
+                    <Type size={20} className="text-[#ffd700]" />
+                    <span className="text-[10px] font-medium text-gray-400">Text</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleToolClick('image');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                >
+                    <ImageIcon size={20} className="text-blue-400" />
+                    <span className="text-[10px] font-medium text-gray-400">Image</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleToolClick('color');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                >
+                    <Palette size={20} className="text-pink-400" />
+                    <span className="text-[10px] font-medium text-gray-400">Color</span>
+                </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsExportOpen(true);
+                setIsMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#ffd700] text-black font-bold border border-[#ffd700] hover:bg-yellow-400 transition mb-2"
+            >
+              <Download size={18} />
+              Export Carousel
+            </button>
             <button
               onClick={() => {
                 setIsTemplatesOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#ffd700]/10 text-[#ffd700] border border-[#ffd700]/30 hover:bg-[#ffd700]/20 transition"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-800 text-gray-200 border border-gray-700 hover:border-gray-600 transition"
             >
               <Layout size={18} />
               Templates
@@ -1981,41 +2076,55 @@ export default function DashboardPage() {
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {THEMES.map((theme) => (
-                    <div 
-                        key={theme.id}
-                        onClick={() => {
-                            // Apply theme to all slides
-                            setSlides(slides.map(s => ({
-                                ...s,
-                                backgroundColor: theme.backgroundColor,
-                                textColor: theme.textColor,
-                                accentColor: theme.accentColor,
-                                fontFamily: theme.fontFamily
-                            })));
-                            setIsTemplatesOpen(false);
-                        }}
-                        className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
-                    >
-                        <div className="aspect-[4/3] p-6 flex flex-col justify-center items-center gap-4" style={{ backgroundColor: theme.backgroundColor }}>
-                            <div className="text-center space-y-2">
-                                <div className="text-2xl font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    {theme.name}
+            <div className="p-6 overflow-y-auto space-y-10">
+                {['Professional', 'Bold', 'Minimalist', 'Dark Mode'].map((category) => (
+                    <div key={category}>
+                        <h4 className="text-white font-bold text-xl mb-4 flex items-center gap-2">
+                            <span className="w-1 h-6 bg-[#ffd700] rounded-full"></span>
+                            {category}
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {THEMES.filter(t => t.category === category).map((theme) => (
+                                <div 
+                                    key={theme.id}
+                                    onClick={() => {
+                                        // Apply theme to all slides
+                                        setSlides(slides.map(s => {
+                                            const updatedSlide = {
+                                                ...s,
+                                                backgroundColor: theme.backgroundColor,
+                                                textColor: theme.textColor,
+                                                accentColor: theme.accentColor,
+                                                fontFamily: theme.fontFamily
+                                            };
+                                            
+                                            // Only update category if the theme specifically defines one
+                                            if (theme.defaultCategory) {
+                                                updatedSlide.category = theme.defaultCategory;
+                                            }
+                                            
+                                            return updatedSlide;
+                                        }));
+                                        setIsTemplatesOpen(false);
+                                    }}
+                                    className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
+                                >
+                                    <div className="aspect-[4/3] p-4 flex flex-col justify-center items-center gap-2" style={{ backgroundColor: theme.backgroundColor }}>
+                                        <div className="text-center space-y-1">
+                                            <div className="text-xl font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                                Title
+                                            </div>
+                                            <div className="text-xs opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                                Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-gray-900 border-t border-gray-800 flex justify-between items-center">
+                                        <span className="text-sm font-medium text-gray-300">{theme.name}</span>
+                                        <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">Apply</span>
+                                    </div>
                                 </div>
-                                <div className="text-sm opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Make it <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>pop</span>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                {theme.previewColors.map((color, i) => (
-                                    <div key={i} className="w-6 h-6 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: color }}></div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="p-3 bg-gray-900 border-t border-gray-800 flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-300">{theme.name}</span>
-                            <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">Apply Theme →</span>
+                            ))}
                         </div>
                     </div>
                 ))}

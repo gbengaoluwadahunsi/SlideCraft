@@ -48,7 +48,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-[#ffd700] selection:text-black">
+    <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden">
       {/* Navbar */}
       <nav className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2">

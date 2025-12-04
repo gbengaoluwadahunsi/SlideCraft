@@ -272,22 +272,30 @@ export async function POST(request: NextRequest) {
       // Render logic for each element type
       const renderElement = (id: string) => {
           switch (id) {
-              case 'emoji':
-                  return slide.emoji ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : '';
-              case 'title':
-                  return `<h1 style="font-size: ${(isCover ? 4.5 : 3) * fontScale}rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 1.5rem; color: ${(isCover ? activeTextColor : activeAccentColor)}; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
+              case 'emoji': {
+                  const emojiStripped = slide.emoji?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+                  return emojiStripped ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : '';
+              }
+              case 'title': {
+                  const titleStripped = slide.title?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+                  return titleStripped ? `<h1 style="font-size: ${(isCover ? 4.5 : 3) * fontScale}rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 1.5rem; color: ${(isCover ? activeTextColor : activeAccentColor)}; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
                       ${slide.title}
-                  </h1>`;
-              case 'subtitle':
-                  return slide.subtitle ? `<p style="font-size: ${2.25 * fontScale}rem; font-weight: 300; line-height: 1.625; opacity: 0.8; color: ${activeTextColor}; margin-bottom: 1.5rem; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
+                  </h1>` : '';
+              }
+              case 'subtitle': {
+                  const subtitleStripped = slide.subtitle?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+                  return subtitleStripped ? `<p style="font-size: ${2.25 * fontScale}rem; font-weight: 300; line-height: 1.625; opacity: 0.8; color: ${activeTextColor}; margin-bottom: 1.5rem; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
                       ${slide.subtitle}
                   </p>` : '';
-              case 'content':
-                  return slide.content ? `<div style="flex: 1; margin-bottom: 1.5rem;">
+              }
+              case 'content': {
+                  const contentStripped = slide.content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem;">
                       <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}">
                         ${slide.content}
                       </div>
                   </div>` : '';
+              }
               case 'chart':
                   return chartHtml ? `<div style="flex: 1; overflow: hidden; background: rgba(0,0,0,0.2); border-radius: 2rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 1.5rem;">
                       ${chartHtml}
@@ -300,6 +308,27 @@ export async function POST(request: NextRequest) {
       };
 
       const innerContent = currentOrder.map((id: string) => renderElement(id)).join('');
+
+      // Render custom blocks (freeform text blocks)
+      const customBlocksHtml = (slide.customBlocks || []).map((block: any) => {
+        // Only render blocks with actual content
+        const strippedContent = block.html
+          ?.replace(/<[^>]*>/g, '') // Remove HTML tags
+          .replace(/&nbsp;/gi, ' ') // Replace &nbsp; with space
+          .replace(/\u200B/g, '') // Remove zero-width spaces
+          .trim();
+        
+        // Only skip if truly empty
+        if (!strippedContent) return '';
+        
+        return `
+          <div style="position: absolute; left: ${block.x}px; top: ${block.y}px; width: ${block.width}px; height: ${block.height}px; z-index: 40;">
+            <div style="width: 100%; height: 100%; text-align: left; font-size: ${2.25 * fontScale}rem; line-height: 1.6; color: ${activeTextColor}; overflow: visible; padding: 0.5rem; ${textShadowStyle}">
+              ${block.html}
+            </div>
+          </div>
+        `;
+      }).join('');
 
       return `
         <div class="slide-container" style="
@@ -343,6 +372,9 @@ export async function POST(request: NextRequest) {
 
           <!-- Category Pill -->
           ${categoryHtml}
+
+          <!-- Custom Blocks (Freeform Text) -->
+          ${customBlocksHtml}
 
           <!-- Main Content -->
           <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; ${isCover ? 'justify-content: center;' : ''}">

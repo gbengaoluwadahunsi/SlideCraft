@@ -93,6 +93,25 @@ export default function DashboardPage() {
   const [aiSlideCount, setAiSlideCount] = useState(6);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+
+  // Calculate scale for Rnd
+  const [currentScale, setCurrentScale] = useState(0.6);
+
+  useEffect(() => {
+    const handleResize = () => {
+        const width = window.innerWidth;
+        if (width >= 1280) setCurrentScale(0.6);      // xl
+        else if (width >= 1024) setCurrentScale(0.5); // lg
+        else if (width >= 768) setCurrentScale(0.45); // md
+        else if (width >= 640) setCurrentScale(0.35); // sm
+        else setCurrentScale(0.25);                   // default
+    };
+
+    handleResize(); // Initial call
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
   const docUploadInputRef = useRef<HTMLInputElement>(null);
@@ -327,8 +346,15 @@ export default function DashboardPage() {
   };
 
   const handleDownloadSlideImage = async (slide: SlideData, index: number) => {
+    // Prevent multiple simultaneous downloads
+    if (downloadingSlideId) {
+      console.log('Download already in progress, please wait...');
+      return;
+    }
+
     try {
       setDownloadingSlideId(slide.id);
+      
       setSlideDownloadData(slide);
 
       // Wait for DOM to update and render
@@ -345,23 +371,34 @@ export default function DashboardPage() {
         pixelRatio: 2,
       });
 
-      // Use download API instead of link.click() to avoid "multiple files" prompt
+      // Convert to blob and download
       const blob = await (await fetch(dataUrl)).blob();
-      const url = window.URL.createObjectURL(blob);
+      
+      // Create a unique download link
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${getSlideFilename(slide, index)}.png`;
+      link.style.display = 'none';
+      
+      // Append, click, and clean up immediately
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
       
-      // Clean up
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      // Clean up after a short delay
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
     } catch (error) {
       console.error('Single slide download failed:', error);
     } finally {
-      setDownloadingSlideId(null);
-      setSlideDownloadData(null);
+      // Delay state reset to prevent rapid repeated downloads
+      setTimeout(() => {
+        setDownloadingSlideId(null);
+        setSlideDownloadData(null);
+      }, 500);
     }
   };
 
@@ -1483,6 +1520,7 @@ export default function DashboardPage() {
                                     <Slide
                                         {...slide}
                                         isEditable={slide.id === activeSlideId}
+                                        scale={currentScale}
                                         onUpdate={(field, value) => {
                                             setSlides((prev) =>
                                                 prev.map((s) =>

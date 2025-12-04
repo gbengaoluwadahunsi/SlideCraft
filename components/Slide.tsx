@@ -77,6 +77,7 @@ interface SlideProps {
   mediaAlignment?: 'left' | 'center' | 'right';
   elementOrder?: string[];
   customBlocks?: CustomBlock[];
+  scale?: number;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -152,7 +153,8 @@ export const Slide: React.FC<SlideProps> = ({
   mediaWidthPercent = 100,
   mediaAlignment = 'center',
   elementOrder,
-  customBlocks = []
+  customBlocks = [],
+  scale = 1,
 }) => {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
@@ -424,6 +426,7 @@ export const Slide: React.FC<SlideProps> = ({
           <Rnd
             key={block.id}
             bounds="parent"
+            scale={scale}
             size={{ width: block.width, height: block.height }}
             position={{ x: block.x, y: block.y }}
             onDragStop={(_, data) => handleCustomBlockChange(block.id, { x: data.x, y: data.y })}
@@ -465,12 +468,14 @@ export const Slide: React.FC<SlideProps> = ({
               >
                 <Trash2 size={12} />
               </button>
-              <div className="w-full h-full text-left overflow-auto cursor-text">
+              <div className="w-full h-full text-left overflow-visible cursor-text p-2">
                 <EditableText
                   tagName="div"
-                  className="leading-relaxed text-lg w-full h-full"
+                  className="leading-relaxed w-full h-full overflow-visible"
                   style={{
                     color: activeTextColor,
+                    overflow: 'visible',
+                    fontSize: `${2.25 * fontScale}rem`, // Match slide content size
                   }}
                   html={block.html}
                   onChange={(val) => {
@@ -491,26 +496,39 @@ export const Slide: React.FC<SlideProps> = ({
       }
 
       // For non-editable view (download/export), only render if block has actual content
-      const strippedContent = block.html?.replace(/<[^>]*>/g, '').trim();
-      if (!strippedContent) return null;
+      const strippedContent = block.html
+        ?.replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/gi, ' ') // Replace &nbsp; with space
+        .replace(/\u200B/g, '') // Remove zero-width spaces
+        .trim();
+      
+      // Only skip if truly empty
+      if (!strippedContent) {
+        return null;
+      }
 
       return (
         <div
           key={block.id}
-          className="absolute"
           style={{
-            left: block.x,
-            top: block.y,
-            width: block.width,
-            height: block.height,
+            position: 'absolute',
+            left: `${block.x}px`,
+            top: `${block.y}px`,
+            width: `${block.width}px`,
+            height: `${block.height}px`,
             zIndex: 40,
           }}
         >
           <div 
-            className="w-full h-full text-left leading-relaxed text-lg"
             style={{ 
+              width: '100%',
+              height: '100%',
+              textAlign: 'left',
+              fontSize: `${2.25 * fontScale}rem`, // Match slide content size
+              lineHeight: 1.6,
               color: activeTextColor,
               overflow: 'visible',
+              padding: '0.5rem',
             }}
             dangerouslySetInnerHTML={{ __html: block.html }}
           />
@@ -540,6 +558,8 @@ export const Slide: React.FC<SlideProps> = ({
             ) : null;
         }
         case 'title':
+            // Strip HTML to check for actual content
+            const titleStripped = title?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
             return isEditable ? (
                 <EditableText 
                     tagName="h1"
@@ -554,7 +574,7 @@ export const Slide: React.FC<SlideProps> = ({
                     onChange={(val) => onUpdate?.('title', val)}
                     placeholder="Title"
                 />
-            ) : (
+            ) : titleStripped ? (
                 <h1 
                     className="font-bold leading-tight tracking-tight mb-6" 
                     style={{ 
@@ -565,8 +585,9 @@ export const Slide: React.FC<SlideProps> = ({
                     }}
                     dangerouslySetInnerHTML={{ __html: title }}
                 />
-            );
+            ) : null;
         case 'subtitle':
+            const subtitleStripped = subtitle?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
             return (subtitle || isEditable) ? (
                 isEditable ? (
                     <EditableText
@@ -582,7 +603,7 @@ export const Slide: React.FC<SlideProps> = ({
                         onChange={(val) => onUpdate?.('subtitle', val)}
                         placeholder="Subtitle"
                     />
-                ) : subtitle ? (
+                ) : subtitleStripped ? (
                     <div 
                         className="font-light leading-relaxed opacity-80 mb-6" 
                         style={{ 
@@ -596,6 +617,7 @@ export const Slide: React.FC<SlideProps> = ({
                 ) : null
             ) : null;
         case 'content':
+            const contentStripped = content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
             return (content || isEditable) ? (
                  <div className="flex-1">
                     {isEditable ? (
@@ -611,7 +633,7 @@ export const Slide: React.FC<SlideProps> = ({
                             onChange={(val) => onUpdate?.('content', val)}
                             placeholder="Content..."
                         />
-                    ) : content ? (
+                    ) : contentStripped ? (
                         <div 
                             className="slide-content leading-relaxed font-light mb-6"
                             style={{ 
@@ -691,7 +713,16 @@ export const Slide: React.FC<SlideProps> = ({
 
       {/* Custom Blocks Layer */}
       {customBlocks && customBlocks.length > 0 ? (
-        <div className="absolute inset-0 z-30 pointer-events-none">
+        <div 
+          className={`absolute z-30 ${isEditable ? 'pointer-events-none' : ''}`}
+          style={{
+            position: 'absolute',
+            top: '0px',
+            left: '0px',
+            width: '1080px',
+            height: '1080px',
+          }}
+        >
           {renderCustomBlocks()}
         </div>
       ) : null}

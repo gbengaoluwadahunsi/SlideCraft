@@ -58,11 +58,13 @@ interface SlideData {
   textColor?: string;
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
+  backgroundImageFilter?: string; // e.g. "brightness(0.5) contrast(1.2)"
   textAlign?: 'left' | 'center' | 'right';
   chartType?: 'bar' | 'line' | 'pie';
   chartData?: Array<{ name: string; value: number; }>;
-  mediaType?: 'video' | 'embed' | null;
+  mediaType?: 'video' | 'embed' | 'image' | null;
   mediaUrl?: string;
+  mediaPosterUrl?: string; // Generated thumbnail for video files
   embedHtml?: string;
   mediaAspectRatio?: number;
   mediaWidthPercent?: number;
@@ -92,6 +94,8 @@ export default function DashboardPage() {
   const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlideCount, setAiSlideCount] = useState(6);
+  const [aiWordCount, setAiWordCount] = useState<number | ''>('');
+  const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
@@ -367,7 +371,17 @@ export default function DashboardPage() {
     try {
       setDownloadingSlideId(slide.id);
       
-      setSlideDownloadData(slide);
+      // Clone the slide data for rendering
+      const tempSlideData = { ...slide };
+
+      // If video, try to get a thumbnail or fallback to a placeholder for the screenshot
+      // Standard video/iframe screenshots (like YouTube) will be black due to CORS.
+      // We'll instruct the <Slide> component to render a static placeholder if `isExporting` mode is active.
+      // However, for single slide download, we're using `slideDownloadData`.
+      // We can add a flag `_isDownloading` to the slide data.
+      (tempSlideData as any)._isDownloading = true;
+
+      setSlideDownloadData(tempSlideData);
 
       // Wait for DOM to update and render
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -437,6 +451,8 @@ export default function DashboardPage() {
         body: JSON.stringify({
           text: combinedSource,
           slideCount: aiSlideCount,
+          wordCount: aiWordCount || undefined,
+          writingStyle: aiWritingStyle,
           sourceFile: docAttachment
             ? {
                 name: docAttachment.name,
@@ -580,29 +596,103 @@ export default function DashboardPage() {
     if (docUploadInputRef.current) docUploadInputRef.current.value = '';
   };
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const url = URL.createObjectURL(file);
-    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: url } : s));
+    // Optimistic: Show local blob immediately while uploading
+    const localUrl = URL.createObjectURL(file);
+    
+    // Generate thumbnail immediately
+    let posterUrl: string | undefined = undefined;
+    try {
+        posterUrl = await captureVideoFrame(localUrl) || undefined;
+    } catch (err) {
+        console.warn('Failed to generate video thumbnail', err);
+    }
+
+    // Set temporary state
+    setSlides(slides.map(s => s.id === activeSlide.id ? { 
+        ...s, 
+        mediaUrl: localUrl,
+        mediaPosterUrl: posterUrl 
+    } : s));
+
+    // Upload to Cloudinary via our server (bypasses browser CORS restrictions)
+    try {
+        const sizeMb = file.size / 1024 / 1024;
+        const MAX_FILE_MB = 100;
+        if (sizeMb > MAX_FILE_MB) {
+            console.error(`Upload blocked: file too large (${sizeMb.toFixed(1)} MB). Limit is ${MAX_FILE_MB} MB.`);
+            alert(`Video too large (${sizeMb.toFixed(1)} MB). Please upload a file <= ${MAX_FILE_MB} MB to avoid timeouts.`);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        console.log('Uploading via server proxy to Cloudinary...');
+
+        const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (uploadRes.ok) {
+            const data = await uploadRes.json();
+            console.log('Upload successful:', data.secure_url);
+            if (data.secure_url) {
+                // Update with permanent public URL from Cloudinary
+                setSlides(currentSlides => currentSlides.map(s => s.id === activeSlide.id ? { 
+                    ...s, 
+                    mediaUrl: data.secure_url,
+                    // Cloudinary auto-generates video thumbnails
+                    mediaPosterUrl: data.resource_type === 'video' 
+                        ? data.secure_url.replace(/\.[^/.]+$/, ".jpg") 
+                        : undefined
+                } : s));
+            }
+        } else {
+            // Try to parse JSON error; fallback to text
+            let errMsg = uploadRes.statusText;
+            try {
+                const errorData = await uploadRes.json();
+                errMsg = errorData?.error || errMsg;
+            } catch {
+                const text = await uploadRes.text().catch(() => '');
+                errMsg = text || errMsg;
+            }
+            console.error('Upload failed:', errMsg);
+            alert(errMsg || 'Upload failed. Please try again.');
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+    }
   };
 
   // Helper: Capture a video frame to a base64 image
   const captureVideoFrame = async (videoSrc: string): Promise<string | null> => {
       return new Promise((resolve) => {
         const video = document.createElement('video');
-        video.crossOrigin = 'anonymous'; // Try to handle CORS if possible, though blobs are local
+        video.crossOrigin = 'anonymous'; 
         video.src = videoSrc;
         video.muted = true;
-        video.currentTime = 1; // Capture frame at 1s
+        video.playsInline = true; // Important for iOS/mobile context if needed
+        video.currentTime = 0.5; // Capture at 0.5s to avoid black start frames
         
+        // Timeout to prevent hanging
+        const timeout = setTimeout(() => {
+            console.warn('Video capture timed out');
+            resolve(null);
+            video.remove();
+        }, 3000);
+
         video.onloadeddata = () => {
-             // Wait a bit for seek
-             video.currentTime = 1;
+             video.currentTime = 0.5; 
         };
 
         video.onseeked = () => {
+            clearTimeout(timeout);
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
@@ -619,11 +709,11 @@ export default function DashboardPage() {
             } else {
                 resolve(null);
             }
-            // Cleanup
             video.remove();
         };
 
         video.onerror = () => {
+            clearTimeout(timeout);
             console.warn('Video load error for capture');
             resolve(null);
             video.remove();
@@ -633,91 +723,146 @@ export default function DashboardPage() {
 
   const handleExport = async (format: 'pdf' | 'ppt') => {
     setIsExporting(format);
+    
     try {
-      // Pre-process slides: Capture thumbnails for PDF, but keep raw blobs for PPT if needed (though standard fetch can't send blobs easily without FormData)
-      const processedSlides = await Promise.all(slides.map(async (slide) => {
-          // PDF Export: Always use thumbnail
-          if (format === 'pdf' && slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
-              const thumbnail = await captureVideoFrame(slide.mediaUrl);
-              if (thumbnail) {
-                  return {
-                      ...slide,
-                      mediaType: 'embed',
-                      embedHtml: `
-                        <div style="display: flex; flex-direction: column; align-items: center; width: 100%; gap: 1rem;">
-                            <img src="${thumbnail}" alt="Video Thumbnail" style="width: 100%; border-radius: 1rem; object-fit: cover; aspect-ratio: ${slide.mediaAspectRatio || 16/9}; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
-                            <a href="${slide.mediaUrl}" target="_blank" style="color: inherit; text-decoration: underline; font-size: 1rem; opacity: 0.8; font-family: monospace;">
-                                Watch Video
-                            </a>
-                        </div>
-                      `
-                  };
+      // Step 1: Client-side Capture
+      // To ensure 100% visual fidelity (especially with local blobs, fonts, etc.),
+      // we capture each slide as an image here in the browser.
+      const slideImages: string[] = [];
+      const slidesContainer = document.querySelector('.slides-container'); // Need to ensure we target the main renderer
+      
+      // We'll iterate through slides, set them as active to ensure they render, and capture
+      // Note: This might be flickery, a better approach is to have a hidden "ExportRenderer"
+      // or just capture the current DOM if all slides are rendered.
+      // But currently, the carousel renders all slides in a flex row.
+      
+      // Find all slide elements currently in the DOM
+      // We rely on the fact that the main carousel renders <Slide> components
+      // Let's assume they are identifiable by ID or class.
+      // In the current render, we map slides:
+      // <div key={slide.id} className="w-[1080px] h-[1080px] ... transform origin-top-left scale-[...]" ...>
+      //    <Slide ... />
+      // </div>
+      
+      // Wait for a render cycle to ensure all images/styles are applied
+      await new Promise(r => setTimeout(r, 200));
+
+      const capturedSlides = [];
+      for (let index = 0; index < slides.length; index++) {
+          const slide = slides[index];
+          
+          // Temporarily set this slide as "downloading" to trigger any print-specific styles (like video placeholders)
+          // Since React state is async, we need to wait for it to apply
+          setSlideDownloadData({ ...slide, _isDownloading: true } as any);
+          
+          // Wait for render update
+          await new Promise(r => setTimeout(r, index === 0 ? 500 : 150));
+          
+          if (slideDownloadRef.current) {
+              try {
+                 const dataUrl = await toPng(slideDownloadRef.current, {
+                    cacheBust: true,
+                    width: 1080,
+                    height: 1080,
+                    pixelRatio: 1.5,
+                    skipAutoScale: true,
+                 });
+                 capturedSlides.push({ id: slide.id, dataUrl, index });
+              } catch (err) {
+                  console.warn(`Failed to capture slide ${index}`, err);
+                  // Retry once
+                  try {
+                      await new Promise(r => setTimeout(r, 500));
+                      const retryDataUrl = await toPng(slideDownloadRef.current, { width: 1080, height: 1080, cacheBust: true });
+                      capturedSlides.push({ id: slide.id, dataUrl: retryDataUrl, index });
+                  } catch (retryErr) {
+                      // skip if fails twice
+                  }
               }
           }
-          return slide;
-      }));
+      }
+      
+      const validCaptures = capturedSlides; // They are already ordered because we looped sequentially
 
-      // Prepare FormData to handle binary uploads for PPT video embedding
+      // Prepare FormData
       const formData = new FormData();
-      const slidesPayload = processedSlides.map((slide, index) => {
-           // For PPT export with local video, we need to send the file
-           if (format === 'ppt' && slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
-               // We can't easily retrieve the original File object from the blob URL here 
-               // unless we stored it. But we can fetch the blob content.
-               return { ...slide, _hasAttachedVideo: true, _videoAttachmentIndex: index };
-           }
-           return slide;
+      
+      // Attach captured images as the slide backgrounds/content
+      validCaptures.forEach((cap, i) => {
+          // Convert dataURL to blob to save space in JSON and use multipart
+          const header = cap.dataUrl.split(',')[0];
+          const data = cap.dataUrl.split(',')[1];
+          const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+          const binary = atob(data);
+          const array = [];
+          for(let k = 0; k < binary.length; k++) {
+              array.push(binary.charCodeAt(k));
+          }
+          const blob = new Blob([new Uint8Array(array)], { type: mime });
+          
+          formData.append(`slide_image_${i}`, blob, `slide-${i}.png`);
       });
 
-      // If exporting PPT, fetch and attach video blobs
+      // Also attach videos if PPT export
       if (format === 'ppt') {
-          await Promise.all(slidesPayload.map(async (slide, index) => {
-              if ((slide as any)._hasAttachedVideo && slide.mediaUrl) {
+          await Promise.all(slides.map(async (slide, index) => {
+              if (slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
                   try {
                       const blobRes = await fetch(slide.mediaUrl);
                       const blob = await blobRes.blob();
-                      // Append with a unique key
                       formData.append(`video_${index}`, blob, 'video.mp4');
                   } catch (e) {
-                      console.error('Failed to fetch local video blob for upload', e);
+                      console.error('Failed to attach video blob', e);
                   }
               }
           }));
       }
 
-      const globalBackgroundImage = slidesPayload[0]?.backgroundImage;
-      const allSlidesHaveSameBg = slidesPayload.every(s => s.backgroundImage === globalBackgroundImage);
-      
-      const finalSlidesPayload = allSlidesHaveSameBg 
-        ? slidesPayload.map((slide) => {
-            const clone = { ...slide };
-            delete clone.backgroundImage;
-            return clone;
-          })
-        : slidesPayload;
+      // Construct simplified payload
+      // We only need to tell the backend: "Here are the images, put them on slides."
+      // And "Here are videos, overlay them on top of these slides."
+      const payloadSlides = slides.map((slide, index) => ({
+          ...slide,
+          // We will tell backend to use the attached image as background
+          _useAttachedImage: true,
+          _attachedImageKey: `slide_image_${index}`,
+          
+          // Flags for video
+          _hasAttachedVideo: slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:'),
+          _videoAttachmentIndex: index,
+          
+          // Strip heavy data from JSON
+          backgroundImage: undefined, // Burned into image
+          mediaUrl: slide.mediaType === 'video' ? slide.mediaUrl : undefined // Keep URL if remote, strip if blob? 
+                                                                             // Actually keep it, backend logic needs it to decide embed type.
+                                                                             // But if blob, backend can't read it anyway.
+      }));
 
-      formData.append('data', JSON.stringify({ 
-          slides: finalSlidesPayload, 
+      // Strip blob URLs from payload to avoid "string too long"
+      const safePayload = payloadSlides.map(s => {
+          if (s.mediaUrl?.startsWith('blob:')) return { ...s, mediaUrl: '' };
+          return s;
+      });
+
+      formData.append('data', JSON.stringify({
+          slides: safePayload,
           format,
           options: {
-            category: slides[0]?.category,
-            handle: slides[0]?.handle,
-            accentColor: slides[0]?.accentColor,
-            fontFamily: slides[0]?.fontFamily,
-            backgroundColor: slides[0]?.backgroundColor,
-            textColor: slides[0]?.textColor,
-            backgroundImage: allSlidesHaveSameBg ? globalBackgroundImage : undefined,
-            backgroundOverlayOpacity: slides[0]?.backgroundOverlayOpacity
-          }
+              // Options are mostly burned into images now, but keep for metadata
+              title: slides[0]?.title
+          },
+          mode: 'client-side-images' // Flag for backend to switch logic
       }));
 
       const response = await fetch('/api/export', {
         method: 'POST',
-        // headers: { 'Content-Type': 'multipart/form-data' }, // Do NOT set content-type manually with FormData, browser does it
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Export failed with status ${response.status}`);
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -729,10 +874,12 @@ export default function DashboardPage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       setIsExportOpen(false);
+
     } catch (error) {
       console.error('Export failed:', error);
     } finally {
       setIsExporting(null);
+      setSlideDownloadData(null); // Cleanup
     }
   };
 
@@ -812,15 +959,21 @@ export default function DashboardPage() {
 
         {activeSlide.type === 'content' && (
           <div className="space-y-2">
-            <label className="text-xs text-gray-400">Content (HTML)</label>
-            <textarea
-              value={activeSlide.content || ''}
-              onChange={(e) => {
-                const newContent = e.target.value;
+            <label className="text-xs text-gray-400">Content</label>
+            <div
+              key={activeSlide.id}
+              contentEditable
+              suppressContentEditableWarning
+              dangerouslySetInnerHTML={{ __html: activeSlide.content || '' }}
+              onBlur={(e) => {
+                const newContent = e.currentTarget.innerHTML;
                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, content: newContent } : s));
               }}
-              className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition resize-none h-32 font-mono"
+              className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition min-h-[8rem] max-h-64 overflow-y-auto"
             />
+            <p className="text-[10px] text-gray-500">
+              Format with shortcuts: <strong>Ctrl+B</strong> bold, <em>Ctrl+I</em> italic.
+            </p>
           </div>
         )}
 
@@ -852,89 +1005,40 @@ export default function DashboardPage() {
           <p className="text-[10px] text-gray-500">Leave empty to hide the emoji block.</p>
         </div>
 
-        <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400">Background Image (Current Slide)</label>
-          
-          {activeSlide.backgroundImage ? (
-              <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
-                  <img src={activeSlide.backgroundImage} className="w-full h-full object-cover opacity-60" alt="Background" />
-                  <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
-                      <button 
-                          onClick={() => {
-                              // Trigger file input for specific slide
-                              // We can reuse the main input but need to ensure activeTool is NOT 'image'
-                              setActiveTool('select'); 
-                              fileInputRef.current?.click();
-                          }}
-                          className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600"
-                          title="Change Image"
-                      >
-                          <ImageIcon size={14} />
-                      </button>
-                      <button 
-                          onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined } : s))}
-                          className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
-                          title="Remove Image"
-                      >
-                          <Trash2 size={14} />
-                      </button>
-                  </div>
-              </div>
-          ) : (
-            <button 
-                onClick={() => {
-                    setActiveTool('select');
-                    fileInputRef.current?.click();
-                }}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800 transition group"
-            >
-                <ImageIcon size={16} className="group-hover:scale-110 transition" />
-                <span className="text-xs">Upload for This Slide</span>
-            </button>
-          )}
-          
-          {activeSlide.backgroundImage && (
-             <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500">
-                    <span>Overlay Opacity</span>
-                    <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
-                </div>
-                <input
-                    type="range"
-                    min={0}
-                    max={0.9}
-                    step={0.1}
-                    value={activeSlide.backgroundOverlayOpacity ?? 0.5}
-                    onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
-                    }}
-                    className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                />
-             </div>
-          )}
-        </div>
 
-        <div className="space-y-3 pt-4 border-t border-gray-700">
+
+        <div className="space-y-3 pt-4 border-t border-gray-700 media-section-unique">
           <label className="text-xs text-gray-400">Media / Embeds</label>
-          <select
-            value={activeSlide.mediaType || 'none'}
-            onChange={(e) => {
-              const value = e.target.value === 'none' ? null : (e.target.value as 'video' | 'embed' | 'image');
-              setSlides(slides.map(s => s.id === activeSlide.id ? {
-                ...s,
-                mediaType: value,
-                mediaUrl: (value === 'video' || value === 'image') ? s.mediaUrl : undefined,
-                embedHtml: value === 'embed' ? s.embedHtml : undefined,
-              } : s));
-            }}
-            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-          >
-            <option value="none">None</option>
-            <option value="image">Image Block</option>
-            <option value="video">Video / Map iframe</option>
-            <option value="embed">Custom embed HTML</option>
-          </select>
+          <div className="flex bg-gray-900 rounded-lg p-1 gap-1 mb-2">
+            <button
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: null, mediaUrl: undefined, embedHtml: undefined } : s))}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${!activeSlide.mediaType ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              title="None"
+            >
+              None
+            </button>
+            <button
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'image' } : s))}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'image' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Image"
+            >
+              <ImageIcon size={14} /> Img
+            </button>
+            <button
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'video' } : s))}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'video' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Video"
+            >
+              <Upload size={14} /> Video
+            </button>
+            <button
+              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'embed' } : s))}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'embed' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Embed"
+            >
+              <MousePointer2 size={14} /> Embed
+            </button>
+          </div>
 
           {activeSlide.mediaType === 'image' && (
              <div className="space-y-2">
@@ -992,52 +1096,111 @@ export default function DashboardPage() {
           )}
 
           {activeSlide.mediaType === 'video' && (
-            <div className="space-y-2">
-              <label className="text-xs text-gray-400">Video or iframe URL</label>
-              <input
-                type="text"
-                value={activeSlide.mediaUrl || ''}
-                onChange={(e) => {
-                  const newUrl = e.target.value;
-                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
-                }}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-              />
-              
-              <div className="flex items-center gap-2 my-2">
-                <div className="h-px bg-gray-700 flex-1"></div>
-                <span className="text-[10px] text-gray-500 uppercase">OR</span>
-                <div className="h-px bg-gray-700 flex-1"></div>
-              </div>
-              
-              <label className="flex items-center justify-center w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group">
-                <input 
-                  type="file" 
-                  accept="video/*" 
-                  className="hidden" 
-                  onChange={handleVideoUpload}
-                />
-                <Upload size={14} className="text-gray-400 group-hover:text-white mr-2" />
-                <span className="text-xs text-gray-300 group-hover:text-white">Upload Video</span>
-              </label>
+            <div className="space-y-4">
+              {activeSlide.mediaUrl ? (
+                <div className="space-y-2">
+                    <label className="text-xs text-gray-400">Current Video (links preferred; uploads ≤100MB)</label>
+                    <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40 flex items-center justify-center">
+                        {/* Simple preview */}
+                        {activeSlide.mediaUrl.startsWith('blob:') ? (
+                            <video src={activeSlide.mediaUrl} className="w-full h-full object-contain" />
+                        ) : (
+                            <div className="text-center p-4">
+                                <div className="text-red-500 mb-2 flex justify-center"><Upload size={24} /></div>
+                                <div className="text-xs text-gray-400 break-all line-clamp-2">{activeSlide.mediaUrl}</div>
+                            </div>
+                        )}
+                        
+                        {/* Overlay Controls */}
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/60 backdrop-blur-sm">
+                            <label className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600 cursor-pointer" title="Replace Video (≤100MB recommended)">
+                                <Upload size={14} />
+                                <input 
+                                    type="file" 
+                                    accept="video/*" 
+                                    className="hidden" 
+                                    onChange={handleVideoUpload}
+                                />
+                            </label>
+                            <button 
+                                onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: undefined } : s))}
+                                className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
+                                title="Remove Video"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    </div>
+                    {/* URL Input for editing link directly */}
+                    {!activeSlide.mediaUrl.startsWith('blob:') && (
+                         <input
+                            type="text"
+                            value={activeSlide.mediaUrl || ''}
+                            onChange={(e) => {
+                              const newUrl = e.target.value;
+                              setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
+                            }}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ffd700] transition"
+                        />
+                    )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs text-gray-400">Preferred: paste video URL (YouTube/Vimeo/Cloudinary)</label>
+                      <span className="text-[10px] text-gray-500">Fastest & most reliable</span>
+                    </div>
+                    <input
+                        type="text"
+                        value={activeSlide.mediaUrl || ''}
+                        onChange={(e) => {
+                        const newUrl = e.target.value;
+                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
+                        }}
+                        placeholder="Paste YouTube/Video URL..."
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                    />
+                    
+                    <div className="flex items-center gap-2 my-2">
+                        <div className="h-px bg-gray-700 flex-1"></div>
+                        <span className="text-[10px] text-gray-500 uppercase">OR</span>
+                        <div className="h-px bg-gray-700 flex-1"></div>
+                    </div>
+                    
+                    <label className="flex items-center justify-center w-full px-3 py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group border-dashed">
+                        <input 
+                        type="file" 
+                        accept="video/*" 
+                        className="hidden" 
+                        onChange={handleVideoUpload}
+                        />
+                        <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-white">
+                            <Upload size={20} />
+                            <span className="text-xs text-center leading-tight">
+                              Upload video file (≤100MB).
+                              <br />Larger? Use a URL.
+                            </span>
+                        </div>
+                    </label>
+                </div>
+              )}
 
-              <label className="text-xs text-gray-400">Aspect ratio</label>
-              <input
-                type="number"
-                min={0.5}
-                max={3}
-                step={0.05}
-                value={activeSlide.mediaAspectRatio ?? 16 / 9}
-                onChange={(e) => {
-                  const value = parseFloat(e.target.value) || 16 / 9;
-                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
-                }}
-                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-              />
-              <p className="text-[10px] text-gray-500">
-                Works best with embeddable sources like YouTube, Loom, ArcGIS, etc.
-              </p>
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400">Aspect ratio</label>
+                <input
+                    type="number"
+                    min={0.5}
+                    max={3}
+                    step={0.05}
+                    value={activeSlide.mediaAspectRatio ?? 16 / 9}
+                    onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 16 / 9;
+                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                />
+              </div>
             </div>
           )}
 
@@ -1132,7 +1295,172 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3 pt-4 border-t border-gray-700">
+          <label className="text-xs text-gray-400">Background Image (Current Slide)</label>
+          
+          {activeSlide.backgroundImage ? (
+              <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
+                  <img src={activeSlide.backgroundImage} className="w-full h-full object-cover opacity-60" alt="Background" />
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
+                      <button 
+                          onClick={() => {
+                              // Trigger file input for specific slide
+                              // We can reuse the main input but need to ensure activeTool is NOT 'image'
+                              setActiveTool('select'); 
+                              fileInputRef.current?.click();
+                          }}
+                          className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600"
+                          title="Change Image"
+                      >
+                          <ImageIcon size={14} />
+                      </button>
+                      <button 
+                          onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined } : s))}
+                          className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
+                          title="Remove Image"
+                      >
+                          <Trash2 size={14} />
+                      </button>
+                  </div>
+              </div>
+          ) : (
+            <button 
+                onClick={() => {
+                    setActiveTool('select');
+                    fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800 transition group"
+            >
+                <ImageIcon size={16} className="group-hover:scale-110 transition" />
+                <span className="text-xs">Upload for This Slide</span>
+            </button>
+          )}
+          
+          {activeSlide.backgroundImage && (
+             <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                    <span>Overlay Opacity</span>
+                    <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
+                </div>
+                <input
+                    type="range"
+                    min={0}
+                    max={0.9}
+                    step={0.1}
+                    value={activeSlide.backgroundOverlayOpacity ?? 0.5}
+                    onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                    }}
+                    className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                />
+
+                <div className="pt-2 border-t border-gray-700 mt-2 space-y-2">
+                   <label className="text-xs text-gray-400">Image Filters</label>
+                   <div className="grid grid-cols-2 gap-2">
+                       {/* Brightness */}
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-gray-500">Brightness</label>
+                          <input
+                             type="range"
+                             min={0}
+                             max={2}
+                             step={0.1}
+                             defaultValue={1}
+                             onChange={(e) => {
+                                 const val = e.target.value;
+                                 // Simple regex to replace brightness part or append it
+                                 const currentFilter = activeSlide.backgroundImageFilter || '';
+                                 let newFilter = currentFilter;
+                                 if (newFilter.includes('brightness')) {
+                                     newFilter = newFilter.replace(/brightness\([0-9.]+\)/, `brightness(${val})`);
+                                 } else {
+                                     newFilter = `${newFilter} brightness(${val})`.trim();
+                                 }
+                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                             }}
+                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                          />
+                       </div>
+                       
+                       {/* Contrast */}
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-gray-500">Contrast</label>
+                          <input
+                             type="range"
+                             min={0}
+                             max={2}
+                             step={0.1}
+                             defaultValue={1}
+                             onChange={(e) => {
+                                 const val = e.target.value;
+                                 const currentFilter = activeSlide.backgroundImageFilter || '';
+                                 let newFilter = currentFilter;
+                                 if (newFilter.includes('contrast')) {
+                                     newFilter = newFilter.replace(/contrast\([0-9.]+\)/, `contrast(${val})`);
+                                 } else {
+                                     newFilter = `${newFilter} contrast(${val})`.trim();
+                                 }
+                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                             }}
+                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                          />
+                       </div>
+
+                        {/* Blur */}
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-gray-500">Blur</label>
+                          <input
+                             type="range"
+                             min={0}
+                             max={10}
+                             step={1}
+                             defaultValue={0}
+                             onChange={(e) => {
+                                 const val = e.target.value;
+                                 const currentFilter = activeSlide.backgroundImageFilter || '';
+                                 let newFilter = currentFilter;
+                                 if (newFilter.includes('blur')) {
+                                     newFilter = newFilter.replace(/blur\([0-9.]+px\)/, `blur(${val}px)`);
+                                 } else {
+                                     newFilter = `${newFilter} blur(${val}px)`.trim();
+                                 }
+                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                             }}
+                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                          />
+                       </div>
+
+                       {/* Grayscale */}
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-gray-500">Grayscale</label>
+                           <input
+                             type="range"
+                             min={0}
+                             max={1}
+                             step={0.1}
+                             defaultValue={0}
+                             onChange={(e) => {
+                                 const val = e.target.value;
+                                 const currentFilter = activeSlide.backgroundImageFilter || '';
+                                 let newFilter = currentFilter;
+                                 if (newFilter.includes('grayscale')) {
+                                     newFilter = newFilter.replace(/grayscale\([0-9.]+\)/, `grayscale(${val})`);
+                                 } else {
+                                     newFilter = `${newFilter} grayscale(${val})`.trim();
+                                 }
+                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                             }}
+                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                          />
+                       </div>
+                   </div>
+                </div>
+             </div>
+          )}
+        </div>
+
+        <div className="space-y-3 pt-4 border-t border-gray-700">
           <label className="text-xs text-gray-400">Handle / Tag</label>
           <input
             type="text"
@@ -2235,6 +2563,42 @@ export default function DashboardPage() {
                 )}
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Writing Style
+                  </label>
+                  <select
+                    value={aiWritingStyle}
+                    onChange={(e) => setAiWritingStyle(e.target.value)}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                  >
+                    <option value="Professional">Professional</option>
+                    <option value="Funny">Funny</option>
+                    <option value="Storytelling">Storytelling</option>
+                    <option value="Inspirational">Inspirational</option>
+                    <option value="Educational">Educational</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Word count per slide
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={500}
+                    placeholder="Auto"
+                    value={aiWordCount}
+                    onChange={(e) => {
+                       const val = e.target.value;
+                       setAiWordCount(val === '' ? '' : parseInt(val, 10));
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
                   Target slide count
@@ -2243,7 +2607,7 @@ export default function DashboardPage() {
                   <input
                     type="range"
                     min={3}
-                    max={15}
+                    max={50}
                     step={1}
                     value={aiSlideCount}
                     onChange={(e) => setAiSlideCount(parseInt(e.target.value, 10))}
@@ -2253,18 +2617,18 @@ export default function DashboardPage() {
                   <input
                     type="number"
                     min={3}
-                    max={15}
+                    max={50}
                     value={aiSlideCount}
                     onChange={(e) => {
                       const value = parseInt(e.target.value, 10);
                       if (Number.isNaN(value)) return;
-                      setAiSlideCount(Math.min(15, Math.max(3, value)));
+                      setAiSlideCount(Math.min(50, Math.max(3, value)));
                     }}
                     className="w-16 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Choose between 3 and 15 slides for AI output.
+                  Choose between 3 and 50 slides for AI output.
                 </p>
               </div>
               

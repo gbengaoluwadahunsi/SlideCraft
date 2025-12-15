@@ -16,7 +16,7 @@ Each slide should have:
   - Use <em>text</em> for HIGH IMPACT highlights (renders as yellow background).
   - Use <strong>text</strong> for bold emphasis (renders as yellow text).
   - Use <pre><code>...</code></pre> for code snippets.
-  - Keep text concise and readable.
+  - Ensure text is informative and readable.
 - emoji: A relevant emoji for content slides.
 - chartType: (for chart slides only) "bar", "line", or "pie"
 - chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number). Example: [{"name": "Q1", "value": 30}, {"name": "Q2", "value": 50}]
@@ -24,7 +24,7 @@ Each slide should have:
 If the content involves statistics, data comparisons, or trends, ALWAYS use a "chart" slide type.
 
 The design style is "Under The Hood", technical but accessible.
-Focus on clarity, brevity, and value.
+Focus on clarity, high value, and depth. Avoid being too scanty.
 `;
 
 const OUTLINE_PROMPT = (sections: string[]) => `
@@ -36,9 +36,14 @@ export async function POST(request: NextRequest) {
   try {
     const Groq = (await import('groq-sdk')).default;
 
-    const { text, slideCount, sections = [] } = await request.json();
-    const requestedSlideCount = Math.max(3, Math.min(15, Number(slideCount) || 6));
+    const { text, slideCount, wordCount, writingStyle, sections = [] } = await request.json();
+    const requestedSlideCount = Math.max(3, Math.min(50, Number(slideCount) || 6));
     const combinedText = (text || '').trim();
+
+    const styleInstruction = writingStyle ? `Writing Style: ${writingStyle}.` : '';
+    const wordCountInstruction = wordCount 
+      ? `STRICTLY follow the word count target: approximately ${wordCount} words per slide. Expand on points to reach this length if necessary.` 
+      : `Content MUST be detailed and comprehensive. Target roughly 75-100 words per slide. Avoid short, scanty slides. Use multiple paragraphs if necessary to explain concepts fully.`;
 
     if (!combinedText) {
       return NextResponse.json({ slides: [] });
@@ -76,6 +81,8 @@ export async function POST(request: NextRequest) {
           content: `
 Here is the content to convert.
 Create exactly ${requestedSlideCount} slides unless the content is empty, in which case explain why no slides were generated.
+${styleInstruction}
+${wordCountInstruction}
 ${outlineHint}
 ${combinedText}`,
         },

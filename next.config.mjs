@@ -15,6 +15,7 @@ const nextConfig = {
     '@sparticuz/chromium',
     'groq-sdk',
     'mammoth',
+    'cloudinary',
   ],
   outputFileTracingIncludes: {
     '/api/export': [
@@ -24,6 +25,12 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  // Allow larger file uploads (for videos)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   },
 };
 

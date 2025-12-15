@@ -33,7 +33,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { GripVertical, Trash2 } from 'lucide-react';
+import { GripVertical, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
 import { Rnd } from 'react-rnd';
 
 type CustomBlock = {
@@ -64,6 +64,7 @@ interface SlideProps {
   coverAccentColor?: string;
   backgroundImage?: string;
   backgroundOverlayOpacity?: number;
+  backgroundImageFilter?: string;
   isEditable?: boolean;
   onUpdate?: (field: string, value: any) => void;
   // Chart specific props
@@ -71,6 +72,7 @@ interface SlideProps {
   chartData?: Array<{ name: string; value: number; }>;
   mediaType?: 'video' | 'embed' | 'image' | null;
   mediaUrl?: string;
+  mediaPosterUrl?: string;
   embedHtml?: string;
   mediaAspectRatio?: number;
   mediaWidthPercent?: number;
@@ -123,6 +125,15 @@ function SortableItem({ id, children, isEditable, className = '' }: { id: string
   );
 }
 
+function getYouTubeId(url: string) {
+    try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes('youtu.be')) return parsed.pathname.slice(1);
+        if (parsed.hostname.includes('youtube.com')) return parsed.searchParams.get('v');
+        return null;
+    } catch { return null; }
+}
+
 export const Slide: React.FC<SlideProps> = ({ 
   type, 
   title, 
@@ -142,12 +153,14 @@ export const Slide: React.FC<SlideProps> = ({
   coverAccentColor,
   backgroundImage,
   backgroundOverlayOpacity = 0.5,
+  backgroundImageFilter = '',
   isEditable = false,
   onUpdate,
   chartType,
   chartData,
   mediaType = null,
   mediaUrl,
+  mediaPosterUrl,
   embedHtml,
   mediaAspectRatio = 16 / 9,
   mediaWidthPercent = 100,
@@ -155,6 +168,7 @@ export const Slide: React.FC<SlideProps> = ({
   elementOrder,
   customBlocks = [],
   scale = 1,
+  ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
@@ -218,7 +232,14 @@ export const Slide: React.FC<SlideProps> = ({
     onUpdate('customBlocks', updatedBlocks);
   };
 
+  // Check if we are in download mode (via props or hidden flag)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isDownloading = (props as any)._isDownloading;
+
   const renderMediaBlock = () => {
+    // Re-access isDownloading here to ensure closure capture
+    const isDownloading = (props as any)._isDownloading;
+
     if (!mediaType) return null;
     if (mediaType === 'video' && !mediaUrl) return null;
     if (mediaType === 'embed' && !embedHtml) return null;
@@ -235,15 +256,125 @@ export const Slide: React.FC<SlideProps> = ({
     };
 
     const preventDrag = (e: React.DragEvent) => {
-        e.preventDefault();
+        if (!isEditable) return;
         e.stopPropagation();
+    };
+
+    // If downloading as image, replace video/iframe with a static placeholder to avoid black screenshots
+    if (isDownloading && (mediaType === 'video' || mediaType === 'embed')) {
+        return (
+          <div className="mt-6 flex w-full" style={outerStyle}>
+              <div 
+                  className="relative rounded-3xl overflow-hidden bg-black/40 border border-white/20 shadow-2xl flex-shrink-0"
+                  style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
+              >
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                      {/* Check if we have a generated poster (thumbnail) from upload */}
+                      {mediaPosterUrl ? (
+                           <>
+                               <img 
+                                  src={mediaPosterUrl}
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                  alt="Video Thumbnail"
+                                  crossOrigin="anonymous" // Essential for capture
+                               />
+                               {/* Play button overlay */}
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                   <div className="w-24 h-24 rounded-full bg-red-600/90 flex items-center justify-center shadow-xl backdrop-blur-sm">
+                                       <div className="w-0 h-0 border-t-[16px] border-t-transparent border-l-[28px] border-l-white border-b-[16px] border-b-transparent ml-2"></div>
+                                   </div>
+                               </div>
+                           </>
+                      ) : (
+                          <>
+                            {/* Static Thumbnail Placeholder (Fallback) */}
+                            <div className="flex flex-col items-center gap-4 text-gray-500">
+                                {mediaType === 'video' ? <div className="w-20 h-20 rounded-full bg-red-600 flex items-center justify-center text-white"><div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-white border-b-[12px] border-b-transparent ml-1"></div></div> : <code className="text-xl">Embed Content</code>}
+                                <span className="font-medium text-lg uppercase tracking-widest">{mediaType === 'video' ? 'Video' : 'Interactive Embed'}</span>
+                            </div>
+                            {/* Try to show actual thumbnail if possible (e.g. YouTube) */}
+                            {mediaType === 'video' && mediaUrl && (mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be')) && (
+                                <img 
+                                    src={`https://img.youtube.com/vi/${getYouTubeId(mediaUrl)}/maxresdefault.jpg`} 
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                    alt="Video Thumbnail"
+                                    crossOrigin="anonymous" // Essential for capture
+                                />
+                            )}
+                            {/* Play button overlay on top of thumbnail */}
+                            {mediaType === 'video' && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <div className="w-24 h-24 rounded-full bg-red-600/90 flex items-center justify-center shadow-xl backdrop-blur-sm">
+                                        <div className="w-0 h-0 border-t-[16px] border-t-transparent border-l-[28px] border-l-white border-b-[16px] border-b-transparent ml-2"></div>
+                                    </div>
+                                </div>
+                            )}
+                          </>
+                      )}
+                  </div>
+              </div>
+          </div>
+        );
+    }
+
+    // Media Actions Overlay (Hover) for Editable Mode
+    const MediaOverlay = () => {
+        if (!isEditable) return null;
+        
+        return (
+            <div className="absolute inset-0 pointer-events-none z-20">
+                <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition pointer-events-auto">
+                    <label className="p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 border border-gray-600 cursor-pointer shadow-lg transform hover:scale-105 transition-all" title="Replace Media">
+                        {mediaType === 'video' ? <Upload size={18} /> : <ImageIcon size={18} />}
+                        <input 
+                            type="file" 
+                            accept={mediaType === 'video' ? "video/*" : "image/*"}
+                            className="hidden" 
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file || !onUpdate) return;
+                                
+                                const reader = new FileReader();
+                                reader.onload = async (event) => {
+                                    const result = event.target?.result as string;
+                                    const url = URL.createObjectURL(file); // For video
+                                    
+                                    if (mediaType === 'video') {
+                                        onUpdate('mediaUrl', url);
+                                    } else {
+                                        onUpdate('mediaUrl', result);
+                                    }
+                                };
+                                if (mediaType === 'video') {
+                                    const url = URL.createObjectURL(file);
+                                    onUpdate('mediaUrl', url);
+                                } else {
+                                    reader.readAsDataURL(file);
+                                }
+                            }}
+                        />
+                    </label>
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdate?.('mediaUrl', undefined);
+                            onUpdate?.('mediaType', null);
+                        }}
+                        className="p-2 bg-red-500/20 rounded-lg text-red-400 hover:bg-red-500 hover:text-white border border-red-500/50 shadow-lg transform hover:scale-105 transition-all"
+                        title="Remove Media"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
+            </div>
+        );
     };
 
     if (mediaType === 'image' && mediaUrl) {
         return (
             <div className="mt-6 flex w-full" style={outerStyle}>
                 <div
-                    className="rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
+                    className="relative group rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
                     style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
                     onDragStart={preventDrag}
                 >
@@ -253,6 +384,7 @@ export const Slide: React.FC<SlideProps> = ({
                         className="w-full h-full object-cover select-none"
                         draggable={false}
                     />
+                    <MediaOverlay />
                 </div>
             </div>
         );
@@ -281,7 +413,7 @@ export const Slide: React.FC<SlideProps> = ({
     return (
       <div className="mt-6 flex w-full" style={outerStyle}>
         <div
-          className="rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
+          className="relative group rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
           style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
           onDragStart={preventDrag}
         >
@@ -292,6 +424,7 @@ export const Slide: React.FC<SlideProps> = ({
                className="w-full h-full object-cover"
                controls
                playsInline
+               crossOrigin="anonymous" // Important for html-to-image capture
                draggable={false}
                onDragStart={preventDrag}
              />
@@ -314,6 +447,7 @@ export const Slide: React.FC<SlideProps> = ({
             onDragStart={preventDrag}
           />
         )}
+        <MediaOverlay />
         </div>
       </div>
     );
@@ -662,17 +796,25 @@ export const Slide: React.FC<SlideProps> = ({
         backgroundColor: activeBgColor, 
         color: activeTextColor,
         fontFamily: fontFamily,
-        backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
       }}
     >
       <style>{styles}</style>
       
+      {/* Background Image Layer */}
+      {backgroundImage && (
+        <div 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0"
+            style={{ 
+                backgroundImage: `url(${backgroundImage})`,
+                filter: backgroundImageFilter || 'none'
+            }}
+        />
+      )}
+
       {/* Background Overlay */}
       {backgroundImage && (
         <div 
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none z-0"
           style={{ backgroundColor: activeBgColor, opacity: backgroundOverlayOpacity }}
         />
       )}

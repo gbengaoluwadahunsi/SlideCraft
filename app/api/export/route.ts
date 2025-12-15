@@ -43,7 +43,11 @@ async function launchBrowser() {
   const puppeteer = (await import('puppeteer')).default;
   return puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox',
+      '--disable-local-file-access' // SECURITY: Prevent local file read
+    ],
   });
 }
 
@@ -52,9 +56,9 @@ export async function POST(request: NextRequest) {
     let slides: any[] = [];
     let options: any = {};
     let format = 'pdf';
+    let mode = 'puppeteer'; // Default
+    const imageAttachments: Record<string, Buffer> = {};
     const videoAttachments: Record<string, Buffer> = {};
-
-    // Handle FormData vs JSON content types
     const contentType = request.headers.get('content-type') || '';
 
     if (contentType.includes('multipart/form-data')) {
@@ -67,12 +71,17 @@ export async function POST(request: NextRequest) {
         slides = parsedData.slides;
         options = parsedData.options;
         format = parsedData.format;
+        mode = parsedData.mode || 'puppeteer';
 
-        // Extract attached video files
+        // Extract attached video and image files
         for (const [key, val] of formData.entries()) {
-            if (key.startsWith('video_') && val instanceof File) {
+            if (val instanceof File) {
                 const arrayBuffer = await val.arrayBuffer();
-                videoAttachments[key] = Buffer.from(arrayBuffer);
+                if (key.startsWith('video_')) {
+                    videoAttachments[key] = Buffer.from(arrayBuffer);
+                } else if (key.startsWith('slide_image_')) {
+                    imageAttachments[key] = Buffer.from(arrayBuffer);
+                }
             }
         }
     } else {
@@ -93,36 +102,186 @@ export async function POST(request: NextRequest) {
       coverBackgroundColor,
       coverTextColor,
       coverAccentColor,
-      backgroundImage, // Receive global background image
+      backgroundImage,
       backgroundOverlayOpacity
     } = options;
 
-    // Map CSS variables to Google Font names
-    const fontMap: Record<string, string> = {
-      'var(--font-inter)': 'Inter',
-      'var(--font-playfair)': 'Playfair Display',
-      'var(--font-oswald)': 'Oswald',
-      'var(--font-roboto-mono)': 'Roboto Mono'
-    };
-
-    const selectedFontFamily = fontMap[fontFamily] || 'Inter';
-    
-    // Generate filename from first slide title
     const generateFilename = (title: string): string => {
-      return title
+      return (title || 'carouslk-deck')
         .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+        .replace(/[^a-z0-9\s-]/g, '')
         .trim()
-        .replace(/\s+/g, '-') // Replace spaces with hyphens
-        .substring(0, 50); // Limit to 50 characters
+        .replace(/\s+/g, '-')
+        .substring(0, 50);
     };
 
     const firstSlideTitle = slides[0]?.title || 'carouslk-deck';
     const filenameExtension = format === 'ppt' ? 'pptx' : 'pdf';
     const downloadFilename = `${generateFilename(firstSlideTitle)}.${filenameExtension}`;
 
-    const browser = await launchBrowser();
+    let buffer: Buffer;
+
+    // --- CLIENT-SIDE IMAGE MODE ---
+    // If frontend sent pre-rendered images (for 100% fidelity), just stitch them together
+    if (mode === 'client-side-images') {
+        if (format === 'ppt') {
+            const pptxgen = (await import('pptxgenjs')).default;
+            const pptx = new pptxgen();
+            const layoutName = 'SQUARE';
+            
+            // Define layout if not exists
+            try {
+                pptx.defineLayout({ name: layoutName, width: 11.25, height: 11.25 });
+            } catch (e) {}
+            pptx.layout = layoutName;
+
+            slides.forEach((slide: any, index: number) => {
+                const slidePage = pptx.addSlide();
+                const imageKey = slide._attachedImageKey;
+
+                // 1. Add Background Image (the captured slide)
+                if (imageAttachments[imageKey]) {
+                    const b64 = imageAttachments[imageKey].toString('base64');
+                    slidePage.addImage({
+                        data: `data:image/png;base64,${b64}`,
+                        x: 0, y: 0, w: 11.25, h: 11.25
+                    });
+                }
+
+                // 2. Overlay Video if exists
+                if ((slide as any)._hasAttachedVideo) {
+                     const videoKey = `video_${index}`;
+                     if (videoAttachments[videoKey]) {
+                         const videoB64 = videoAttachments[videoKey].toString('base64');
+                         const ratio = slide.mediaAspectRatio || (16/9);
+                         const vW = 10; 
+                         const vH = vW / ratio;
+                         const vX = (11.25 - vW) / 2;
+                         const vY = (11.25 - vH) / 2;
+
+                         slidePage.addMedia({ 
+                             type: 'video',
+                             data: `data:video/mp4;base64,${videoB64}`,
+                             x: vX, y: vY, w: vW, h: vH,
+                         });
+                     }
+                } 
+                // Handle YouTube/Online video overlay
+                else if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
+                     const ratio = slide.mediaAspectRatio || (16/9);
+                     const vW = 10; 
+                     const vH = vW / ratio;
+                     const vX = (11.25 - vW) / 2;
+                     const vY = (11.25 - vH) / 2;
+                     
+                     slidePage.addMedia({
+                         type: 'online',
+                         link: slide.mediaUrl,
+                         x: vX, y: vY, w: vW, h: vH
+                     });
+                }
+            });
+            buffer = await pptx.write('nodebuffer') as Buffer;
+        } else {
+            // PDF Mode for Client Images
+            // Puppeteer is still useful here to stitch images into a PDF properly
+            const browser = await launchBrowser();
+            const page = await browser.newPage();
+            
+            const pagesHtml = slides.map((slide: any, index: number) => {
+                 const imageKey = slide._attachedImageKey;
+                 const b64 = imageAttachments[imageKey] ? imageAttachments[imageKey].toString('base64') : '';
+                 const imgSrc = b64 ? `data:image/png;base64,${b64}` : '';
+                 
+                 // If video link exists AND is remote, wrap in anchor to make it clickable.
+                 // Local blob videos cannot be linked in PDF, so we just show the static image.
+                 let overlayLink = '';
+                 
+                 // Check for remote video URL (Cloudinary or YouTube)
+                 if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
+                      overlayLink = `
+                        <a href="${slide.mediaUrl}" target="_blank" style="
+                            position: absolute; 
+                            top: 0; left: 0; width: 100%; height: 100%;
+                            z-index: 1000;
+                            display: block;
+                            cursor: pointer;
+                            background: transparent;
+                        " title="Click to watch video">
+                            <span style="display: none;">Watch Video</span>
+                        </a>
+                      `;
+                 }
+
+                 return `
+                    <div class="page" style="width: 1080px; height: 1080px; page-break-after: always; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; background: white;">
+                        <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                        ${overlayLink}
+                    </div>
+                 `;
+            }).join('');
+
+            await page.setContent(`
+                <style>
+                    body { margin: 0; padding: 0; }
+                    @page { size: 1080px 1080px; margin: 0; }
+                </style>
+                ${pagesHtml}
+            `);
+            
+            buffer = await page.pdf({
+                width: '1080px',
+                height: '1080px',
+                printBackground: true,
+            });
+            await browser.close();
+        }
+    } else {
+        // --- PUPPETEER SERVER-SIDE RENDERING MODE (Legacy/Fallback) ---
+        // Existing logic...
+        const browser = await launchBrowser();
+
     const page = await browser.newPage();
+
+    // SECURITY: Request Interception to block SSRF and local access
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const url = req.url().toLowerCase();
+      const resourceType = req.resourceType();
+
+      // Allow data URIs (images/fonts)
+      if (url.startsWith('data:')) {
+        req.continue();
+        return;
+      }
+
+      // Allow Google Fonts & Tailwind CDN
+      if (
+        url.startsWith('https://fonts.googleapis.com') ||
+        url.startsWith('https://fonts.gstatic.com') ||
+        url.startsWith('https://cdn.tailwindcss.com')
+      ) {
+        req.continue();
+        return;
+      }
+
+      // Allow image resources if they are from safe domains (optional, strict mode for now)
+      // For now, we block external images unless embedded as data URI, 
+      // BUT users might paste image URLs. 
+      // To be safe against SSRF, we should block metadata IPs.
+      if (resourceType === 'image') {
+         // Basic SSRF protection list (simplified)
+         if (url.includes('169.254.169.254') || url.includes('metadata.google.internal') || url.includes('localhost') || url.includes('127.0.0.1')) {
+             req.abort();
+             return;
+         }
+         req.continue();
+         return;
+      }
+
+      // Block everything else
+      req.abort();
+    });
 
     // HTML Template generation
     const slidesHtml = slides.map((slide: any) => {
@@ -227,13 +386,27 @@ export async function POST(request: NextRequest) {
         }
         if (slide.mediaType === 'video' && slide.mediaUrl) {
           const embedUrl = resolveVideoEmbedUrl(slide.mediaUrl);
+          const videoLink = slide.mediaUrl; // Original URL for linking
+          
           if (!embedUrl) return '';
+          
+          // PDF Export: Wrap in anchor tag to make it clickable
+          // Note: This relies on the PDF renderer preserving links. Puppeteer generally does.
           return `
             <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
-              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
-                <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
-                  <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
-                </div>
+              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem; position: relative;">
+                <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
+                    <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
+                        <!-- Thumbnail/iframe overlay for visual -->
+                        <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none;" tabindex="-1"></iframe>
+                        <!-- Play button overlay to indicate clickability -->
+                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); z-index: 10;">
+                            <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                                <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
               </div>
             </div>
           `;
@@ -473,30 +646,38 @@ export async function POST(request: NextRequest) {
         // The dashboard sends a marker `_videoAttachmentIndex` which aligns with `video_${index}`
         // Check if the slide data at this index had a video attachment marker
         const slideData = slides[index];
-        if (slideData && (slideData as any)._hasAttachedVideo) {
-             const videoKey = `video_${index}`;
-             if (videoAttachments[videoKey]) {
-                 // Convert Buffer to base64 because pptxgenjs expects data-URI or path.
-                 // For server-side nodebuffer export, passing base64 data works best.
-                 const videoB64 = videoAttachments[videoKey].toString('base64');
-                 
-                 // Add video media centered on slide. 
-                 // We use the mediaAspectRatio to determine size if possible, or default to 16:9 fit.
+        if (slideData) {
+             // Handle uploaded video attachment
+             if ((slideData as any)._hasAttachedVideo) {
+                 const videoKey = `video_${index}`;
+                 if (videoAttachments[videoKey]) {
+                     const videoB64 = videoAttachments[videoKey].toString('base64');
+                     const ratio = slideData.mediaAspectRatio || (16/9);
+                     const vW = 10; 
+                     const vH = vW / ratio;
+                     const vX = (11.25 - vW) / 2;
+                     const vY = (11.25 - vH) / 2;
+
+                     slide.addMedia({ 
+                         type: 'video',
+                         data: `data:video/mp4;base64,${videoB64}`,
+                         x: vX, y: vY, w: vW, h: vH,
+                     });
+                 }
+             } 
+             // Handle YouTube/Online video
+             else if (slideData.mediaType === 'video' && slideData.mediaUrl) {
                  const ratio = slideData.mediaAspectRatio || (16/9);
-                 const vW = 10; // Almost full width (11.25 is max)
+                 const vW = 10; 
                  const vH = vW / ratio;
-                 
-                 // Center it
                  const vX = (11.25 - vW) / 2;
                  const vY = (11.25 - vH) / 2;
-
-                 slide.addMedia({ 
-                     type: 'video',
-                     data: `data:video/mp4;base64,${videoB64}`,
-                     x: vX,
-                     y: vY,
-                     w: vW,
-                     h: vH,
+                 
+                 // pptxgenjs supports 'online' type for YouTube
+                 slide.addMedia({
+                     type: 'online',
+                     link: slideData.mediaUrl,
+                     x: vX, y: vY, w: vW, h: vH
                  });
              }
         }
@@ -513,7 +694,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    await browser.close();
+        await browser.close();
+    } // End Puppeteer mode
 
     return new NextResponse(buffer as any, {
       headers: {
@@ -526,6 +708,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Export Error:', error);
-    return NextResponse.json({ error: 'Failed to generate export' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: `Failed to generate export: ${errorMessage}` }, { status: 500 });
   }
 }

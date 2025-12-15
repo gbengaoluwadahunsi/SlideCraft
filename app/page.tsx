@@ -98,10 +98,6 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-6 pt-20 pb-32 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-sm font-medium mb-8 animate-fade-in">
-          <Sparkles size={14} />
-          <span>AI-Powered Carousel Generator</span>
-        </div>
         
         <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-8 leading-tight max-w-4xl mx-auto">
           Turn Any Idea into <br />

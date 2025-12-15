@@ -96,7 +96,7 @@ export default function DashboardPage() {
   const [aiSlideCount, setAiSlideCount] = useState(6);
   const [aiWordCount, setAiWordCount] = useState<number | ''>('');
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
-  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
+  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
   // Calculate scale for Rnd
@@ -481,9 +481,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleToolClick = (tool: 'select' | 'text' | 'image' | 'color') => {
+  const handleToolClick = (tool: 'select' | 'text' | 'image' | 'image-all' | 'color') => {
     setActiveTool(tool);
-    if (tool === 'image') {
+    if (tool === 'image' || tool === 'image-all') {
         fileInputRef.current?.click();
         // Don't reset activeTool here - let handleImageUpload do it after applying the image
     } else if (tool === 'text') {
@@ -528,11 +528,11 @@ export default function DashboardPage() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const result = event.target?.result as string;
-            if (activeTool === 'image') {
-                 // Toolbar button: Apply to ALL slides
+            if (activeTool === 'image-all') {
+                 // Apply to ALL slides
                  setSlides(slides.map(s => ({ ...s, backgroundImage: result })));
             } else {
-                 // Properties panel button: Apply to CURRENT slide only
+                 // Apply to CURRENT slide only (whether tool is 'image' or 'select')
                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result } : s));
             }
             // Reset tool after applying
@@ -1337,23 +1337,56 @@ export default function DashboardPage() {
           )}
           
           {activeSlide.backgroundImage && (
-             <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500">
-                    <span>Overlay Opacity</span>
-                    <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
+             <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-gray-500 font-medium">SETTINGS</span>
+                    <button 
+                        onClick={() => {
+                            const currentOpacity = activeSlide.backgroundOverlayOpacity;
+                            const currentFilter = activeSlide.backgroundImageFilter;
+                            
+                            setSlides(slides.map(s => ({
+                                ...s,
+                                backgroundOverlayOpacity: currentOpacity,
+                                backgroundImageFilter: currentFilter
+                            })));
+                            
+                            // Visual feedback
+                            const btn = document.getElementById('apply-all-settings-btn');
+                            if (btn) {
+                                const originalText = btn.innerHTML;
+                                btn.innerHTML = '<span class="text-green-400">Applied!</span>';
+                                setTimeout(() => {
+                                    btn.innerHTML = originalText;
+                                }, 1500);
+                            }
+                        }}
+                        id="apply-all-settings-btn"
+                        className="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded border border-gray-700 transition"
+                        title="Apply these image settings (opacity, filters) to ALL slides"
+                    >
+                        Apply to All Slides
+                    </button>
                 </div>
-                <input
-                    type="range"
-                    min={0}
-                    max={0.9}
-                    step={0.1}
-                    value={activeSlide.backgroundOverlayOpacity ?? 0.5}
-                    onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
-                    }}
-                    className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                />
+             
+                <div className="space-y-1">
+                   <div className="flex justify-between text-xs text-gray-500">
+                       <span>Overlay Opacity</span>
+                       <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
+                   </div>
+                   <input
+                       type="range"
+                       min={0}
+                       max={0.9}
+                       step={0.1}
+                       value={activeSlide.backgroundOverlayOpacity ?? 0.5}
+                       onChange={(e) => {
+                           const val = parseFloat(e.target.value);
+                           setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                       }}
+                       className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                   />
+                </div>
 
                 <div className="pt-2 border-t border-gray-700 mt-2 space-y-2">
                    <label className="text-xs text-gray-400">Image Filters</label>
@@ -1816,9 +1849,19 @@ export default function DashboardPage() {
                 <div 
                     onClick={() => handleToolClick('image')}
                     className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Set Background Image for All Slides"
+                    title="Set Background Image (Current Slide)"
                 >
                     <ImageIcon size={16} />
+                </div>
+                <div 
+                    onClick={() => handleToolClick('image-all')}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    title="Set Background Image (All Slides)"
+                >
+                    <div className="relative">
+                        <ImageIcon size={16} />
+                        <div className="absolute -bottom-1.5 -right-2 text-[6px] font-bold bg-blue-500 text-white px-0.5 rounded">ALL</div>
+                    </div>
                 </div>
                 <input 
                     type="file" 
@@ -2297,7 +2340,7 @@ export default function DashboardPage() {
             </div>
             
             {/* Quick Tools Grid */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-4 gap-2 mb-4">
                 <button
                   onClick={() => {
                     handleToolClick('text');
@@ -2317,6 +2360,19 @@ export default function DashboardPage() {
                 >
                     <ImageIcon size={20} className="text-blue-400" />
                     <span className="text-[10px] font-medium text-gray-400">Image</span>
+                </button>
+                 <button
+                  onClick={() => {
+                    handleToolClick('image-all');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                >
+                    <div className="relative">
+                        <ImageIcon size={20} className="text-purple-400" />
+                        <div className="absolute -bottom-1 -right-2 text-[8px] font-bold bg-purple-500 text-white px-1 rounded">ALL</div>
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-400">All</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2664,4 +2720,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 

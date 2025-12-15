@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Increase max duration to 60 seconds
+
+// Note: Next.js App Router does not support `export const config` for body parser size limit in the same way.
+// The limit is handled globally in next.config.mjs or via custom body parsing.
+// Since we are reading the body manually via request.formData() / request.json(), 
+// the standard bodyParser config might be bypassed or handled differently.
+// However, typically the issue is the global limit. We've updated next.config.mjs.
 
 function resolveVideoEmbedUrl(url?: string) {
   if (!url) return '';
@@ -142,8 +149,14 @@ export async function POST(request: NextRequest) {
                 // 1. Add Background Image (the captured slide)
                 if (imageAttachments[imageKey]) {
                     const b64 = imageAttachments[imageKey].toString('base64');
+                    // Detect MIME type based on buffer signature or default to JPEG
+                    // JPEG signature: FF D8 FF
+                    // PNG signature: 89 50 4E 47
+                    const isPng = imageAttachments[imageKey][0] === 0x89;
+                    const mime = isPng ? 'image/png' : 'image/jpeg';
+                    
                     slidePage.addImage({
-                        data: `data:image/png;base64,${b64}`,
+                        data: `data:${mime};base64,${b64}`,
                         x: 0, y: 0, w: 11.25, h: 11.25
                     });
                 }
@@ -191,7 +204,14 @@ export async function POST(request: NextRequest) {
             const pagesHtml = slides.map((slide: any, index: number) => {
                  const imageKey = slide._attachedImageKey;
                  const b64 = imageAttachments[imageKey] ? imageAttachments[imageKey].toString('base64') : '';
-                 const imgSrc = b64 ? `data:image/png;base64,${b64}` : '';
+                 
+                 // Detect MIME
+                 let mime = 'image/jpeg';
+                 if (imageAttachments[imageKey] && imageAttachments[imageKey][0] === 0x89) {
+                     mime = 'image/png';
+                 }
+                 
+                 const imgSrc = b64 ? `data:${mime};base64,${b64}` : '';
                  
                  // If video link exists AND is remote, wrap in anchor to make it clickable.
                  // Local blob videos cannot be linked in PDF, so we just show the static image.

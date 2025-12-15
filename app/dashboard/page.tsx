@@ -30,7 +30,7 @@ import Link from 'next/link';
 import { Slide } from '@/components/Slide';
 import { TextToolbar } from '@/components/TextToolbar';
 import { THEMES } from '@/app/constants/themes';
-import { toPng } from 'html-to-image';
+import { toPng, toJpeg } from 'html-to-image';
 
 // Types matching Slide.tsx
 interface CustomBlock {
@@ -760,12 +760,14 @@ export default function DashboardPage() {
           
           if (slideDownloadRef.current) {
               try {
-                 const dataUrl = await toPng(slideDownloadRef.current, {
+                 // Use JPEG with quality 0.85 instead of PNG to drastically reduce payload size (fixes 413 error)
+                 const dataUrl = await toJpeg(slideDownloadRef.current, {
                     cacheBust: true,
                     width: 1080,
                     height: 1080,
                     pixelRatio: 1.5,
                     skipAutoScale: true,
+                    quality: 0.85
                  });
                  capturedSlides.push({ id: slide.id, dataUrl, index });
               } catch (err) {
@@ -773,7 +775,7 @@ export default function DashboardPage() {
                   // Retry once
                   try {
                       await new Promise(r => setTimeout(r, 500));
-                      const retryDataUrl = await toPng(slideDownloadRef.current, { width: 1080, height: 1080, cacheBust: true });
+                      const retryDataUrl = await toJpeg(slideDownloadRef.current, { width: 1080, height: 1080, quality: 0.85, cacheBust: true });
                       capturedSlides.push({ id: slide.id, dataUrl: retryDataUrl, index });
                   } catch (retryErr) {
                       // skip if fails twice
@@ -792,7 +794,7 @@ export default function DashboardPage() {
           // Convert dataURL to blob to save space in JSON and use multipart
           const header = cap.dataUrl.split(',')[0];
           const data = cap.dataUrl.split(',')[1];
-          const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+          const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
           const binary = atob(data);
           const array = [];
           for(let k = 0; k < binary.length; k++) {
@@ -800,7 +802,7 @@ export default function DashboardPage() {
           }
           const blob = new Blob([new Uint8Array(array)], { type: mime });
           
-          formData.append(`slide_image_${i}`, blob, `slide-${i}.png`);
+          formData.append(`slide_image_${i}`, blob, `slide-${i}.jpg`);
       });
 
       // Also attach videos if PPT export

@@ -1,4 +1,4 @@
-import type { NextAuthConfig } from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { getPool } from './db';
@@ -9,7 +9,7 @@ if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
   console.warn('⚠️  AUTH_SECRET or NEXTAUTH_SECRET is not set. Authentication may not work properly.');
 }
 
-export const authConfig: NextAuthConfig = {
+const authConfig: NextAuthConfig = {
   trustHost: true,
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   basePath: '/api/auth',
@@ -123,4 +123,10 @@ export const authConfig: NextAuthConfig = {
     }
   }
 };
+
+// Initialize NextAuth with the config and export auth utilities
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+
+// Export config for backward compatibility
+export { authConfig };
 

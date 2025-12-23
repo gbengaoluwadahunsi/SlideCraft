@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { getPool, initDB } from '@/lib/db';
 
 // POST - Auto-save a project (lightweight, no history)

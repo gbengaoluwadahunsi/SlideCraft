@@ -236,7 +236,6 @@ export const Slide: React.FC<SlideProps> = ({
   };
 
   // Check if we are in download mode (via props or hidden flag)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isDownloading = (props as any)._isDownloading;
 
   const renderMediaBlock = () => {
@@ -800,9 +799,9 @@ export const Slide: React.FC<SlideProps> = ({
         color: activeTextColor,
         fontFamily: fontFamily,
       }}
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={isDownloading ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      transition={isDownloading ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
       whileHover={isEditable ? { scale: 1.01 } : {}}
     >
       <style>{styles}</style>
@@ -830,9 +829,9 @@ export const Slide: React.FC<SlideProps> = ({
       {category && category.trim() !== "" && (
         <motion.div 
           className="absolute top-16 left-16 z-10"
-          initial={{ opacity: 0, x: -20, rotate: -5 }}
+          initial={isDownloading ? false : { opacity: 0, x: -20, rotate: -5 }}
           animate={{ opacity: 1, x: 0, rotate: -1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={isDownloading ? { duration: 0 } : { duration: 0.5, delay: 0.2 }}
         >
            {isEditable ? (
              <div className="px-8 py-3 rounded-full tracking-widest uppercase shadow-md inline-block transform -rotate-1"
@@ -869,9 +868,9 @@ export const Slide: React.FC<SlideProps> = ({
       {logoUrl && (
         <motion.div 
           className="absolute top-16 right-16 z-10"
-          initial={{ opacity: 0, x: 20 }}
+          initial={isDownloading ? false : { opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
+          transition={isDownloading ? { duration: 0 } : { duration: 0.5, delay: 0.3 }}
         >
           <img 
             src={logoUrl} 
@@ -937,9 +936,9 @@ export const Slide: React.FC<SlideProps> = ({
       <motion.div 
         className="absolute bottom-12 right-16 font-medium tracking-wide opacity-60 z-10"
         style={{ fontSize: `${1.25 * fontScale}rem` }}
-        initial={{ opacity: 0, y: 20 }}
+        initial={isDownloading ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 0.6, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
+        transition={isDownloading ? { duration: 0 } : { duration: 0.5, delay: 0.3 }}
       >
          {isEditable ? (
             <EditableText 

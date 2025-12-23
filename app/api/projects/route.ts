@@ -23,7 +23,17 @@ export async function GET(request: NextRequest) {
       [session.user.id]
     );
 
-    return NextResponse.json({ projects: result.rows });
+    // Map snake_case to camelCase for frontend
+    const projects = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastAutoSavedAt: row.last_auto_saved_at,
+      isShared: row.is_shared
+    }));
+
+    return NextResponse.json({ projects });
   } catch (error) {
     console.error('Get projects error:', error);
     return NextResponse.json(

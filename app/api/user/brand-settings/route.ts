@@ -101,20 +101,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user can customize brand settings
-    const { getUserPlanLimits } = await import('@/lib/subscription');
-    const limits = await getUserPlanLimits(session.user.id);
-    
-    if (!limits.canCustomizeBrand) {
-      return NextResponse.json(
-        { 
-          error: 'Brand customization not available',
-          message: 'Brand customization is only available on Pro and Enterprise plans. Upgrade to customize your brand settings.',
-        },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { settings, deleteLogo } = body;
 
@@ -122,6 +108,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid settings data' },
         { status: 400 }
+      );
+    }
+
+    // Check user's plan limits
+    const { getUserPlanLimits } = await import('@/lib/subscription');
+    const limits = await getUserPlanLimits(session.user.id);
+    
+    // All users can customize colors/fonts/handle
+    // But only paid users can upload logos
+    const isUploadingLogo = settings.logoUrl && settings.logoUrl !== null;
+    
+    if (isUploadingLogo && !limits.canUploadLogo) {
+      return NextResponse.json(
+        { 
+          error: 'Logo upload not available',
+          message: 'Logo upload is available on Starter, Pro, and Enterprise plans. Upgrade to add your brand logo!',
+          upgradeRequired: true,
+          feature: 'logo'
+        },
+        { status: 403 }
       );
     }
 
@@ -141,6 +147,11 @@ export async function POST(request: NextRequest) {
     // If logo is being deleted, remove it from Cloudinary
     if (deleteLogo && existingSettings.logoUrl) {
       await deleteLogoFromCloudinary(existingSettings.logoUrl);
+      settings.logoUrl = null;
+    }
+    
+    // For free users, don't allow saving logo (strip it out)
+    if (!limits.canUploadLogo) {
       settings.logoUrl = null;
     }
     

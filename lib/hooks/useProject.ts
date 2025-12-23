@@ -2,18 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { SlideData } from '@/app/dashboard/page';
-
-interface Project {
-  id: string;
-  name: string;
-  slides: SlideData[];
-  options: any;
-  createdAt: string;
-  updatedAt: string;
-  isShared?: boolean;
-  shareToken?: string;
-}
+import { SlideData, Project } from '@/lib/types';
 
 export function useProject(projectId?: string) {
   const { data: session, status } = useSession();

@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import LandingPageClient from './LandingPageClient';
+import LandingPageWrapper from './LandingPageWrapper';
 
 export const metadata: Metadata = {
   title: "Carouslk – AI Carousel Generator for LinkedIn & Instagram",
@@ -44,5 +44,5 @@ export const metadata: Metadata = {
 };
 
 export default function LandingPage() {
-  return <LandingPageClient />;
+  return <LandingPageWrapper />;
 }

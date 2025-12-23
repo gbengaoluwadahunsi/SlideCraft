@@ -17,6 +17,8 @@ import {
   Type, 
   Image as ImageIcon, 
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   PanelRight,
   X,
   Loader2,
@@ -37,12 +39,17 @@ import {
   Lightbulb,
   Check,
   Copy,
-  CreditCard
+  CreditCard,
+  Send,
+  MessageSquare,
+  RefreshCw,
+  Keyboard
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
 import { TextToolbar } from '@/components/TextToolbar';
 import { ProjectManager } from '@/components/ProjectManager';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
@@ -101,6 +108,7 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const confirm = useConfirm();
   const projectId = searchParams.get('project') || undefined;
 
   // Hooks must be called before any conditional returns
@@ -108,6 +116,7 @@ function DashboardContent() {
     project: loadedProject,
     loading: projectLoading,
     saving: projectSaving,
+    saveProject: saveProjectToServer,
     autoSave: autoSaveProject,
     addToHistory,
     undo: undoProject,
@@ -123,6 +132,7 @@ function DashboardContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectOptions, setProjectOptions] = useState<any>({});
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -166,6 +176,8 @@ function DashboardContent() {
   const [designSuggestions, setDesignSuggestions] = useState<any>(null);
   const [performancePrediction, setPerformancePrediction] = useState<any>(null);
   const [researchTopic, setResearchTopic] = useState('');
+  const [researchRefinement, setResearchRefinement] = useState('');
+  const [researchHistory, setResearchHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   
   // Dedicated AI tool result modal state
   const [activeAiToolResult, setActiveAiToolResult] = useState<{
@@ -187,6 +199,7 @@ function DashboardContent() {
   const [isLoadingBrandSettings, setIsLoadingBrandSettings] = useState(false);
   const [isSavingBrandSettings, setIsSavingBrandSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [canUploadLogo, setCanUploadLogo] = useState(false);
   const logoUploadInputRef = useRef<HTMLInputElement>(null);
 
   // Load brand settings from API
@@ -247,7 +260,8 @@ function DashboardContent() {
         toast.error('Failed to save brand settings');
       }
     } catch (error) {
-      alert('Failed to save brand settings');
+      console.error('Failed to save brand settings:', error);
+      toast.error('Failed to save brand settings');
     } finally {
       setIsSavingBrandSettings(false);
     }
@@ -290,6 +304,7 @@ function DashboardContent() {
         toast.error(errorData.error || 'Failed to upload logo');
       }
     } catch (error) {
+      console.error('Failed to upload logo:', error);
       toast.error('Failed to upload logo');
     } finally {
       setIsUploadingLogo(false);
@@ -303,9 +318,13 @@ function DashboardContent() {
   const handleLogoDelete = useCallback(async () => {
     if (!brandSettings.logoUrl) return;
     
-    if (!confirm('Are you sure you want to delete your logo?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Logo',
+      message: 'Are you sure you want to delete your logo?',
+      confirmText: 'Delete',
+      variant: 'danger'
+    });
+    if (!confirmed) return;
     
     try {
       setIsSavingBrandSettings(true);
@@ -320,23 +339,29 @@ function DashboardContent() {
       
       if (response.ok) {
         setBrandSettings({ ...brandSettings, logoUrl: null });
+        toast.success('Logo deleted');
       } else {
-        alert('Failed to delete logo');
+        toast.error('Failed to delete logo');
       }
     } catch (error) {
-      alert('Failed to delete logo');
+      console.error('Failed to delete logo:', error);
+      toast.error('Failed to delete logo');
     } finally {
       setIsSavingBrandSettings(false);
     }
-  }, [brandSettings]);
+  }, [brandSettings, confirm]);
 
   // Reset brand settings to defaults
   const resetBrandSettings = useCallback(async () => {
     if (status !== 'authenticated') return;
     
-    if (!confirm('Are you sure you want to reset brand settings to defaults?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Reset Brand Settings',
+      message: 'Are you sure you want to reset brand settings to defaults? This cannot be undone.',
+      confirmText: 'Reset',
+      variant: 'warning'
+    });
+    if (!confirmed) return;
     
     try {
       setIsSavingBrandSettings(true);
@@ -359,16 +384,18 @@ function DashboardContent() {
             accentColor: data.settings.accentColor,
             logoUrl: data.settings.logoUrl || null
           })));
+          toast.success('Brand settings reset to defaults');
         }
       } else {
-        alert('Failed to reset brand settings');
+        toast.error('Failed to reset brand settings');
       }
     } catch (error) {
-      alert('Failed to reset brand settings');
+      console.error('Failed to reset brand settings:', error);
+      toast.error('Failed to reset brand settings');
     } finally {
       setIsSavingBrandSettings(false);
     }
-  }, [status]);
+  }, [status, confirm]);
 
   // Load brand settings on mount
   useEffect(() => {
@@ -376,6 +403,24 @@ function DashboardContent() {
       loadBrandSettings();
     }
   }, [status, loadBrandSettings]);
+
+  // Load subscription status to check logo upload permission
+  useEffect(() => {
+    const fetchSubscriptionStatus = async () => {
+      if (status !== 'authenticated') return;
+      try {
+        const response = await fetch('/api/subscription/status');
+        if (response.ok) {
+          const data = await response.json();
+          setCanUploadLogo(data.limits?.canUploadLogo ?? false);
+        }
+      } catch (error) {
+        // Default to false if error
+        setCanUploadLogo(false);
+      }
+    };
+    fetchSubscriptionStatus();
+  }, [status]);
 
   // Reload brand settings when settings modal opens
   useEffect(() => {
@@ -666,27 +711,193 @@ function DashboardContent() {
     }
   }, [redoProject]);
 
-  // Keyboard shortcuts for undo/redo
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        if (canUndo) handleUndo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        if (canRedo) handleRedo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo]);
+  // Manual save handler for keyboard shortcut
+  const saveProject = useCallback(async () => {
+    if (!projectId) {
+      toast.info('Create or open a project to save');
+      return;
+    }
+    try {
+      await saveProjectToServer(slides, projectOptions);
+      toast.success('Project saved');
+    } catch {
+      toast.error('Failed to save project');
+    }
+  }, [projectId, slides, projectOptions, saveProjectToServer]);
 
   // Update slides with history tracking
   const updateSlides = useCallback((newSlides: SlideData[]) => {
     setSlides(newSlides);
     addToHistory(newSlides);
   }, [addToHistory]);
+
+  // Delete a slide
+  const handleDeleteSlide = useCallback((id: string) => {
+    if (slides.length === 1) {
+      toast.error('You need at least one slide in your project.');
+      return;
+    }
+
+    const targetIndex = slides.findIndex(s => s.id === id);
+    const updatedSlides = slides.filter(s => s.id !== id);
+    setSlides(updatedSlides);
+    addToHistory(updatedSlides);
+
+    if (activeSlideId === id && updatedSlides.length > 0) {
+      const fallbackIndex = Math.min(targetIndex, updatedSlides.length - 1);
+      setActiveSlideId(updatedSlides[fallbackIndex].id);
+    }
+    toast.success('Slide deleted');
+  }, [slides, activeSlideId, addToHistory]);
+
+  // Duplicate a slide
+  const handleDuplicateSlide = useCallback((id: string) => {
+    const slideIndex = slides.findIndex(s => s.id === id);
+    if (slideIndex === -1) return;
+    
+    const slideToDuplicate = slides[slideIndex];
+    const newId = Date.now().toString();
+    const duplicatedSlide: SlideData = {
+      ...slideToDuplicate,
+      id: newId,
+      // Deep clone arrays/objects to avoid reference issues
+      elementOrder: slideToDuplicate.elementOrder ? [...slideToDuplicate.elementOrder] : undefined,
+      customBlocks: slideToDuplicate.customBlocks ? slideToDuplicate.customBlocks.map(b => ({ ...b, id: `${b.id}-copy-${Date.now()}` })) : [],
+      chartData: slideToDuplicate.chartData ? [...slideToDuplicate.chartData] : undefined,
+    };
+    
+    // Insert after the original slide
+    const newSlides = [...slides];
+    newSlides.splice(slideIndex + 1, 0, duplicatedSlide);
+    setSlides(newSlides);
+    addToHistory(newSlides);
+    setActiveSlideId(newId);
+    toast.success('Slide duplicated');
+  }, [slides, addToHistory]);
+
+  // Move slide up/down in order
+  const handleMoveSlide = useCallback((id: string, direction: 'up' | 'down') => {
+    const currentIndex = slides.findIndex(s => s.id === id);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= slides.length) return;
+    
+    const newSlides = [...slides];
+    [newSlides[currentIndex], newSlides[newIndex]] = [newSlides[newIndex], newSlides[currentIndex]];
+    setSlides(newSlides);
+    addToHistory(newSlides);
+  }, [slides, addToHistory]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs/textareas
+      const target = e.target as HTMLElement;
+      const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      // Undo: Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) handleUndo();
+        return;
+      }
+      
+      // Redo: Ctrl+Y or Ctrl+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo) handleRedo();
+        return;
+      }
+      
+      // Don't process other shortcuts if editing
+      if (isEditing) return;
+      
+      // Save: Ctrl+S
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveProject();
+        return;
+      }
+      
+      // Duplicate slide: Ctrl+D
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        if (activeSlideId) {
+          handleDuplicateSlide(activeSlideId);
+        }
+        return;
+      }
+      
+      // Delete slide: Delete or Backspace (when not editing)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (activeSlideId && slides.length > 1) {
+          e.preventDefault();
+          handleDeleteSlide(activeSlideId);
+        }
+        return;
+      }
+      
+      // Navigate slides: Arrow Up/Down or Arrow Left/Right
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const currentIndex = slides.findIndex(s => s.id === activeSlideId);
+        if (currentIndex > 0) {
+          setActiveSlideId(slides[currentIndex - 1].id);
+        }
+        return;
+      }
+      
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const currentIndex = slides.findIndex(s => s.id === activeSlideId);
+        if (currentIndex < slides.length - 1) {
+          setActiveSlideId(slides[currentIndex + 1].id);
+        }
+        return;
+      }
+      
+      // Add new slide: Ctrl+Enter
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        addNewSlide();
+        return;
+      }
+      
+      // Move slide up: Ctrl+Shift+Up
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (activeSlideId) {
+          handleMoveSlide(activeSlideId, 'up');
+        }
+        return;
+      }
+      
+      // Move slide down: Ctrl+Shift+Down
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (activeSlideId) {
+          handleMoveSlide(activeSlideId, 'down');
+        }
+        return;
+      }
+      
+      // Show keyboard shortcuts: ?
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowKeyboardShortcuts(true);
+        return;
+      }
+      
+      // Close modals: Escape
+      if (e.key === 'Escape') {
+        setShowKeyboardShortcuts(false);
+        return;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject]);
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -702,25 +913,25 @@ function DashboardContent() {
     return null;
   }
 
-  const handleDeleteSlide = (id: string) => {
-    if (slides.length === 1) {
-      alert('You need at least one slide in your project.');
-      return;
-    }
-
-    const targetIndex = slides.findIndex(s => s.id === id);
-    const updatedSlides = slides.filter(s => s.id !== id);
-    updateSlides(updatedSlides);
-
-    if (activeSlideId === id && updatedSlides.length > 0) {
-      const fallbackIndex = Math.min(targetIndex, updatedSlides.length - 1);
-      setActiveSlideId(updatedSlides[fallbackIndex].id);
-    }
+  // Reorder slides via drag and drop
+  const handleReorderSlides = (activeId: string, overId: string) => {
+    if (activeId === overId) return;
+    
+    const oldIndex = slides.findIndex(s => s.id === activeId);
+    const newIndex = slides.findIndex(s => s.id === overId);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    const newSlides = [...slides];
+    const [movedSlide] = newSlides.splice(oldIndex, 1);
+    newSlides.splice(newIndex, 0, movedSlide);
+    updateSlides(newSlides);
   };
 
   const handleDownloadSlideImage = async (slide: SlideData, index: number) => {
     // Prevent multiple simultaneous downloads
     if (downloadingSlideId) {
+      console.log('Download already in progress, please wait...');
       return;
     }
 
@@ -774,7 +985,7 @@ function DashboardContent() {
       }, 100);
       
     } catch (error) {
-      // Download failed silently
+      console.error('Single slide download failed:', error);
     } finally {
       // Delay state reset to prevent rapid repeated downloads
       setTimeout(() => {
@@ -824,6 +1035,7 @@ function DashboardContent() {
           useStream = false;
         }
       } catch (error) {
+        console.error('Streaming check failed:', error);
         useStream = false;
       }
     }
@@ -860,7 +1072,8 @@ function DashboardContent() {
           setIsAiModalOpen(false);
         }
       } catch (error) {
-        // Generation failed silently
+        console.error('Failed to generate slides:', error);
+        // You might want to show a toast error here
       } finally {
         setIsGenerating(false);
       }
@@ -966,6 +1179,7 @@ function DashboardContent() {
         setAiPrompt((data.text || '').slice(0, 2000));
       }
     } catch (error) {
+      console.error('Doc upload failed:', error);
       setDocUploadError(error instanceof Error ? error.message : 'Failed to process file');
     } finally {
       setIsUploadingDoc(false);
@@ -1009,7 +1223,8 @@ function DashboardContent() {
         }
       }
     } catch (error) {
-      alert('Failed to generate image');
+      console.error('Image generation failed:', error);
+      toast.error('Failed to generate image');
     } finally {
       setIsGeneratingImage(false);
     }
@@ -1041,44 +1256,76 @@ function DashboardContent() {
         });
       }
     } catch (error) {
-      alert('Failed to enhance content');
+      console.error('Content enhancement failed:', error);
+      toast.error('Failed to enhance content');
     } finally {
       setIsEnhancingContent(false);
     }
   };
 
   // Research Agent
-  const handleResearch = async () => {
-    if (!researchTopic.trim()) return;
+  const handleResearch = async (isRefinement = false) => {
+    const query = isRefinement ? researchRefinement.trim() : researchTopic.trim();
+    if (!query) return;
     
     setIsResearching(true);
-    setResearchResult(null);
+    
     try {
+      // Build conversation history for refinements
+      const history = isRefinement ? [
+        ...researchHistory,
+        { role: 'user' as const, content: query }
+      ] : [];
+      
       const response = await fetch('/api/ai/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: researchTopic,
+          topic: isRefinement ? researchTopic : query,
           depth: 'comprehensive',
-          sources: 5
+          sources: 5,
+          refinement: isRefinement ? query : undefined,
+          history: isRefinement ? researchHistory : undefined,
+          previousResearch: isRefinement ? researchResult?.research : undefined
         })
       });
 
       if (response.ok) {
         const data = await response.json();
         setResearchResult(data);
-        // Open dedicated modal with formatted result
+        
+        // Update conversation history
+        if (isRefinement) {
+          setResearchHistory([
+            ...history,
+            { role: 'assistant', content: data.research }
+          ]);
+          setResearchRefinement('');
+        } else {
+          // Start fresh conversation
+          setResearchHistory([
+            { role: 'user', content: query },
+            { role: 'assistant', content: data.research }
+          ]);
+        }
+        
+        // Open/Update dedicated modal with formatted result
         setActiveAiToolResult({
           tool: 'research',
           data: data,
           query: researchTopic
         });
-        setIsAiFeaturesOpen(false); // Close main modal
+        
+        if (!isRefinement) {
+          setIsAiFeaturesOpen(false); // Close main modal only on initial research
+        }
+        
         // Auto-fill AI prompt with research
         setAiPrompt(data.research);
       }
     } catch (error) {
-      alert('Failed to research topic');
+      console.error('Research failed:', error);
+      toast.error('Failed to research topic');
     } finally {
       setIsResearching(false);
     }
@@ -1110,7 +1357,8 @@ function DashboardContent() {
         setIsAiFeaturesOpen(false); // Close main modal
       }
     } catch (error) {
-      alert('Failed to get design suggestions');
+      console.error('Design analysis failed:', error);
+      toast.error('Failed to get design suggestions');
     } finally {
       setIsAnalyzingDesign(false);
     }
@@ -1143,7 +1391,8 @@ function DashboardContent() {
         setIsAiFeaturesOpen(false); // Close main modal
       }
     } catch (error) {
-      alert('Failed to predict performance');
+      console.error('Performance prediction failed:', error);
+      toast.error('Failed to predict performance');
     } finally {
       setIsPredictingPerformance(false);
     }
@@ -1161,7 +1410,7 @@ function DashboardContent() {
     try {
         posterUrl = await captureVideoFrame(localUrl) || undefined;
     } catch (err) {
-        // Video thumbnail generation failed silently
+        console.warn('Failed to generate video thumbnail', err);
     }
 
     // Set temporary state
@@ -1176,12 +1425,15 @@ function DashboardContent() {
         const sizeMb = file.size / 1024 / 1024;
         const MAX_FILE_MB = 100;
         if (sizeMb > MAX_FILE_MB) {
-            alert(`Video too large (${sizeMb.toFixed(1)} MB). Please upload a file <= ${MAX_FILE_MB} MB to avoid timeouts.`);
+            console.error(`Upload blocked: file too large (${sizeMb.toFixed(1)} MB). Limit is ${MAX_FILE_MB} MB.`);
+            toast.error(`Video too large (${sizeMb.toFixed(1)} MB). Please upload a file ≤ ${MAX_FILE_MB} MB.`);
             return;
         }
 
         const formData = new FormData();
         formData.append('file', file);
+
+        console.log('Uploading via server proxy to Cloudinary...');
 
         const uploadRes = await fetch('/api/upload', {
             method: 'POST',
@@ -1190,6 +1442,7 @@ function DashboardContent() {
 
         if (uploadRes.ok) {
             const data = await uploadRes.json();
+            console.log('Upload successful:', data.secure_url);
             if (data.secure_url) {
                 // Update with permanent public URL from Cloudinary
                 setSlides(currentSlides => currentSlides.map(s => s.id === activeSlide.id ? { 
@@ -1211,10 +1464,11 @@ function DashboardContent() {
                 const text = await uploadRes.text().catch(() => '');
                 errMsg = text || errMsg;
             }
-            alert(errMsg || 'Upload failed. Please try again.');
+            console.error('Upload failed:', errMsg);
+            toast.error(errMsg || 'Upload failed. Please try again.');
         }
     } catch (error) {
-        // Upload error handled silently
+        console.error('Upload error:', error);
     }
   };
 
@@ -1230,6 +1484,7 @@ function DashboardContent() {
         
         // Timeout to prevent hanging
         const timeout = setTimeout(() => {
+            console.warn('Video capture timed out');
             resolve(null);
             video.remove();
         }, 3000);
@@ -1250,6 +1505,7 @@ function DashboardContent() {
                     const dataUrl = canvas.toDataURL('image/png');
                     resolve(dataUrl);
                 } catch (e) {
+                    console.warn('Canvas taint error (CORS)', e);
                     resolve(null); 
                 }
             } else {
@@ -1260,6 +1516,7 @@ function DashboardContent() {
 
         video.onerror = () => {
             clearTimeout(timeout);
+            console.warn('Video load error for capture');
             resolve(null);
             video.remove();
         };
@@ -1316,6 +1573,7 @@ function DashboardContent() {
                  });
                  capturedSlides.push({ id: slide.id, dataUrl, index });
               } catch (err) {
+                  console.warn(`Failed to capture slide ${index}`, err);
                   // Retry once
                   try {
                       await new Promise(r => setTimeout(r, 500));
@@ -1358,7 +1616,7 @@ function DashboardContent() {
                       const blob = await blobRes.blob();
                       formData.append(`video_${index}`, blob, 'video.mp4');
                   } catch (e) {
-                      // Failed to attach video blob
+                      console.error('Failed to attach video blob', e);
                   }
               }
           }));
@@ -1422,7 +1680,7 @@ function DashboardContent() {
       setIsExportOpen(false);
 
     } catch (error) {
-      // Export failed silently
+      console.error('Export failed:', error);
     } finally {
       setIsExporting(null);
       setSlideDownloadData(null); // Cleanup
@@ -2415,12 +2673,22 @@ function DashboardContent() {
         <div className="hidden lg:flex w-72 border-r border-gray-800 bg-[#0f1117] flex-col shrink-0">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slides ({slides.length})</span>
-                <button 
-                    onClick={addNewSlide}
-                    className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-400 hover:text-white transition"
-                >
-                    <Plus size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setShowKeyboardShortcuts(true)}
+                        className="w-6 h-6 hover:bg-gray-700 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 transition"
+                        title="Keyboard shortcuts"
+                    >
+                        <Keyboard size={12} />
+                    </button>
+                    <button 
+                        onClick={addNewSlide}
+                        className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-400 hover:text-white transition"
+                        title="Add new slide (Ctrl+Enter)"
+                    >
+                        <Plus size={14} />
+                    </button>
+                </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {slides.map((slide, index) => (
@@ -2432,8 +2700,35 @@ function DashboardContent() {
                     >
                         <div className="p-3">
                             <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-medium text-gray-400">Slide {index + 1}</span>
-                                {activeSlideId === slide.id && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-400">Slide {index + 1}</span>
+                                    {activeSlideId === slide.id && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
+                                </div>
+                                {/* Move buttons */}
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveSlide(slide.id, 'up');
+                                        }}
+                                        disabled={index === 0}
+                                        className="p-1 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move up (Ctrl+Shift+↑)"
+                                    >
+                                        <ChevronUp size={12} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveSlide(slide.id, 'down');
+                                        }}
+                                        disabled={index === slides.length - 1}
+                                        className="p-1 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move down (Ctrl+Shift+↓)"
+                                    >
+                                        <ChevronDown size={12} />
+                                    </button>
+                                </div>
                             </div>
                             {/* Mini Preview */}
                             <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition flex items-center justify-center">
@@ -2443,7 +2738,17 @@ function DashboardContent() {
                             </div>
                             <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                                 <span className="uppercase tracking-wide text-[10px]">{slide.type}</span>
-                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDuplicateSlide(slide.id);
+                                        }}
+                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-[#ffd700] hover:border-[#ffd700] transition"
+                                        title="Duplicate slide (Ctrl+D)"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -2465,7 +2770,7 @@ function DashboardContent() {
                                             handleDeleteSlide(slide.id);
                                         }}
                                         className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-red-300 hover:border-red-500 transition disabled:opacity-40"
-                                        title={slides.length === 1 ? 'You need at least one slide' : 'Delete slide'}
+                                        title={slides.length === 1 ? 'You need at least one slide' : 'Delete slide (Del)'}
                                         disabled={slides.length === 1}
                                     >
                                         <Trash2 size={14} />
@@ -2775,7 +3080,12 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Brand Logo</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-400">Brand Logo</label>
+                  {!canUploadLogo && (
+                    <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-medium">PRO</span>
+                  )}
+                </div>
                 <div className="space-y-3">
                   {brandSettings.logoUrl ? (
                     <div className="relative">
@@ -2795,7 +3105,7 @@ function DashboardContent() {
                         Delete Logo
                       </button>
                     </div>
-                  ) : (
+                  ) : canUploadLogo ? (
                     <div className="w-full">
                       <input
                         ref={logoUploadInputRef}
@@ -2822,9 +3132,22 @@ function DashboardContent() {
                         )}
                       </button>
                     </div>
+                  ) : (
+                    <div className="w-full">
+                      <Link 
+                        href="/pricing"
+                        className="w-full px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg transition flex items-center justify-center gap-2 text-purple-300 hover:text-purple-200"
+                      >
+                        <Upload size={16} />
+                        <span>Upgrade to Upload Logo</span>
+                      </Link>
+                      <p className="text-xs text-gray-500 mt-2">Logo upload is available on Starter, Pro, and Enterprise plans.</p>
+                    </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500">Upload your brand logo (max 10MB). Applies to all slides and persists across sessions.</p>
+                {canUploadLogo && (
+                  <p className="text-xs text-gray-500">Upload your brand logo (max 10MB). Applies to all slides and persists across sessions.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -3685,6 +4008,24 @@ function DashboardContent() {
             <div className="flex-1 overflow-y-auto p-6">
               {activeAiToolResult.tool === 'research' && (
                 <div className="space-y-6">
+                  {/* Conversation History */}
+                  {researchHistory.length > 2 && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4">
+                      <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                        <MessageSquare size={14} />
+                        Conversation History
+                      </h4>
+                      <div className="space-y-3 max-h-40 overflow-y-auto">
+                        {researchHistory.slice(0, -2).map((msg, idx) => (
+                          <div key={idx} className={`text-sm ${msg.role === 'user' ? 'text-purple-400' : 'text-gray-500'}`}>
+                            <span className="font-medium">{msg.role === 'user' ? 'You: ' : 'AI: '}</span>
+                            <span className="line-clamp-2">{msg.content.slice(0, 200)}...</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Research Content */}
                   <div className="prose prose-invert max-w-none">
                     <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
@@ -3716,8 +4057,67 @@ function DashboardContent() {
                     </div>
                   )}
 
-                  {/* Action Button */}
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                  {/* Refine Research */}
+                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
+                      <MessageSquare size={14} />
+                      Refine or Continue Research
+                    </h4>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Ask follow-up questions, request more details, or ask to focus on specific aspects.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={researchRefinement}
+                        onChange={(e) => setResearchRefinement(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && researchRefinement.trim()) {
+                            handleResearch(true);
+                          }
+                        }}
+                        placeholder="e.g., Tell me more about..., Focus on..., What about...?"
+                        className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                      />
+                      <button
+                        onClick={() => handleResearch(true)}
+                        disabled={isResearching || !researchRefinement.trim()}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isResearching ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {['Tell me more details', 'Add statistics', 'Focus on practical examples', 'Simplify this'].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setResearchRefinement(suggestion)}
+                          className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-full transition"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-between gap-3 pt-4 border-t border-gray-800">
+                    <button
+                      onClick={() => {
+                        setResearchHistory([]);
+                        setResearchResult(null);
+                        setActiveAiToolResult(null);
+                        setIsAiFeaturesOpen(true);
+                      }}
+                      className="px-4 py-2.5 text-gray-400 hover:text-white transition flex items-center gap-2"
+                    >
+                      <RefreshCw size={16} />
+                      Start New Research
+                    </button>
                     <button
                       onClick={() => {
                         setAiPrompt(activeAiToolResult.data.research);
@@ -3920,6 +4320,106 @@ function DashboardContent() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showKeyboardShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Keyboard className="text-[#ffd700]" size={20} />
+                <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+              </div>
+              <button 
+                onClick={() => setShowKeyboardShortcuts(false)}
+                className="text-gray-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+              {/* Navigation */}
+              <div>
+                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Navigation</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Previous slide</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↑</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Next slide</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↓</kbd>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Editing */}
+              <div>
+                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Editing</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Undo</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Z</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Redo</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Y</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Bold text</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+B</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Italic text</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+I</kbd>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Slides */}
+              <div>
+                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Slides</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">New slide</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Enter</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Duplicate slide</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+D</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Delete slide</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Delete</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Move slide up</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↑</kbd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Move slide down</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↓</kbd>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Project */}
+              <div>
+                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Project</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Save project</span>
+                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+S</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+              <p className="text-xs text-gray-500 text-center">Press <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">?</kbd> anytime to show shortcuts</p>
             </div>
           </div>
         </div>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { 
   Sparkles, 
   Calendar, 
@@ -31,6 +33,7 @@ interface SubscriptionData {
 
 export function SubscriptionManager() {
   const { data: session } = useSession();
+  const confirm = useConfirm();
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -72,19 +75,24 @@ export function SubscriptionManager() {
           window.location.href = data.url;
         }
       } else {
-        alert('Failed to start checkout');
+        toast.error('Failed to start checkout');
       }
     } catch (error) {
-      alert('Failed to start checkout');
+      toast.error('Failed to start checkout');
     } finally {
       setIsUpgrading(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to Pro features at the end of your billing period.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Cancel Subscription',
+      message: 'Are you sure you want to cancel your subscription? You will lose access to Pro features at the end of your billing period.',
+      confirmText: 'Cancel Subscription',
+      cancelText: 'Keep Subscription',
+      variant: 'danger'
+    });
+    if (!confirmed) return;
 
     setIsCanceling(true);
     try {
@@ -94,12 +102,12 @@ export function SubscriptionManager() {
 
       if (response.ok) {
         await loadSubscription();
-        alert('Subscription will be canceled at the end of the billing period');
+        toast.success('Subscription will be canceled at the end of the billing period');
       } else {
-        alert('Failed to cancel subscription');
+        toast.error('Failed to cancel subscription');
       }
     } catch (error) {
-      alert('Failed to cancel subscription');
+      toast.error('Failed to cancel subscription');
     } finally {
       setIsCanceling(false);
     }
@@ -114,12 +122,12 @@ export function SubscriptionManager() {
 
       if (response.ok) {
         await loadSubscription();
-        alert('Subscription resumed');
+        toast.success('Subscription resumed');
       } else {
-        alert('Failed to resume subscription');
+        toast.error('Failed to resume subscription');
       }
     } catch (error) {
-      alert('Failed to resume subscription');
+      toast.error('Failed to resume subscription');
     } finally {
       setIsResuming(false);
     }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Permanent_Marker, Inter, Playfair_Display, Oswald, R
 import { ToasterProvider } from "@/components/ToasterProvider";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { SessionProvider } from "@/components/SessionProvider";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -115,7 +116,9 @@ export default function RootLayout({
           }}
         />
         <SessionProvider>
-          {children}
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
         </SessionProvider>
         <ToasterProvider />
         <ScrollToTop />

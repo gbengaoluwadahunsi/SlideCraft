@@ -10,15 +10,19 @@ const SYSTEM_PROMPT = `
 You are an expert carousel content strategist for LinkedIn, Instagram, X, newsletters, and pitch decks. 
 Convert the provided text into a visually engaging carousel structure.
 Return ONLY a valid JSON object with a "slides" array. Do not wrap it in markdown code blocks.
+
+IMPORTANT: Do NOT use markdown syntax in your output. No asterisks (**), no hashtags (###), no underscores for formatting.
+
 Each slide should have:
 - type: "cover" (only for the first slide), "content", or "chart"
-- title: Short, punchy header
-- subtitle: (for cover only) The main hook
+- title: Short, punchy header (plain text, no markdown)
+- subtitle: (for cover only) The main hook (plain text, no markdown)
 - content: (for content slides) HTML string with <p>, <ul>, <li> tags. 
   - Use <em>text</em> for HIGH IMPACT highlights (renders as yellow background).
   - Use <strong>text</strong> for bold emphasis (renders as yellow text).
   - Use <pre><code>...</code></pre> for code snippets.
   - Ensure text is informative and readable.
+  - NEVER use markdown like ** or ### - use HTML tags instead.
 - emoji: A relevant emoji for content slides.
 - chartType: (for chart slides only) "bar", "line", or "pie"
 - chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number). Example: [{"name": "Q1", "value": 30}, {"name": "Q2", "value": 50}]
@@ -28,6 +32,22 @@ If the content involves statistics, data comparisons, or trends, ALWAYS use a "c
 The design style is "Under The Hood", technical but accessible.
 Focus on clarity, high value, and depth. Avoid being too scanty.
 `;
+
+// Helper to strip markdown from text
+function stripMarkdown(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/^#{1,6}\s+/gm, '') // Remove markdown headers (### Header)
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold **text**
+    .replace(/\*([^*]+)\*/g, '$1') // Remove italic *text*
+    .replace(/__([^_]+)__/g, '$1') // Remove bold __text__
+    .replace(/_([^_]+)_/g, '$1') // Remove italic _text_
+    .replace(/~~([^~]+)~~/g, '$1') // Remove strikethrough
+    .replace(/`([^`]+)`/g, '$1') // Remove inline code
+    .replace(/^\s*[-*+]\s+/gm, '• ') // Convert markdown list to bullet
+    .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered list prefixes
+    .trim();
+}
 
 const OUTLINE_PROMPT = (sections: string[]) => `
 When applicable, respect the following outline extracted from the user's document. Treat each bullet as a slide candidate, but feel free to merge or expand if it improves the story:
@@ -133,9 +153,18 @@ ${combinedText}`,
 
     const trimmedSlides = (jsonResult.slides || []).slice(0, requestedSlideCount);
 
+    // Clean markdown from all text fields
     const slidesWithIds = trimmedSlides.map((slide: any) => ({
       ...slide,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      title: stripMarkdown(slide.title || ''),
+      subtitle: stripMarkdown(slide.subtitle || ''),
+      content: slide.content 
+        ? slide.content
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert **text** to <strong>
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>') // Convert *text* to <em>
+            .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>') // Convert ### headers to bold
+        : slide.content,
     }));
 
     incrementAndGetMetrics().catch(console.error);

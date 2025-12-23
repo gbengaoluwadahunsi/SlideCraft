@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import { 
   Sparkles, 
   Check, 
@@ -29,8 +30,8 @@ export default function PricingPage() {
       { name: 'Slide Editor', free: true, starter: true, pro: true, enterprise: true },
       { name: 'PDF & PPT Exports', free: '5 total', starter: 'Unlimited', pro: 'Unlimited', enterprise: 'Unlimited' },
       { name: 'Project Sharing', free: false, starter: true, pro: true, enterprise: true },
-      { name: 'Brand Settings & Logo', free: false, starter: true, pro: true, enterprise: true },
-      { name: 'Custom Brand Colors', free: false, starter: true, pro: true, enterprise: true },
+      { name: 'Custom Brand Colors & Fonts', free: true, starter: true, pro: true, enterprise: true },
+      { name: 'Brand Logo Upload', free: false, starter: true, pro: true, enterprise: true },
       { name: 'Templates Library', free: 'Basic only', starter: 'All templates', pro: 'All templates', enterprise: 'All + Custom' },
       { name: 'Auto-save', free: true, starter: true, pro: true, enterprise: true },
       { name: 'Undo/Redo', free: true, starter: true, pro: true, enterprise: true },
@@ -58,7 +59,7 @@ export default function PricingPage() {
       name: 'Free',
       price: '$0',
       period: 'forever',
-      description: 'Try Carouslk with limited features',
+      description: 'Custom colors & fonts included',
       cta: session ? 'Current Plan' : 'Get Started',
       href: session ? '/dashboard' : '/register',
       popular: false,
@@ -69,7 +70,7 @@ export default function PricingPage() {
       name: 'Starter',
       price: '$10',
       period: 'month',
-      description: 'Perfect for individual creators',
+      description: 'Add your logo + unlimited projects',
       cta: 'Start Free Trial',
       href: session ? '/dashboard?upgrade=starter' : '/register?plan=starter',
       popular: false,
@@ -80,7 +81,7 @@ export default function PricingPage() {
       name: 'Pro',
       price: '$19',
       period: 'month',
-      description: 'For creators who want unlimited AI',
+      description: 'Unlimited AI + advanced features',
       cta: 'Start Free Trial',
       href: session ? '/dashboard?upgrade=pro' : '/register?plan=pro',
       popular: true,
@@ -91,7 +92,7 @@ export default function PricingPage() {
       name: 'Enterprise',
       price: 'Custom',
       period: '',
-      description: 'For teams and agencies',
+      description: 'Teams, API & white-label',
       cta: 'Contact Sales',
       href: 'mailto:sales@carouslk.com?subject=Enterprise Inquiry',
       popular: false,
@@ -280,10 +281,10 @@ export default function PricingPage() {
                             window.location.href = data.url;
                           }
                         } else {
-                          alert('Failed to start checkout');
+                          toast.error('Failed to start checkout');
                         }
                       } catch (error) {
-                        alert('Failed to start checkout');
+                        toast.error('Failed to start checkout');
                       }
                     }}
                     className={`block w-full text-center py-3 px-6 rounded-lg font-bold transition mb-6 ${
@@ -325,12 +326,16 @@ export default function PricingPage() {
                         <span>5 AI Generations/month</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <X size={16} className="text-gray-600" />
-                        <span className="text-gray-500">No Brand Customization</span>
+                        <Check size={16} className="text-green-400" />
+                        <span>Custom Colors & Fonts</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <X size={16} className="text-gray-600" />
-                        <span className="text-gray-500">No Project Sharing</span>
+                        <span className="text-gray-500">Logo Upload</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <X size={16} className="text-gray-600" />
+                        <span className="text-gray-500">Project Sharing</span>
                       </li>
                     </>
                   ) : plan.name === 'Starter' ? (
@@ -349,7 +354,11 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-blue-400" />
-                        <span>Brand Customization</span>
+                        <span>Full Brand Customization</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={16} className="text-blue-400" />
+                        <span>Brand Logo Upload</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-blue-400" />
@@ -360,11 +369,7 @@ export default function PricingPage() {
                     <>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
-                        <span>Unlimited Projects</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={16} className="text-[#ffd700]" />
-                        <span>Unlimited Exports</span>
+                        <span>Everything in Starter</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
@@ -372,7 +377,15 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
-                        <span>All Advanced AI Features</span>
+                        <span>AI Image Generation</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={16} className="text-[#ffd700]" />
+                        <span>Research Agent</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={16} className="text-[#ffd700]" />
+                        <span>Performance Prediction</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
@@ -391,11 +404,19 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-purple-400" />
+                        <span>Advanced Analytics</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={16} className="text-purple-400" />
                         <span>API Access</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-purple-400" />
                         <span>White-label</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check size={16} className="text-purple-400" />
+                        <span>Custom AI Training</span>
                       </li>
                     </>
                   )}
@@ -407,11 +428,92 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* Key Differences Highlight */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid md:grid-cols-4 gap-4">
+          {/* Free */}
+          <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
+            <div className="text-gray-400 text-sm font-medium mb-3">FREE INCLUDES</div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <span>Custom colors & fonts</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <span>5 projects & exports</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <span>Basic AI generation</span>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Starter Upgrade */}
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+            <div className="text-blue-400 text-sm font-medium mb-3">STARTER ADDS</div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                <span className="font-medium">Brand logo upload</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                <span>Unlimited projects</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                <span>Project sharing</span>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Pro Upgrade */}
+          <div className="bg-[#ffd700]/10 border border-[#ffd700]/30 rounded-xl p-6">
+            <div className="text-[#ffd700] text-sm font-medium mb-3">PRO ADDS</div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
+                <span className="font-medium">Unlimited AI</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
+                <span>AI image generation</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
+                <span>Research & insights</span>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Enterprise Upgrade */}
+          <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-6">
+            <div className="text-purple-400 text-sm font-medium mb-3">ENTERPRISE ADDS</div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span className="font-medium">Team collaboration</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span>API access</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span>White-label options</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* Feature Comparison Table */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">Compare Plans</h2>
-          <p className="text-gray-400">See what's included in each plan</p>
+          <h2 className="text-3xl font-bold mb-4">Detailed Feature Comparison</h2>
+          <p className="text-gray-400">See exactly what's included in each plan</p>
         </div>
 
         <div className="bg-[#0f1117] border border-gray-800 rounded-2xl overflow-hidden">

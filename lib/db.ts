@@ -236,6 +236,21 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_carousel_embeddings_project_id 
       ON carousel_embeddings(project_id);
     `);
+
+    // Admin emails table - emails with unlimited free access
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS admin_emails (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        note VARCHAR(500),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Index for admin emails lookup
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_admin_emails_email ON admin_emails(email);
+    `);
   } catch (err) {
     console.error('Failed to init database schema:', err);
     throw err;

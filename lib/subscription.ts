@@ -1,5 +1,22 @@
 import { getPool } from './db';
 
+// Check if an email is in the admin list (unlimited free access)
+export async function isAdminEmail(email: string): Promise<boolean> {
+  const db = getPool();
+  const result = await db.query(
+    'SELECT id FROM admin_emails WHERE LOWER(email) = LOWER($1)',
+    [email]
+  );
+  return result.rows.length > 0;
+}
+
+// Get user email by ID
+export async function getUserEmail(userId: string): Promise<string | null> {
+  const db = getPool();
+  const result = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+  return result.rows[0]?.email || null;
+}
+
 export type Plan = 'free' | 'starter' | 'pro' | 'enterprise';
 export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired';
 
@@ -17,7 +34,9 @@ export interface PlanLimits {
   maxProjects: number;
   maxExports: number;
   maxAiGenerations: number;
-  canCustomizeBrand: boolean;
+  canCustomizeBrand: boolean;      // Full brand customization (legacy, kept for compatibility)
+  canCustomizeBrandColors: boolean; // Colors, fonts, handle - available to all
+  canUploadLogo: boolean;           // Logo upload - paid only
   canShareProjects: boolean;
   hasAdvancedAi: boolean;
   hasPremiumTemplates: boolean;
@@ -29,6 +48,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxExports: 5,
     maxAiGenerations: 5,
     canCustomizeBrand: false,
+    canCustomizeBrandColors: true,  // Free users CAN customize colors/fonts
+    canUploadLogo: false,            // Free users CANNOT upload logo
     canShareProjects: false,
     hasAdvancedAi: false,
     hasPremiumTemplates: false,
@@ -38,6 +59,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxExports: Infinity,
     maxAiGenerations: 20,
     canCustomizeBrand: true,
+    canCustomizeBrandColors: true,
+    canUploadLogo: true,
     canShareProjects: true,
     hasAdvancedAi: false,
     hasPremiumTemplates: true,
@@ -47,6 +70,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxExports: Infinity,
     maxAiGenerations: Infinity,
     canCustomizeBrand: true,
+    canCustomizeBrandColors: true,
+    canUploadLogo: true,
     canShareProjects: true,
     hasAdvancedAi: true,
     hasPremiumTemplates: true,
@@ -56,6 +81,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxExports: Infinity,
     maxAiGenerations: Infinity,
     canCustomizeBrand: true,
+    canCustomizeBrandColors: true,
+    canUploadLogo: true,
     canShareProjects: true,
     hasAdvancedAi: true,
     hasPremiumTemplates: true,
@@ -66,7 +93,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 export async function getUserPlan(userId: string): Promise<UserPlan> {
   const db = getPool();
   const result = await db.query(
-    `SELECT plan, subscription_status, subscription_start_date, subscription_end_date, 
+    `SELECT email, plan, subscription_status, subscription_start_date, subscription_end_date, 
             trial_end_date, stripe_customer_id, stripe_subscription_id
      FROM users WHERE id = $1`,
     [userId]
@@ -85,6 +112,21 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
   }
 
   const row = result.rows[0];
+  
+  // Check if user is an admin (unlimited free access)
+  const isAdmin = await isAdminEmail(row.email);
+  if (isAdmin) {
+    return {
+      plan: 'enterprise',
+      status: 'active',
+      startDate: null,
+      endDate: null,
+      trialEndDate: null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+    };
+  }
+
   return {
     plan: (row.plan || 'free') as Plan,
     status: (row.subscription_status || 'active') as SubscriptionStatus,

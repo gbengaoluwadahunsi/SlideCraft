@@ -56,7 +56,6 @@ function LoginContent() {
           }
         } catch (checkErr) {
           // If check fails, just show generic error
-          console.error('Verification check failed:', checkErr);
         }
         
         setError('Invalid email or password');

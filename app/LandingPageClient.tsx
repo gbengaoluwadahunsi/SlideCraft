@@ -58,7 +58,6 @@ export default function LandingPageClient() {
       } catch (error) {
         if (!cancelled) {
           setMetricsError(true);
-          console.error('Metrics GET failed:', error);
         }
       } finally {
         if (!cancelled) {

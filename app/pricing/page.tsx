@@ -283,7 +283,6 @@ export default function PricingPage() {
                           alert('Failed to start checkout');
                         }
                       } catch (error) {
-                        console.error('Checkout error:', error);
                         alert('Failed to start checkout');
                       }
                     }}

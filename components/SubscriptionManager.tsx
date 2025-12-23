@@ -51,7 +51,7 @@ export function SubscriptionManager() {
         setSubscription(data);
       }
     } catch (error) {
-      console.error('Failed to load subscription:', error);
+      // Subscription load failed silently
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,6 @@ export function SubscriptionManager() {
         alert('Failed to start checkout');
       }
     } catch (error) {
-      console.error('Upgrade error:', error);
       alert('Failed to start checkout');
     } finally {
       setIsUpgrading(false);
@@ -100,7 +99,6 @@ export function SubscriptionManager() {
         alert('Failed to cancel subscription');
       }
     } catch (error) {
-      console.error('Cancel error:', error);
       alert('Failed to cancel subscription');
     } finally {
       setIsCanceling(false);
@@ -121,7 +119,6 @@ export function SubscriptionManager() {
         alert('Failed to resume subscription');
       }
     } catch (error) {
-      console.error('Resume error:', error);
       alert('Failed to resume subscription');
     } finally {
       setIsResuming(false);

@@ -213,7 +213,7 @@ function DashboardContent() {
         }
       }
     } catch (error) {
-      console.error('Failed to load brand settings:', error);
+      // Error handled silently
     } finally {
       setIsLoadingBrandSettings(false);
     }
@@ -247,7 +247,6 @@ function DashboardContent() {
         toast.error('Failed to save brand settings');
       }
     } catch (error) {
-      console.error('Failed to save brand settings:', error);
       alert('Failed to save brand settings');
     } finally {
       setIsSavingBrandSettings(false);
@@ -291,7 +290,6 @@ function DashboardContent() {
         toast.error(errorData.error || 'Failed to upload logo');
       }
     } catch (error) {
-      console.error('Failed to upload logo:', error);
       toast.error('Failed to upload logo');
     } finally {
       setIsUploadingLogo(false);
@@ -326,7 +324,6 @@ function DashboardContent() {
         alert('Failed to delete logo');
       }
     } catch (error) {
-      console.error('Failed to delete logo:', error);
       alert('Failed to delete logo');
     } finally {
       setIsSavingBrandSettings(false);
@@ -367,7 +364,6 @@ function DashboardContent() {
         alert('Failed to reset brand settings');
       }
     } catch (error) {
-      console.error('Failed to reset brand settings:', error);
       alert('Failed to reset brand settings');
     } finally {
       setIsSavingBrandSettings(false);
@@ -725,7 +721,6 @@ function DashboardContent() {
   const handleDownloadSlideImage = async (slide: SlideData, index: number) => {
     // Prevent multiple simultaneous downloads
     if (downloadingSlideId) {
-      console.log('Download already in progress, please wait...');
       return;
     }
 
@@ -779,7 +774,7 @@ function DashboardContent() {
       }, 100);
       
     } catch (error) {
-      console.error('Single slide download failed:', error);
+      // Download failed silently
     } finally {
       // Delay state reset to prevent rapid repeated downloads
       setTimeout(() => {
@@ -829,7 +824,6 @@ function DashboardContent() {
           useStream = false;
         }
       } catch (error) {
-        console.error('Streaming check failed:', error);
         useStream = false;
       }
     }
@@ -866,8 +860,7 @@ function DashboardContent() {
           setIsAiModalOpen(false);
         }
       } catch (error) {
-        console.error('Failed to generate slides:', error);
-        // You might want to show a toast error here
+        // Generation failed silently
       } finally {
         setIsGenerating(false);
       }
@@ -973,7 +966,6 @@ function DashboardContent() {
         setAiPrompt((data.text || '').slice(0, 2000));
       }
     } catch (error) {
-      console.error('Doc upload failed:', error);
       setDocUploadError(error instanceof Error ? error.message : 'Failed to process file');
     } finally {
       setIsUploadingDoc(false);
@@ -1017,7 +1009,6 @@ function DashboardContent() {
         }
       }
     } catch (error) {
-      console.error('Image generation failed:', error);
       alert('Failed to generate image');
     } finally {
       setIsGeneratingImage(false);
@@ -1050,7 +1041,6 @@ function DashboardContent() {
         });
       }
     } catch (error) {
-      console.error('Content enhancement failed:', error);
       alert('Failed to enhance content');
     } finally {
       setIsEnhancingContent(false);
@@ -1088,7 +1078,6 @@ function DashboardContent() {
         setAiPrompt(data.research);
       }
     } catch (error) {
-      console.error('Research failed:', error);
       alert('Failed to research topic');
     } finally {
       setIsResearching(false);
@@ -1121,7 +1110,6 @@ function DashboardContent() {
         setIsAiFeaturesOpen(false); // Close main modal
       }
     } catch (error) {
-      console.error('Design analysis failed:', error);
       alert('Failed to get design suggestions');
     } finally {
       setIsAnalyzingDesign(false);
@@ -1155,7 +1143,6 @@ function DashboardContent() {
         setIsAiFeaturesOpen(false); // Close main modal
       }
     } catch (error) {
-      console.error('Performance prediction failed:', error);
       alert('Failed to predict performance');
     } finally {
       setIsPredictingPerformance(false);
@@ -1174,7 +1161,7 @@ function DashboardContent() {
     try {
         posterUrl = await captureVideoFrame(localUrl) || undefined;
     } catch (err) {
-        console.warn('Failed to generate video thumbnail', err);
+        // Video thumbnail generation failed silently
     }
 
     // Set temporary state
@@ -1189,15 +1176,12 @@ function DashboardContent() {
         const sizeMb = file.size / 1024 / 1024;
         const MAX_FILE_MB = 100;
         if (sizeMb > MAX_FILE_MB) {
-            console.error(`Upload blocked: file too large (${sizeMb.toFixed(1)} MB). Limit is ${MAX_FILE_MB} MB.`);
             alert(`Video too large (${sizeMb.toFixed(1)} MB). Please upload a file <= ${MAX_FILE_MB} MB to avoid timeouts.`);
             return;
         }
 
         const formData = new FormData();
         formData.append('file', file);
-
-        console.log('Uploading via server proxy to Cloudinary...');
 
         const uploadRes = await fetch('/api/upload', {
             method: 'POST',
@@ -1206,7 +1190,6 @@ function DashboardContent() {
 
         if (uploadRes.ok) {
             const data = await uploadRes.json();
-            console.log('Upload successful:', data.secure_url);
             if (data.secure_url) {
                 // Update with permanent public URL from Cloudinary
                 setSlides(currentSlides => currentSlides.map(s => s.id === activeSlide.id ? { 
@@ -1228,11 +1211,10 @@ function DashboardContent() {
                 const text = await uploadRes.text().catch(() => '');
                 errMsg = text || errMsg;
             }
-            console.error('Upload failed:', errMsg);
             alert(errMsg || 'Upload failed. Please try again.');
         }
     } catch (error) {
-        console.error('Upload error:', error);
+        // Upload error handled silently
     }
   };
 
@@ -1248,7 +1230,6 @@ function DashboardContent() {
         
         // Timeout to prevent hanging
         const timeout = setTimeout(() => {
-            console.warn('Video capture timed out');
             resolve(null);
             video.remove();
         }, 3000);
@@ -1269,7 +1250,6 @@ function DashboardContent() {
                     const dataUrl = canvas.toDataURL('image/png');
                     resolve(dataUrl);
                 } catch (e) {
-                    console.warn('Canvas taint error (CORS)', e);
                     resolve(null); 
                 }
             } else {
@@ -1280,7 +1260,6 @@ function DashboardContent() {
 
         video.onerror = () => {
             clearTimeout(timeout);
-            console.warn('Video load error for capture');
             resolve(null);
             video.remove();
         };
@@ -1337,7 +1316,6 @@ function DashboardContent() {
                  });
                  capturedSlides.push({ id: slide.id, dataUrl, index });
               } catch (err) {
-                  console.warn(`Failed to capture slide ${index}`, err);
                   // Retry once
                   try {
                       await new Promise(r => setTimeout(r, 500));
@@ -1380,7 +1358,7 @@ function DashboardContent() {
                       const blob = await blobRes.blob();
                       formData.append(`video_${index}`, blob, 'video.mp4');
                   } catch (e) {
-                      console.error('Failed to attach video blob', e);
+                      // Failed to attach video blob
                   }
               }
           }));
@@ -1444,7 +1422,7 @@ function DashboardContent() {
       setIsExportOpen(false);
 
     } catch (error) {
-      console.error('Export failed:', error);
+      // Export failed silently
     } finally {
       setIsExporting(null);
       setSlideDownloadData(null); // Cleanup

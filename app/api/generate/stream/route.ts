@@ -9,6 +9,6 @@ export async function POST() {
   return NextResponse.json(
     { error: 'Streaming not available. Use /api/generate instead.' },
     { status: 501 }
-  );
+    );
 }
 

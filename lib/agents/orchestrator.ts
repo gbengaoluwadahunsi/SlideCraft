@@ -26,7 +26,7 @@ function getLLM() {
 export async function researchAgent(topic: string): Promise<string> {
   const llm = getLLM();
   if (!llm) return 'Research unavailable (missing GROQ_API_KEY).';
-
+  
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', 'You are a research assistant. Provide comprehensive, accurate information on topics.'],
     ['human', 'Research the following topic: {topic}'],
@@ -48,7 +48,7 @@ export async function generateContentAgent(
 ): Promise<any> {
   const llm = getLLM();
   if (!llm) return { slides: [] };
-
+  
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are an expert carousel content creator. Convert research into engaging slides.
       Return a JSON object with a "slides" array. Each slide should have: type, title, content, emoji.`],
@@ -77,7 +77,7 @@ export async function generateContentAgent(
 export async function enhanceContentAgent(content: string, goal: string): Promise<string> {
   const llm = getLLM();
   if (!llm) return content;
-
+  
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', 'You are a content enhancement expert. Improve content while maintaining its core message.'],
     ['human', `Enhance this content with the goal of: {goal}\n\nContent: {content}`],
@@ -95,7 +95,7 @@ export async function enhanceContentAgent(content: string, goal: string): Promis
 export async function designAgent(slides: any[]): Promise<any> {
   const llm = getLLM();
   if (!llm) return { recommendations: 'Design review unavailable (missing GROQ_API_KEY).', score: 0 };
-
+  
   const slidesSummary = slides.map((s, i) => 
     `Slide ${i + 1}: ${s.title || 'Untitled'}`
   ).join('\n');

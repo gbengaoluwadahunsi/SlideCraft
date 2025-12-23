@@ -678,20 +678,36 @@ export const Slide: React.FC<SlideProps> = ({
       switch (id) {
         case 'emoji': {
             const emojiValue = sanitizeEmoji(emoji);
-            return (emojiValue || isEditable) ? (
-                isEditable ? (
-                    <div className="mb-6" style={{ fontSize: `${3.75 * fontScale}rem` }}>
+            // Only render emoji container if there's actually an emoji value
+            // No placeholder - user must explicitly add an emoji
+            if (!emojiValue && !isEditable) return null;
+            if (!emojiValue && isEditable) {
+                // In edit mode with no emoji, show a subtle add button instead of placeholder
+                return (
+                    <div 
+                        className="mb-6 opacity-30 hover:opacity-60 transition cursor-pointer group"
+                        style={{ fontSize: `${3.75 * fontScale}rem` }}
+                        onClick={() => onUpdate?.('emoji', '✨')}
+                        title="Click to add emoji"
+                    >
+                        <span className="text-gray-500 text-lg">+ Add emoji</span>
+                    </div>
+                );
+            }
+            return (
+                <div className="mb-6" style={{ fontSize: `${3.75 * fontScale}rem` }}>
+                    {isEditable ? (
                         <EditableText 
                             html={emojiValue}
                             onChange={(val) => onUpdate?.('emoji', sanitizeEmoji(val))}
                             tagName="div"
-                            placeholder="✨"
+                            placeholder=""
                         />
-                    </div>
-                ) : emojiValue ? (
-                    <div className="mb-6" style={{ fontSize: `${3.75 * fontScale}rem` }}>{emojiValue}</div>
-                ) : null
-            ) : null;
+                    ) : (
+                        emojiValue
+                    )}
+                </div>
+            );
         }
         case 'title':
             // Strip HTML to check for actual content

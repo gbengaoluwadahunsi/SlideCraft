@@ -254,12 +254,14 @@ export async function trackUsage(
 
   if (canUse && increment > 0) {
     // Update or insert usage
+    // Use null for unlimited (Infinity) since PostgreSQL can't store Infinity as integer
+    const dbLimit = limit === Infinity ? null : limit;
     await db.query(
       `INSERT INTO subscription_usage (user_id, usage_type, usage_count, limit_count, period_start, period_end)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, usage_type, period_start)
        DO UPDATE SET usage_count = subscription_usage.usage_count + $3, updated_at = NOW()`,
-      [userId, usageType, increment, limit, periodStart, new Date(now.getFullYear(), now.getMonth() + 1, 0)]
+      [userId, usageType, increment, dbLimit, periodStart, new Date(now.getFullYear(), now.getMonth() + 1, 0)]
     );
     currentCount += increment;
   }

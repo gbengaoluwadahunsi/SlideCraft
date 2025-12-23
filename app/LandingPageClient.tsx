@@ -17,13 +17,7 @@ export default function LandingPageClient() {
   const [metrics, setMetrics] = useState<{ todayCreations: number; totalCreations: number } | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [currentYear] = useState(() => new Date().getFullYear());
-
-  // Prevent hydration mismatch by waiting for client mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Handle "Let's Cook" button click
   const handleLetsCook = (e?: React.MouseEvent) => {
@@ -86,10 +80,10 @@ export default function LandingPageClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden" suppressHydrationWarning>
+    <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden">
       {/* Navbar */}
       <motion.nav 
-        initial={mounted ? { y: -20, opacity: 0 } : false}
+        initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center"
@@ -185,7 +179,7 @@ export default function LandingPageClient() {
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-6 pt-20 pb-32 text-center">
         <motion.h1 
-          initial={mounted ? { opacity: 0, y: 30 } : false}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
           className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-8 leading-tight max-w-4xl mx-auto"
@@ -193,7 +187,7 @@ export default function LandingPageClient() {
           Turn Any Idea into <br />
           <motion.span 
             className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffd700] to-orange-400 relative"
-            initial={mounted ? { opacity: 0, scale: 0.9 } : false}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
@@ -203,7 +197,7 @@ export default function LandingPageClient() {
         </motion.h1>
         
         <motion.p 
-          initial={mounted ? { opacity: 0, y: 20 } : false}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
           className="text-base sm:text-lg lg:text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
@@ -212,7 +206,7 @@ export default function LandingPageClient() {
         </motion.p>
         
         <motion.div 
-          initial={mounted ? { opacity: 0, y: 20 } : false}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.5 }}
           className="flex flex-col sm:flex-row gap-4 justify-center items-center"
@@ -237,7 +231,7 @@ export default function LandingPageClient() {
 
       {/* Hero Visual */}
       <motion.div 
-        initial={mounted ? { opacity: 0, y: 50, scale: 0.95 } : false}
+        initial={{ opacity: 0, y: 50, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.8, delay: 0.6 }}
         className="mt-20 relative max-w-6xl mx-auto z-10"
@@ -332,7 +326,7 @@ export default function LandingPageClient() {
                     {/* Active Slide */}
                     <motion.div 
                       className="relative w-[280px] sm:w-[380px] aspect-[4/5] bg-white rounded-2xl shadow-2xl transform transition-all duration-500 group z-10"
-                      initial={mounted ? { opacity: 0, scale: 0.8, rotate: -5 } : false}
+                      initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
                       animate={{ opacity: 1, scale: 1, rotate: 0 }}
                       transition={{ duration: 0.8, delay: 1 }}
                       whileHover={{ scale: 1.02, rotate: 1 }}
@@ -345,7 +339,7 @@ export default function LandingPageClient() {
                                 <div className="relative z-10">
                                     <motion.div 
                                       className="w-14 h-14 bg-[#ffd700] rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-[#ffd700]/30 mb-8"
-                                      initial={mounted ? { rotate: 3, scale: 0 } : { rotate: 3, scale: 1 }}
+                                      initial={{ rotate: 3, scale: 0 }}
                                       animate={{ rotate: 3, scale: 1 }}
                                       transition={{ duration: 0.5, delay: 1.2, type: "spring" }}
                                       whileHover={{ rotate: 6, scale: 1.1 }}
@@ -401,7 +395,7 @@ export default function LandingPageClient() {
         {/* Floating Badges */}
         <motion.div 
           className="absolute -top-6 -right-6 bg-[#ffd700] text-black px-6 py-3 rounded-xl shadow-xl border-4 border-[#0B0F19] z-30 flex items-center gap-3"
-          initial={mounted ? { opacity: 0, scale: 0, rotate: -10 } : { opacity: 1, scale: 1, rotate: 6 }}
+          initial={{ opacity: 0, scale: 0, rotate: -10 }}
           animate={{ opacity: 1, scale: 1, rotate: 6 }}
           transition={{ duration: 0.6, delay: 1.4, type: "spring" }}
           whileHover={{ scale: 1.05, rotate: 8 }}
@@ -420,7 +414,7 @@ export default function LandingPageClient() {
       {/* Features Grid */}
       <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-24 border-t border-gray-800">
         <motion.div 
-          initial={mounted ? { opacity: 0, y: 30 } : false}
+          initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
@@ -433,7 +427,7 @@ export default function LandingPageClient() {
         <div className="grid md:grid-cols-3 gap-8">
             <motion.div 
               className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={mounted ? { opacity: 0, y: 50 } : false}
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay: 0.1 }}
@@ -449,7 +443,7 @@ export default function LandingPageClient() {
             </motion.div>
             <motion.div 
               className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={mounted ? { opacity: 0, y: 50 } : false}
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay: 0.2 }}
@@ -465,7 +459,7 @@ export default function LandingPageClient() {
             </motion.div>
             <motion.div 
               className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={mounted ? { opacity: 0, y: 50 } : false}
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay: 0.3 }}
@@ -486,7 +480,7 @@ export default function LandingPageClient() {
       <section className="py-16 sm:py-24 px-4 sm:px-6">
          <motion.div 
            className="max-w-4xl mx-auto bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 sm:p-12 border border-gray-700 text-center relative overflow-hidden"
-           initial={mounted ? { opacity: 0, scale: 0.95 } : false}
+           initial={{ opacity: 0, scale: 0.95 }}
            whileInView={{ opacity: 1, scale: 1 }}
            viewport={{ once: true, margin: "-100px" }}
            transition={{ duration: 0.6 }}
@@ -516,14 +510,14 @@ export default function LandingPageClient() {
         
         <motion.div 
           className="mb-8 flex justify-center gap-3 sm:gap-4"
-          initial={mounted ? { opacity: 0, y: 20 } : false}
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
           <motion.div 
             className="bg-gray-800/40 border border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
-            initial={mounted ? { opacity: 0, scale: 0.8 } : false}
+            initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
@@ -536,7 +530,7 @@ export default function LandingPageClient() {
           </motion.div>
           <motion.div 
             className="bg-gray-800/40 border border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
-            initial={mounted ? { opacity: 0, scale: 0.8 } : false}
+            initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.2 }}

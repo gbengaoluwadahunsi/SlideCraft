@@ -43,7 +43,8 @@ import {
   Send,
   MessageSquare,
   RefreshCw,
-  Keyboard
+  Keyboard,
+  Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -162,7 +163,7 @@ function DashboardContent() {
   const [docUploadError, setDocUploadError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [useStreaming, setUseStreaming] = useState(true); // Enable streaming by default
+  const [useStreaming, setUseStreaming] = useState(false); // Streaming disabled - use regular endpoint
 
   // AI Features state
   const [isAiFeaturesOpen, setIsAiFeaturesOpen] = useState(false);
@@ -1345,20 +1346,23 @@ function DashboardContent() {
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setDesignSuggestions(data.suggestions);
-        // Open dedicated modal with formatted result
-        setActiveAiToolResult({
-          tool: 'design',
-          data: data.suggestions,
-          query: 'Design Analysis'
-        });
-        setIsAiFeaturesOpen(false); // Close main modal
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get design suggestions');
       }
+
+      setDesignSuggestions(data.suggestions);
+      // Open dedicated modal with formatted result
+      setActiveAiToolResult({
+        tool: 'design',
+        data: data.suggestions,
+        query: 'Design Analysis'
+      });
+      setIsAiFeaturesOpen(false); // Close main modal
     } catch (error) {
       console.error('Design analysis failed:', error);
-      toast.error('Failed to get design suggestions');
+      toast.error(error instanceof Error ? error.message : 'Failed to get design suggestions');
     } finally {
       setIsAnalyzingDesign(false);
     }
@@ -3323,7 +3327,7 @@ function DashboardContent() {
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition"
                 />
                 <button
-                  onClick={handleResearch}
+                  onClick={() => handleResearch(false)}
                   disabled={isResearching || !researchTopic.trim()}
                   className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
@@ -3460,10 +3464,10 @@ function DashboardContent() {
                 <div className="space-y-2">
                   <button
                     onClick={() => {
-                      const content = activeSlide.content || activeSlide.title || '';
+                      const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
                       if (content) handleEnhanceContent('seo', content);
                     }}
-                    disabled={isEnhancingContent || !activeSlide.content}
+                    disabled={isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
                     className="w-full px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <Wand2 size={14} />
@@ -3471,10 +3475,10 @@ function DashboardContent() {
                   </button>
                   <button
                     onClick={() => {
-                      const content = activeSlide.content || activeSlide.title || '';
+                      const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
                       if (content) handleEnhanceContent('tone', content);
                     }}
-                    disabled={isEnhancingContent || !activeSlide.content}
+                    disabled={isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
                     className="w-full px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     Adjust Tone
@@ -4134,63 +4138,144 @@ function DashboardContent() {
               )}
 
               {activeAiToolResult.tool === 'design' && (
-                <div className="space-y-6">
-                  {/* Overall Score */}
+                <div className="space-y-5">
+                  {/* Overall Score Card */}
                   {activeAiToolResult.data.overallScore && (
-                    <div className="bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 border border-yellow-500/50 rounded-xl p-6">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-lg font-semibold text-white">Overall Design Score</h4>
-                        <div className="text-4xl font-bold text-yellow-400">{activeAiToolResult.data.overallScore}/100</div>
+                    <div className="bg-gradient-to-br from-yellow-500/10 via-orange-500/10 to-yellow-600/10 border border-yellow-500/30 rounded-2xl p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-16 h-16 bg-yellow-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <span className="text-2xl font-black text-yellow-400">
+                            {String(activeAiToolResult.data.overallScore).match(/\d+/)?.[0] || '?'}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-yellow-400 uppercase tracking-wide mb-1">Design Score</h4>
+                          <p className="text-gray-300 text-sm leading-relaxed">
+                            {String(activeAiToolResult.data.overallScore).replace(/^\d+\/\d+[,.]?\s*/, '')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Color Suggestions */}
-                  {activeAiToolResult.data.colorSuggestions && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <Palette size={18} className="text-yellow-400" />
-                        Color Recommendations
-                      </h4>
-                      <div className="space-y-3 text-gray-300">
-                        {activeAiToolResult.data.colorSuggestions.accentColor && (
-                          <p><strong className="text-yellow-400">Accent Color:</strong> {activeAiToolResult.data.colorSuggestions.accentColor}</p>
-                        )}
-                        {activeAiToolResult.data.colorSuggestions.backgroundColor && (
-                          <p><strong className="text-yellow-400">Background:</strong> {activeAiToolResult.data.colorSuggestions.backgroundColor}</p>
-                        )}
+                  {/* Two Column Grid for Colors & Fonts */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Color Suggestions */}
+                    {activeAiToolResult.data.colorSuggestions && (
+                      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                          <Palette size={16} className="text-purple-400" />
+                          Colors
+                        </h4>
+                        <div className="space-y-3">
+                          {activeAiToolResult.data.colorSuggestions.accentColor && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex-shrink-0 shadow-inner" />
+                              <div className="min-w-0">
+                                <p className="text-xs text-gray-400 font-medium">Accent</p>
+                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.accentColor).split(',')[0]}</p>
+                              </div>
+                            </div>
+                          )}
+                          {activeAiToolResult.data.colorSuggestions.backgroundColor && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex-shrink-0 shadow-inner border border-gray-600" />
+                              <div className="min-w-0">
+                                <p className="text-xs text-gray-400 font-medium">Background</p>
+                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.backgroundColor).split(',')[0]}</p>
+                              </div>
+                            </div>
+                          )}
+                          {activeAiToolResult.data.colorSuggestions.textColor && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-white flex-shrink-0 shadow-inner border border-gray-300" />
+                              <div className="min-w-0">
+                                <p className="text-xs text-gray-400 font-medium">Text</p>
+                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.textColor).split(',')[0]}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Font Suggestions */}
+                    {activeAiToolResult.data.fontSuggestions && (
+                      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                          <Type size={16} className="text-blue-400" />
+                          Typography
+                        </h4>
+                        <div className="space-y-2">
+                          {activeAiToolResult.data.fontSuggestions.recommendedFont && (
+                            <div>
+                              <p className="text-xs text-gray-400 font-medium mb-1">Recommended Font</p>
+                              <p className="text-white font-semibold">{activeAiToolResult.data.fontSuggestions.recommendedFont}</p>
+                            </div>
+                          )}
+                          {activeAiToolResult.data.fontSuggestions.reason && (
+                            <p className="text-gray-400 text-xs leading-relaxed">{activeAiToolResult.data.fontSuggestions.reason}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Layout Suggestions */}
-                  {activeAiToolResult.data.layoutSuggestions && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Layout Recommendations</h4>
-                      <div className="text-gray-300 whitespace-pre-wrap">{activeAiToolResult.data.layoutSuggestions}</div>
+                  {activeAiToolResult.data.layoutSuggestions && Array.isArray(activeAiToolResult.data.layoutSuggestions) && activeAiToolResult.data.layoutSuggestions.length > 0 && (
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <Layout size={16} className="text-green-400" />
+                        Layout Tips
+                      </h4>
+                      <div className="space-y-3">
+                        {activeAiToolResult.data.layoutSuggestions.slice(0, 3).map((item: { slideIndex?: number; suggestion?: string; reason?: string }, idx: number) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 bg-gray-900/50 rounded-lg">
+                            <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-xs font-bold text-green-400">{idx + 1}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              {item.slideIndex !== undefined && (
+                                <span className="inline-block px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full mb-1">
+                                  Slide {item.slideIndex + 1}
+                                </span>
+                              )}
+                              {item.suggestion && (
+                                <p className="text-gray-200 text-sm">{item.suggestion}</p>
+                              )}
+                              {item.reason && (
+                                <p className="text-gray-500 text-xs mt-1">{item.reason}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
                   {/* Accessibility */}
                   {activeAiToolResult.data.accessibility && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Accessibility Analysis</h4>
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <Eye size={16} className="text-cyan-400" />
+                        Accessibility
+                      </h4>
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-300">Contrast Score</span>
-                          <span className="text-lg font-bold text-green-400">{activeAiToolResult.data.accessibility.contrastScore}</span>
-                        </div>
+                        {activeAiToolResult.data.accessibility.contrastScore && (
+                          <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
+                            <span className="text-gray-300 text-sm">Contrast Score</span>
+                            <span className="text-lg font-bold text-cyan-400">{activeAiToolResult.data.accessibility.contrastScore}</span>
+                          </div>
+                        )}
                         {activeAiToolResult.data.accessibility.fixes && activeAiToolResult.data.accessibility.fixes.length > 0 && (
-                          <div>
-                            <p className="text-sm font-semibold text-gray-400 mb-2">Recommended Fixes:</p>
-                            <ul className="space-y-2">
-                              {activeAiToolResult.data.accessibility.fixes.map((fix: string, idx: number) => (
-                                <li key={idx} className="flex items-start gap-2 text-gray-300">
-                                  <span className="text-yellow-400 mt-1">•</span>
-                                  <span>{fix}</span>
-                                </li>
-                              ))}
-                            </ul>
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-400 font-medium">Improvements</p>
+                            {activeAiToolResult.data.accessibility.fixes.slice(0, 3).map((fix: string, idx: number) => (
+                              <div key={idx} className="flex items-start gap-2 text-sm">
+                                <span className="text-cyan-400 mt-0.5">→</span>
+                                <span className="text-gray-300">{fix}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -4278,45 +4363,70 @@ function DashboardContent() {
                   {/* Original Content */}
                   {activeAiToolResult.data.originalContent && (
                     <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Original Content</h4>
-                      <div className="text-gray-400 whitespace-pre-wrap bg-gray-800/50 p-4 rounded-lg">
-                        {activeAiToolResult.data.originalContent}
-                      </div>
+                      <h4 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wide">Original Content</h4>
+                      <div 
+                        className="text-gray-400 bg-gray-800/50 p-4 rounded-lg leading-relaxed"
+                        dangerouslySetInnerHTML={{ 
+                          __html: activeAiToolResult.data.originalContent 
+                        }}
+                      />
                     </div>
                   )}
 
                   {/* Enhanced Content */}
-                  <div className="bg-gradient-to-r from-blue-600/20 to-blue-500/20 border border-blue-500/50 rounded-xl p-6">
+                  <div className="bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-blue-500/20 border border-blue-500/40 rounded-xl p-6">
                     <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                       <Wand2 size={18} className="text-blue-400" />
                       Enhanced Content
                     </h4>
                     <div 
-                      className="text-gray-300 whitespace-pre-wrap leading-relaxed"
+                      className="text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none"
                       dangerouslySetInnerHTML={{ 
                         __html: formatMarkdown(activeAiToolResult.data.enhancedContent || '') 
                       }}
                     />
                   </div>
 
-                  {/* Action Button */}
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
-                    <button
-                      onClick={() => {
-                        if (activeAiToolResult.data.enhancedContent) {
-                          setSlides(slides.map(s => 
-                            s.id === activeSlideId 
-                              ? { ...s, content: activeAiToolResult.data.enhancedContent }
-                              : s
-                          ));
-                          setActiveAiToolResult(null);
-                        }
-                      }}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition flex items-center gap-2"
-                    >
-                      <Check size={16} />
-                      Apply Enhancement
-                    </button>
+                  {/* Action Buttons */}
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-800">
+                    <p className="text-xs text-gray-500">
+                      Click "Apply" to replace the current slide content
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (activeAiToolResult.data.enhancedContent) {
+                            navigator.clipboard.writeText(
+                              activeAiToolResult.data.enhancedContent.replace(/<[^>]*>/g, '')
+                            );
+                            toast.success('Copied to clipboard!');
+                          }
+                        }}
+                        className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl transition flex items-center gap-2"
+                      >
+                        <Copy size={16} />
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (activeAiToolResult.data.enhancedContent && activeSlide) {
+                            setSlides(slides.map(s => 
+                              s.id === activeSlideId 
+                                ? { ...s, content: activeAiToolResult.data.enhancedContent }
+                                : s
+                            ));
+                            toast.success('Content applied to slide!', {
+                              description: 'Your slide content has been updated with the enhanced version.'
+                            });
+                            setActiveAiToolResult(null);
+                          }
+                        }}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition flex items-center gap-2"
+                      >
+                        <Check size={16} />
+                        Apply to Slide
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -4432,19 +4542,66 @@ function DashboardContent() {
 function formatMarkdown(text: string): string {
   if (!text) return '';
   
-  return text
-    // Headers
-    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold text-white mt-6 mb-3">$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-semibold text-white mt-8 mb-4">$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-white mt-10 mb-5">$1</h1>')
-    // Bold
+  // First, handle markdown headers
+  let formatted = text
+    // Headers with markdown syntax
+    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-purple-400 mt-6 mb-3">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-purple-400 mt-8 mb-4">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-purple-400 mt-10 mb-5">$1</h1>')
+    // Bold text with **
     .replace(/\*\*(.*?)\*\*/g, '<strong class="text-yellow-400 font-semibold">$1</strong>')
     // Lists
-    .replace(/^\d+\.\s+(.*$)/gim, '<li class="ml-4 mb-2">$1</li>')
-    .replace(/^[-*]\s+(.*$)/gim, '<li class="ml-4 mb-2">$1</li>')
-    // Paragraphs
+    .replace(/^\d+\.\s+(.*$)/gim, '<li class="ml-4 mb-2 list-decimal">$1</li>')
+    .replace(/^[-*]\s+(.*$)/gim, '<li class="ml-4 mb-2 list-disc">$1</li>');
+
+  // Detect and style section headers (lines that look like titles)
+  // Pattern: Short lines (< 60 chars) that end without punctuation or end with colon
+  // and are followed by longer content
+  const lines = formatted.split('\n');
+  const processedLines = lines.map((line, index) => {
+    const trimmedLine = line.trim();
+    
+    // Skip if already has HTML tags
+    if (trimmedLine.startsWith('<')) return line;
+    
+    // Skip empty lines
+    if (!trimmedLine) return line;
+    
+    // Check if this looks like a section header:
+    // - Short line (less than 80 characters)
+    // - Doesn't end with common sentence punctuation (. ! ?)
+    // - Or ends with colon
+    // - Contains keywords like "Overview", "Key", "Points", "Trends", "Summary", etc.
+    const isShortLine = trimmedLine.length < 80 && trimmedLine.length > 3;
+    const endsWithColon = trimmedLine.endsWith(':');
+    const noSentenceEnd = !trimmedLine.match(/[.!?]$/);
+    const hasHeaderKeywords = /^(Overview|Key|Main|Summary|Introduction|Conclusion|Recent|Trends|Points|Insights|Benefits|Features|Examples|Steps|Tips|How|What|Why|When|Where|The\s|A\s)/i.test(trimmedLine);
+    const isTitleCase = trimmedLine.split(' ').filter(w => w.length > 2).every(word => /^[A-Z]/.test(word));
+    
+    // Next line exists and is longer (indicating this is a header)
+    const nextLine = lines[index + 1]?.trim() || '';
+    const nextLineIsContent = nextLine.length > trimmedLine.length * 1.5 || nextLine.length > 100;
+    
+    if (isShortLine && (endsWithColon || (noSentenceEnd && (hasHeaderKeywords || isTitleCase || nextLineIsContent)))) {
+      // Remove trailing colon for cleaner display
+      const headerText = endsWithColon ? trimmedLine.slice(0, -1) : trimmedLine;
+      return `<h4 class="text-lg font-bold text-purple-400 mt-6 mb-2">${headerText}</h4>`;
+    }
+    
+    return line;
+  });
+
+  // Rejoin and handle paragraphs
+  return processedLines.join('\n')
     .split('\n\n')
-    .map(para => para.trim() ? `<p class="mb-4">${para}</p>` : '')
+    .map(para => {
+      const trimmed = para.trim();
+      // Don't wrap if already has block-level HTML
+      if (trimmed.startsWith('<h') || trimmed.startsWith('<li') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol')) {
+        return trimmed;
+      }
+      return trimmed ? `<p class="mb-4 leading-relaxed">${trimmed}</p>` : '';
+    })
     .join('');
 }
 

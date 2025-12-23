@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { EditableText } from './EditableText';
+import { motion } from 'framer-motion';
 import {
   DndContext, 
   closestCenter,
@@ -80,6 +81,7 @@ interface SlideProps {
   elementOrder?: string[];
   customBlocks?: CustomBlock[];
   scale?: number;
+  logoUrl?: string | null;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -168,6 +170,7 @@ export const Slide: React.FC<SlideProps> = ({
   elementOrder,
   customBlocks = [],
   scale = 1,
+  logoUrl = null,
   ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
@@ -790,13 +793,17 @@ export const Slide: React.FC<SlideProps> = ({
   };
 
   return (
-    <div 
+    <motion.div 
       className={`w-[1080px] h-[1080px] flex flex-col relative overflow-hidden shrink-0 ${isEditable ? 'select-text' : 'select-none'} ${scopeClass}`}
       style={{
         backgroundColor: activeBgColor, 
         color: activeTextColor,
         fontFamily: fontFamily,
       }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      whileHover={isEditable ? { scale: 1.01 } : {}}
     >
       <style>{styles}</style>
       
@@ -821,7 +828,12 @@ export const Slide: React.FC<SlideProps> = ({
 
       {/* Category Pill */}
       {category && category.trim() !== "" && (
-        <div className="absolute top-16 left-16 z-10">
+        <motion.div 
+          className="absolute top-16 left-16 z-10"
+          initial={{ opacity: 0, x: -20, rotate: -5 }}
+          animate={{ opacity: 1, x: 0, rotate: -1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
            {isEditable ? (
              <div className="px-8 py-3 rounded-full tracking-widest uppercase shadow-md inline-block transform -rotate-1"
                 style={{ 
@@ -850,7 +862,29 @@ export const Slide: React.FC<SlideProps> = ({
                 {category}
             </span>
            )}
-        </div>
+        </motion.div>
+      )}
+
+      {/* Brand Logo */}
+      {logoUrl && (
+        <motion.div 
+          className="absolute top-16 right-16 z-10"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <img 
+            src={logoUrl} 
+            alt="Brand Logo" 
+            className="max-h-20 max-w-48 object-contain drop-shadow-lg"
+            style={{ 
+              filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
+              opacity: 0.9
+            }}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
+          />
+        </motion.div>
       )}
 
       {/* Custom Blocks Layer */}
@@ -900,9 +934,12 @@ export const Slide: React.FC<SlideProps> = ({
       </div>
 
       {/* Footer / Handle */}
-      <div 
+      <motion.div 
         className="absolute bottom-12 right-16 font-medium tracking-wide opacity-60 z-10"
         style={{ fontSize: `${1.25 * fontScale}rem` }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 0.6, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
       >
          {isEditable ? (
             <EditableText 
@@ -914,7 +951,7 @@ export const Slide: React.FC<SlideProps> = ({
          ) : (
             handle
          )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

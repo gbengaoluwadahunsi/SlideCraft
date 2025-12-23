@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { incrementAndGetMetrics } from '@/lib/metrics';
+import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +36,30 @@ ${sections.map((section, idx) => `${idx + 1}. ${section}`).join('\n')}
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check AI generation limit
+    const limits = await getUserPlanLimits(session.user.id);
+    const usage = await trackUsage(session.user.id, 'ai_generation', 0);
+    
+    if (!usage.canUse) {
+      return NextResponse.json(
+        { 
+          error: 'AI generation limit reached',
+          message: `You've used all ${limits.maxAiGenerations} AI generations this month. Upgrade to Pro for unlimited AI generations.`,
+          limit: limits.maxAiGenerations,
+          current: usage.current
+        },
+        { status: 403 }
+      );
+    }
+
+    // Track AI generation
+    await trackUsage(session.user.id, 'ai_generation', 1);
+
     const Groq = (await import('groq-sdk')).default;
 
     const { text, slideCount, wordCount, writingStyle, sections = [] } = await request.json();

@@ -1,0 +1,15 @@
+name: subscription-reminders
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # daily at 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminder endpoint
+        run: |
+          curl -s -X GET "https://www.carouslk.com/api/subscription/reminders" || exit 1
+

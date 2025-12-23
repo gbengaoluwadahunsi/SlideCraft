@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Bold, Italic, Underline, Type, Palette, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const TextToolbar = () => {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -93,31 +94,46 @@ export const TextToolbar = () => {
   if (!isVisible || !position) return null;
 
   return (
-    <div 
-      ref={toolbarRef}
-      className="fixed z-50 flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1.5 animate-in fade-in zoom-in duration-200"
-      style={{ 
-        top: position.top, 
-        left: position.left,
-        transform: 'translateX(-50%)'
-      }}
-      onMouseDown={(e) => e.preventDefault()} // Prevent losing focus from text
-    >
+    <AnimatePresence>
+      {isVisible && position && (
+        <motion.div 
+          ref={toolbarRef}
+          className="fixed z-50 flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1.5"
+          style={{ 
+            top: position.top, 
+            left: position.left,
+            transform: 'translateX(-50%)'
+          }}
+          initial={{ opacity: 0, scale: 0.8, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: 10 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 25 }}
+          onMouseDown={(e) => e.preventDefault()} // Prevent losing focus from text
+        >
       {/* Font Family Picker */}
       <div className="relative">
-        <button 
+        <motion.button 
             onClick={() => {
                 setShowFontPicker(!showFontPicker);
                 setShowColorPicker(false);
             }}
             className={`p-1.5 rounded transition ${showFontPicker ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
             title="Font Family"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
         >
             <Type size={16} />
-        </button>
+        </motion.button>
         
-        {showFontPicker && (
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden flex flex-col w-32 max-h-60 overflow-y-auto">
+        <AnimatePresence>
+          {showFontPicker && (
+            <motion.div 
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden flex flex-col w-32 max-h-60 overflow-y-auto"
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            >
                 {fonts.map(font => (
                     <button
                         key={font.name}
@@ -132,8 +148,9 @@ export const TextToolbar = () => {
                         {font.name}
                     </button>
                 ))}
-            </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="w-px h-4 bg-gray-700 mx-1"></div>
@@ -158,70 +175,91 @@ export const TextToolbar = () => {
 
       <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
-      <button 
+      <motion.button 
         onClick={() => execCommand('bold')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Bold"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <Bold size={16} />
-      </button>
-      <button 
+      </motion.button>
+      <motion.button 
         onClick={() => execCommand('italic')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Italic"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <Italic size={16} />
-      </button>
-      <button 
+      </motion.button>
+      <motion.button 
         onClick={() => execCommand('underline')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Underline"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <Underline size={16} />
-      </button>
+      </motion.button>
       
       <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
       {/* Alignment */}
-      <button 
+      <motion.button 
         onClick={() => execCommand('justifyLeft')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Left"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <AlignLeft size={16} />
-      </button>
-      <button 
+      </motion.button>
+      <motion.button 
         onClick={() => execCommand('justifyCenter')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Center"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <AlignCenter size={16} />
-      </button>
-      <button 
+      </motion.button>
+      <motion.button 
         onClick={() => execCommand('justifyRight')}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Right"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
         <AlignRight size={16} />
-      </button>
+      </motion.button>
 
       <div className="w-px h-4 bg-gray-700 mx-1"></div>
       
       {/* Color Picker */}
       <div className="relative">
-        <button 
+        <motion.button 
             onClick={() => {
                 setShowColorPicker(!showColorPicker);
                 setShowFontPicker(false);
             }}
             className={`p-1.5 rounded transition ${showColorPicker ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
             title="Text Color"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
         >
             <Palette size={16} />
-        </button>
+        </motion.button>
         
-        {showColorPicker && (
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 grid grid-cols-5 gap-1 w-40">
+        <AnimatePresence>
+          {showColorPicker && (
+            <motion.div 
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 grid grid-cols-5 gap-1 w-40"
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            >
                 {['#ffffff', '#000000', '#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff', '#f97316', '#8b5cf6', '#ec4899'].map(color => (
                     <button
                         key={color}
@@ -234,9 +272,12 @@ export const TextToolbar = () => {
                         style={{ backgroundColor: color }}
                     />
                 ))}
-            </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

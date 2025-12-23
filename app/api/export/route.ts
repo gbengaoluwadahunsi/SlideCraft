@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,6 +62,30 @@ async function launchBrowser() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check export limit
+    const limits = await getUserPlanLimits(session.user.id);
+    const usage = await trackUsage(session.user.id, 'export', 0);
+    
+    if (!usage.canUse) {
+      return NextResponse.json(
+        { 
+          error: 'Export limit reached',
+          message: `You've reached your limit of ${limits.maxExports} exports. Upgrade to Pro for unlimited exports.`,
+          limit: limits.maxExports,
+          current: usage.current
+        },
+        { status: 403 }
+      );
+    }
+
+    // Track export usage
+    await trackUsage(session.user.id, 'export', 1);
+
     let slides: any[] = [];
     let options: any = {};
     let format = 'pdf';
@@ -112,6 +138,23 @@ export async function POST(request: NextRequest) {
       backgroundImage,
       backgroundOverlayOpacity
     } = options;
+
+    // Extract actual font name from CSS variable if needed
+    // Map CSS variables to their Google Font names
+    const fontVariableMap: Record<string, string> = {
+      'var(--font-inter)': 'Inter',
+      'var(--font-playfair)': 'Playfair Display',
+      'var(--font-oswald)': 'Oswald',
+      'var(--font-roboto-mono)': 'Roboto Mono',
+      'var(--font-permanent-marker)': 'Permanent Marker',
+      'var(--font-geist-sans)': 'Geist',
+      'var(--font-geist-mono)': 'Geist Mono',
+    };
+    
+    const selectedFontFamily = fontVariableMap[fontFamily] 
+      || (fontFamily.startsWith('var(--font-') 
+        ? fontFamily.replace('var(--font-', '').replace(')', '').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        : fontFamily.replace(/['"]/g, '')); // Remove quotes if present
 
     const generateFilename = (title: string): string => {
       return (title || 'carouslk-deck')
@@ -454,6 +497,19 @@ export async function POST(request: NextRequest) {
         `
         : '';
 
+      // Logo HTML (only if logoUrl exists)
+      const logoHtml = slide.logoUrl
+        ? `
+          <div style="position: absolute; top: 4rem; right: 4rem; z-index: 10;">
+            <img 
+              src="${slide.logoUrl}" 
+              alt="Brand Logo" 
+              style="max-height: 5rem; max-width: 12rem; object-fit: contain; opacity: 0.9; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));"
+            />
+          </div>
+        `
+        : '';
+
       // Define default order if missing
       let currentOrder = slide.elementOrder || [];
       if (!currentOrder.length) {
@@ -566,6 +622,9 @@ export async function POST(request: NextRequest) {
           <!-- Category Pill -->
           ${categoryHtml}
 
+          <!-- Brand Logo -->
+          ${logoHtml}
+
           <!-- Custom Blocks (Freeform Text) -->
           ${customBlocksHtml}
 
@@ -584,7 +643,9 @@ export async function POST(request: NextRequest) {
     }).join('');
 
     // Construct Google Fonts URL
-    const fontsToLoad = ['Permanent Marker', 'Roboto Mono', selectedFontFamily];
+    // Filter out CSS variables and invalid font names, and ensure we have valid font names
+    const fontsToLoad = ['Permanent Marker', 'Roboto Mono', selectedFontFamily]
+      .filter(font => font && !font.startsWith('var(') && font.trim().length > 0);
     const fontQuery = [...new Set(fontsToLoad)]
       .map(font => `family=${font.replace(/\s+/g, '+')}:wght@300;400;500;700`)
       .join('&');

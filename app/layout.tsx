@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Permanent_Marker, Inter, Playfair_Display, Oswald, Roboto_Mono } from "next/font/google";
 import { ToasterProvider } from "@/components/ToasterProvider";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { SessionProvider } from "@/components/SessionProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -90,6 +91,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${permanentMarker.variable} ${inter.variable} ${playfair.variable} ${oswald.variable} ${robotoMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <script
           type="application/ld+json"
@@ -112,7 +114,9 @@ export default function RootLayout({
             })
           }}
         />
-        {children}
+        <SessionProvider>
+          {children}
+        </SessionProvider>
         <ToasterProvider />
         <ScrollToTop />
       </body>

@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
+import { toast } from 'sonner';
 import { 
   Layout, 
   Menu,
@@ -24,11 +27,23 @@ import {
   Paperclip,
   FileText,
   Trash,
-  Upload
+  Upload,
+  Undo2,
+  Redo2,
+  LogOut,
+  Wand2,
+  Search,
+  TrendingUp,
+  Lightbulb,
+  Check,
+  Copy,
+  CreditCard
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
 import { TextToolbar } from '@/components/TextToolbar';
+import { ProjectManager } from '@/components/ProjectManager';
+import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
 
@@ -71,6 +86,7 @@ interface SlideData {
   mediaAlignment?: 'left' | 'center' | 'right';
   elementOrder?: string[];
   customBlocks?: CustomBlock[];
+  logoUrl?: string | null;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -81,7 +97,25 @@ const sanitizeEmoji = (value: string | undefined | null) => {
     .trim();
 };
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const projectId = searchParams.get('project') || undefined;
+
+  // Hooks must be called before any conditional returns
+  const {
+    project: loadedProject,
+    loading: projectLoading,
+    saving: projectSaving,
+    autoSave: autoSaveProject,
+    addToHistory,
+    undo: undoProject,
+    redo: redoProject,
+    canUndo,
+    canRedo
+  } = useProject(projectId);
+
   const [activeSlideId, setActiveSlideId] = useState<string>('1');
   const [isPropertiesPanelOpen, setIsPropertiesPanelOpen] = useState(false);
   const [isMobileSlidesOpen, setIsMobileSlidesOpen] = useState(false);
@@ -90,6 +124,7 @@ export default function DashboardPage() {
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [projectName, setProjectName] = useState('Untitled Project');
+  const [projectOptions, setProjectOptions] = useState<any>({});
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -101,6 +136,264 @@ export default function DashboardPage() {
 
   // Calculate scale for Rnd
   const [currentScale, setCurrentScale] = useState(0.6);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const docUploadInputRef = useRef<HTMLInputElement>(null);
+  const slideDownloadRef = useRef<HTMLDivElement>(null);
+  const slidesScrollRef = useRef<HTMLDivElement>(null);
+  const sidebarSlideRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isScrollSyncingRef = useRef(false);
+  const activeSlideIdRef = useRef(activeSlideId);
+  const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
+  const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
+  const [docAttachment, setDocAttachment] = useState<{ name: string; text: string; sections?: string[]; wordCount?: number; truncated?: boolean } | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [useStreaming, setUseStreaming] = useState(true); // Enable streaming by default
+
+  // AI Features state
+  const [isAiFeaturesOpen, setIsAiFeaturesOpen] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isEnhancingContent, setIsEnhancingContent] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
+  const [isAnalyzingDesign, setIsAnalyzingDesign] = useState(false);
+  const [isPredictingPerformance, setIsPredictingPerformance] = useState(false);
+  const [enhancementResult, setEnhancementResult] = useState<string | null>(null);
+  const [researchResult, setResearchResult] = useState<any>(null);
+  const [designSuggestions, setDesignSuggestions] = useState<any>(null);
+  const [performancePrediction, setPerformancePrediction] = useState<any>(null);
+  const [researchTopic, setResearchTopic] = useState('');
+  
+  // Dedicated AI tool result modal state
+  const [activeAiToolResult, setActiveAiToolResult] = useState<{
+    tool: 'research' | 'design' | 'performance' | 'enhancement' | null;
+    data: any;
+    query?: string;
+  } | null>(null);
+
+  // Brand settings state
+  const [brandSettings, setBrandSettings] = useState({
+    handle: '@carouslk',
+    category: '',
+    fontFamily: 'var(--font-inter)',
+    backgroundColor: '#0B0F19',
+    textColor: '#ffffff',
+    accentColor: '#ffd700',
+    logoUrl: null as string | null
+  });
+  const [isLoadingBrandSettings, setIsLoadingBrandSettings] = useState(false);
+  const [isSavingBrandSettings, setIsSavingBrandSettings] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoUploadInputRef = useRef<HTMLInputElement>(null);
+
+  // Load brand settings from API
+  const loadBrandSettings = useCallback(async () => {
+    if (status !== 'authenticated') return;
+    
+    try {
+      setIsLoadingBrandSettings(true);
+      const response = await fetch('/api/user/brand-settings');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.settings) {
+          setBrandSettings(data.settings);
+          // Apply to all existing slides
+          setSlides(prevSlides => prevSlides.map(slide => ({
+            ...slide,
+            handle: data.settings.handle,
+            category: data.settings.category,
+            fontFamily: data.settings.fontFamily,
+            backgroundColor: data.settings.backgroundColor,
+            textColor: data.settings.textColor,
+            accentColor: data.settings.accentColor
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load brand settings:', error);
+    } finally {
+      setIsLoadingBrandSettings(false);
+    }
+  }, [status]);
+
+  // Save brand settings to API
+  const saveBrandSettings = useCallback(async () => {
+    if (status !== 'authenticated') return;
+    
+    try {
+      setIsSavingBrandSettings(true);
+      const response = await fetch('/api/user/brand-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: brandSettings })
+      });
+      
+      if (response.ok) {
+        // Apply to all existing slides
+        setSlides(prevSlides => prevSlides.map(slide => ({
+          ...slide,
+          handle: brandSettings.handle,
+          category: brandSettings.category,
+          fontFamily: brandSettings.fontFamily,
+          backgroundColor: brandSettings.backgroundColor,
+          textColor: brandSettings.textColor,
+          accentColor: brandSettings.accentColor,
+          logoUrl: brandSettings.logoUrl || null
+        })));
+      } else {
+        toast.error('Failed to save brand settings');
+      }
+    } catch (error) {
+      console.error('Failed to save brand settings:', error);
+      alert('Failed to save brand settings');
+    } finally {
+      setIsSavingBrandSettings(false);
+    }
+  }, [brandSettings, status]);
+
+  // Handle logo upload
+  const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+    
+    // Validate file size (max 10MB for logos)
+    const maxSizeMB = 10;
+    if (file.size / 1024 / 1024 > maxSizeMB) {
+      toast.error(`Logo file too large. Please upload a file <= ${maxSizeMB} MB.`);
+      return;
+    }
+    
+    try {
+      setIsUploadingLogo(true);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        setBrandSettings({ ...brandSettings, logoUrl: data.secure_url });
+      } else {
+        const errorData = await uploadRes.json();
+        toast.error(errorData.error || 'Failed to upload logo');
+      }
+    } catch (error) {
+      console.error('Failed to upload logo:', error);
+      toast.error('Failed to upload logo');
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoUploadInputRef.current) {
+        logoUploadInputRef.current.value = '';
+      }
+    }
+  }, [brandSettings]);
+  
+  // Handle logo deletion
+  const handleLogoDelete = useCallback(async () => {
+    if (!brandSettings.logoUrl) return;
+    
+    if (!confirm('Are you sure you want to delete your logo?')) {
+      return;
+    }
+    
+    try {
+      setIsSavingBrandSettings(true);
+      const response = await fetch('/api/user/brand-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          settings: { ...brandSettings, logoUrl: null },
+          deleteLogo: true
+        })
+      });
+      
+      if (response.ok) {
+        setBrandSettings({ ...brandSettings, logoUrl: null });
+      } else {
+        alert('Failed to delete logo');
+      }
+    } catch (error) {
+      console.error('Failed to delete logo:', error);
+      alert('Failed to delete logo');
+    } finally {
+      setIsSavingBrandSettings(false);
+    }
+  }, [brandSettings]);
+
+  // Reset brand settings to defaults
+  const resetBrandSettings = useCallback(async () => {
+    if (status !== 'authenticated') return;
+    
+    if (!confirm('Are you sure you want to reset brand settings to defaults?')) {
+      return;
+    }
+    
+    try {
+      setIsSavingBrandSettings(true);
+      const response = await fetch('/api/user/brand-settings', {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.settings) {
+          setBrandSettings(data.settings);
+          // Apply to all existing slides
+          setSlides(prevSlides => prevSlides.map(slide => ({
+            ...slide,
+            handle: data.settings.handle,
+            category: data.settings.category,
+            fontFamily: data.settings.fontFamily,
+            backgroundColor: data.settings.backgroundColor,
+            textColor: data.settings.textColor,
+            accentColor: data.settings.accentColor,
+            logoUrl: data.settings.logoUrl || null
+          })));
+        }
+      } else {
+        alert('Failed to reset brand settings');
+      }
+    } catch (error) {
+      console.error('Failed to reset brand settings:', error);
+      alert('Failed to reset brand settings');
+    } finally {
+      setIsSavingBrandSettings(false);
+    }
+  }, [status]);
+
+  // Load brand settings on mount
+  useEffect(() => {
+    if (status === 'authenticated') {
+      loadBrandSettings();
+    }
+  }, [status, loadBrandSettings]);
+
+  // Reload brand settings when settings modal opens
+  useEffect(() => {
+    if (isSettingsOpen && status === 'authenticated') {
+      loadBrandSettings();
+    }
+  }, [isSettingsOpen, status, loadBrandSettings]);
+
+  // Check authentication before rendering
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -128,20 +421,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const docUploadInputRef = useRef<HTMLInputElement>(null);
-  const slideDownloadRef = useRef<HTMLDivElement>(null);
-  const slidesScrollRef = useRef<HTMLDivElement>(null);
-  const sidebarSlideRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const isScrollSyncingRef = useRef(false);
-  const activeSlideIdRef = useRef(activeSlideId);
-  const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
-  const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
-  const [docAttachment, setDocAttachment] = useState<{ name: string; text: string; sections?: string[]; wordCount?: number; truncated?: boolean } | null>(null);
-  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
-  const [docUploadError, setDocUploadError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [slides, setSlides] = useState<SlideData[]>([
     {
       id: '1',
@@ -313,13 +592,13 @@ export default function DashboardPage() {
       title: 'New Slide',
       content: '<p>Edit this content...</p>',
       emoji: '✨',
-      category: '',
-      accentColor: slides[0]?.accentColor || '#ffd700',
-      handle: slides[0]?.handle || '@carouslk',
-      fontFamily: slides[0]?.fontFamily || 'var(--font-inter)',
+      category: brandSettings.category,
+      accentColor: brandSettings.accentColor,
+      handle: brandSettings.handle,
+      fontFamily: brandSettings.fontFamily,
       fontScale: slides[0]?.fontScale || 1,
-      backgroundColor: slides[0]?.backgroundColor || '#0B0F19',
-      textColor: slides[0]?.textColor || '#ffffff',
+      backgroundColor: brandSettings.backgroundColor,
+      textColor: brandSettings.textColor,
       mediaType: null,
       mediaUrl: undefined,
       embedHtml: undefined,
@@ -345,6 +624,88 @@ export default function DashboardPage() {
     return `${fallback}-${suffix}`;
   };
 
+  // Load project when it's available
+  useEffect(() => {
+    if (loadedProject && !projectLoading) {
+      setSlides(loadedProject.slides);
+      setProjectName(loadedProject.name);
+      setProjectOptions(loadedProject.options || {});
+      if (loadedProject.slides.length > 0) {
+        setActiveSlideId(loadedProject.slides[0].id);
+      }
+    }
+  }, [loadedProject, projectLoading]);
+
+  // Auto-save when slides change
+  useEffect(() => {
+    if (projectId && slides.length > 0) {
+      autoSaveProject(slides, projectOptions);
+    }
+  }, [slides, projectOptions, projectId, autoSaveProject]);
+
+  // Handle project load from ProjectManager
+  const handleProjectLoad = useCallback((project: { id: string; name: string; slides: SlideData[]; options: any }) => {
+    setSlides(project.slides);
+    setProjectName(project.name);
+    setProjectOptions(project.options || {});
+    if (project.slides.length > 0) {
+      setActiveSlideId(project.slides[0].id);
+    }
+    addToHistory(project.slides);
+  }, [addToHistory]);
+
+  // Undo handler
+  const handleUndo = useCallback(() => {
+    const previousSlides = undoProject();
+    if (previousSlides) {
+      setSlides(previousSlides);
+    }
+  }, [undoProject]);
+
+  // Redo handler
+  const handleRedo = useCallback(() => {
+    const nextSlides = redoProject();
+    if (nextSlides) {
+      setSlides(nextSlides);
+    }
+  }, [redoProject]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo) handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, handleUndo, handleRedo]);
+
+  // Update slides with history tracking
+  const updateSlides = useCallback((newSlides: SlideData[]) => {
+    setSlides(newSlides);
+    addToHistory(newSlides);
+  }, [addToHistory]);
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-[#ffd700]" />
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect is in progress)
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
   const handleDeleteSlide = (id: string) => {
     if (slides.length === 1) {
       alert('You need at least one slide in your project.');
@@ -353,7 +714,7 @@ export default function DashboardPage() {
 
     const targetIndex = slides.findIndex(s => s.id === id);
     const updatedSlides = slides.filter(s => s.id !== id);
-    setSlides(updatedSlides);
+    updateSlides(updatedSlides);
 
     if (activeSlideId === id && updatedSlides.length > 0) {
       const fallbackIndex = Math.min(targetIndex, updatedSlides.length - 1);
@@ -444,40 +805,72 @@ export default function DashboardPage() {
     
     setDocUploadError(null);
     setIsGenerating(true);
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: combinedSource,
-          slideCount: aiSlideCount,
-          wordCount: aiWordCount || undefined,
-          writingStyle: aiWritingStyle,
-          sourceFile: docAttachment
-            ? {
-                name: docAttachment.name,
-                wordCount: docAttachment.wordCount,
-                truncated: docAttachment.truncated,
-              }
-            : undefined,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.slides && Array.isArray(data.slides)) {
-        const normalized = normalizeSlides((data.slides || []).slice(0, aiSlideCount));
-        setSlides(normalized);
-        if (normalized.length > 0) {
-          setActiveSlideId(normalized[0].id);
+    setStreamingText('');
+
+    // Try streaming first, fallback to regular
+    let useStream = useStreaming;
+    if (useStream) {
+      try {
+        const streamResponse = await fetch('/api/generate/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: combinedSource,
+            slideCount: aiSlideCount,
+            wordCount: aiWordCount || undefined,
+            writingStyle: aiWritingStyle,
+            sections: docAttachment?.sections || [],
+          }),
+        });
+
+        if (streamResponse.ok) {
+          // For now, use regular endpoint as streaming needs more complex handling
+          // This is a placeholder for future streaming UI
+          useStream = false;
         }
-        setIsAiModalOpen(false);
+      } catch (error) {
+        console.error('Streaming check failed:', error);
+        useStream = false;
       }
-    } catch (error) {
-      console.error('Failed to generate slides:', error);
-      // You might want to show a toast error here
-    } finally {
-      setIsGenerating(false);
+    }
+
+    // Regular generation (streaming UI can be added later)
+    if (!useStream) {
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: combinedSource,
+            slideCount: aiSlideCount,
+            wordCount: aiWordCount || undefined,
+            writingStyle: aiWritingStyle,
+            sourceFile: docAttachment
+              ? {
+                  name: docAttachment.name,
+                  wordCount: docAttachment.wordCount,
+                  truncated: docAttachment.truncated,
+                }
+              : undefined,
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.slides && Array.isArray(data.slides)) {
+          const normalized = normalizeSlides((data.slides || []).slice(0, aiSlideCount));
+          setSlides(normalized);
+          if (normalized.length > 0) {
+            setActiveSlideId(normalized[0].id);
+          }
+          setIsAiModalOpen(false);
+        }
+      } catch (error) {
+        console.error('Failed to generate slides:', error);
+        // You might want to show a toast error here
+      } finally {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -594,6 +987,179 @@ export default function DashboardPage() {
     setDocAttachment(null);
     setDocUploadError(null);
     if (docUploadInputRef.current) docUploadInputRef.current.value = '';
+  };
+
+  // AI Image Generation
+  const handleGenerateImage = async (slideId: string) => {
+    const slide = slides.find(s => s.id === slideId);
+    if (!slide) return;
+
+    setIsGeneratingImage(true);
+    try {
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slideContent: slide.title + ' ' + (slide.content || slide.subtitle || ''),
+          style: 'professional',
+          brandColors: [brandSettings.accentColor, brandSettings.backgroundColor]
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.imageUrl) {
+          setSlides(slides.map(s => 
+            s.id === slideId 
+              ? { ...s, backgroundImage: data.imageUrl, mediaType: 'image', mediaUrl: data.imageUrl }
+              : s
+          ));
+        }
+      }
+    } catch (error) {
+      console.error('Image generation failed:', error);
+      alert('Failed to generate image');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // Content Enhancement
+  const handleEnhanceContent = async (action: string, content: string) => {
+    setIsEnhancingContent(true);
+    setEnhancementResult(null);
+    try {
+      const response = await fetch('/api/ai/enhance-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          action,
+          targetAudience: 'LinkedIn professionals'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEnhancementResult(data.enhancedContent);
+        // Open dedicated modal with formatted result
+        setActiveAiToolResult({
+          tool: 'enhancement',
+          data: { enhancedContent: data.enhancedContent, originalContent: content },
+          query: `Enhance: ${action}`
+        });
+      }
+    } catch (error) {
+      console.error('Content enhancement failed:', error);
+      alert('Failed to enhance content');
+    } finally {
+      setIsEnhancingContent(false);
+    }
+  };
+
+  // Research Agent
+  const handleResearch = async () => {
+    if (!researchTopic.trim()) return;
+    
+    setIsResearching(true);
+    setResearchResult(null);
+    try {
+      const response = await fetch('/api/ai/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: researchTopic,
+          depth: 'comprehensive',
+          sources: 5
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setResearchResult(data);
+        // Open dedicated modal with formatted result
+        setActiveAiToolResult({
+          tool: 'research',
+          data: data,
+          query: researchTopic
+        });
+        setIsAiFeaturesOpen(false); // Close main modal
+        // Auto-fill AI prompt with research
+        setAiPrompt(data.research);
+      }
+    } catch (error) {
+      console.error('Research failed:', error);
+      alert('Failed to research topic');
+    } finally {
+      setIsResearching(false);
+    }
+  };
+
+  // Design Suggestions
+  const handleGetDesignSuggestions = async () => {
+    setIsAnalyzingDesign(true);
+    setDesignSuggestions(null);
+    try {
+      const response = await fetch('/api/ai/design-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides,
+          currentSettings: brandSettings
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDesignSuggestions(data.suggestions);
+        // Open dedicated modal with formatted result
+        setActiveAiToolResult({
+          tool: 'design',
+          data: data.suggestions,
+          query: 'Design Analysis'
+        });
+        setIsAiFeaturesOpen(false); // Close main modal
+      }
+    } catch (error) {
+      console.error('Design analysis failed:', error);
+      alert('Failed to get design suggestions');
+    } finally {
+      setIsAnalyzingDesign(false);
+    }
+  };
+
+  // Performance Prediction
+  const handlePredictPerformance = async () => {
+    setIsPredictingPerformance(true);
+    setPerformancePrediction(null);
+    try {
+      const response = await fetch('/api/ai/predict-performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides,
+          platform: 'LinkedIn',
+          targetAudience: 'tech professionals'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPerformancePrediction(data.prediction);
+        // Open dedicated modal with formatted result
+        setActiveAiToolResult({
+          tool: 'performance',
+          data: data.prediction,
+          query: 'Performance Analysis'
+        });
+        setIsAiFeaturesOpen(false); // Close main modal
+      }
+    } catch (error) {
+      console.error('Performance prediction failed:', error);
+      alert('Failed to predict performance');
+    } finally {
+      setIsPredictingPerformance(false);
+    }
   };
 
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -976,6 +1542,50 @@ export default function DashboardPage() {
             <p className="text-[10px] text-gray-500">
               Format with shortcuts: <strong>Ctrl+B</strong> bold, <em>Ctrl+I</em> italic.
             </p>
+            {/* AI Content Enhancement */}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => handleEnhanceContent('rewrite', activeSlide.content || '')}
+                disabled={isEnhancingContent || !activeSlide.content}
+                className="flex-1 px-3 py-1.5 text-xs bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] rounded-lg hover:bg-[#ffd700]/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                title="Improve clarity and flow"
+              >
+                {isEnhancingContent ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                Enhance
+              </button>
+              <button
+                onClick={() => handleEnhanceContent('hook', activeSlide.content || activeSlide.title || '')}
+                disabled={isEnhancingContent}
+                className="px-3 py-1.5 text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 transition disabled:opacity-50 flex items-center gap-1"
+                title="Create better hook"
+              >
+                <Lightbulb size={12} />
+              </button>
+            </div>
+            {enhancementResult && (
+              <div className="mt-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className="text-xs text-gray-400">Enhanced:</span>
+                  <button
+                    onClick={() => {
+                      setSlides(slides.map(s => 
+                        s.id === activeSlide.id 
+                          ? { ...s, content: enhancementResult } 
+                          : s
+                      ));
+                      setEnhancementResult(null);
+                    }}
+                    className="text-xs text-[#ffd700] hover:text-yellow-400"
+                  >
+                    Apply
+                  </button>
+                </div>
+                <div 
+                  className="text-xs text-gray-300"
+                  dangerouslySetInnerHTML={{ __html: enhancementResult }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -1081,6 +1691,24 @@ export default function DashboardPage() {
                         </div>
                     </label>
                 )}
+                {/* AI Image Generation */}
+                <button
+                  onClick={() => handleGenerateImage(activeSlide.id)}
+                  disabled={isGeneratingImage}
+                  className="w-full mt-2 px-3 py-2 text-xs bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] rounded-lg hover:bg-[#ffd700]/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={14} />
+                      Generate Image with AI
+                    </>
+                  )}
+                </button>
                  <label className="text-xs text-gray-400 mt-2 block">Aspect ratio</label>
                  <input
                     type="number"
@@ -1688,6 +2316,32 @@ export default function DashboardPage() {
                 <span className="hidden sm:inline">Carouslk / </span>{projectName}
              </span>
           </div>
+          <div className="hidden lg:flex items-center gap-1 border-l border-gray-800 pl-4 ml-4">
+            <ProjectManager
+              currentProjectId={projectId}
+              projectName={projectName}
+              slides={slides}
+              options={projectOptions}
+              onProjectLoad={handleProjectLoad}
+              onProjectNameChange={setProjectName}
+            />
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className="p-2 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 size={18} className="text-gray-400" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedo}
+              className="p-2 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 size={18} className="text-gray-400" />
+            </button>
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
@@ -1712,10 +2366,35 @@ export default function DashboardPage() {
                 <Sparkles size={16} /> AI Generate
              </button>
              <button 
+                onClick={() => setIsAiFeaturesOpen(true)}
+                className="hidden lg:flex px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg transition items-center gap-2"
+                title="AI Features"
+             >
+                <Sparkles size={16} />
+                AI Tools
+             </button>
+             <button 
                 onClick={() => setIsExportOpen(true)}
                 className="hidden lg:flex px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-lg transition items-center gap-2"
              >
                 Export <Download size={16} />
+             </button>
+             {session?.user?.email && (
+               <span className="hidden lg:block text-sm text-gray-400 px-3">{session.user.email}</span>
+             )}
+             <Link
+               href="/dashboard/billing"
+               className="p-2 hover:bg-gray-800 rounded-lg transition"
+               title="Billing & Subscription"
+             >
+               <CreditCard size={18} className="text-gray-400" />
+             </Link>
+             <button
+               onClick={() => signOut({ callbackUrl: '/login' })}
+               className="p-2 hover:bg-gray-800 rounded-lg transition"
+               title="Sign out"
+             >
+               <LogOut size={18} className="text-gray-400" />
              </button>
         </div>
       </header>
@@ -2097,30 +2776,77 @@ export default function DashboardPage() {
                 <label className="text-sm font-medium text-gray-400">Author Handle</label>
                 <input 
                   type="text" 
-                  value={slides[0]?.handle || ''}
-                  onChange={(e) => {
-                    const newHandle = e.target.value;
-                    setSlides(slides.map(s => ({ ...s, handle: newHandle })));
-                  }}
+                  value={brandSettings.handle}
+                  onChange={(e) => setBrandSettings({ ...brandSettings, handle: e.target.value })}
                   className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
                   placeholder="@handle"
                 />
-                <p className="text-xs text-gray-500">Applies to all slides</p>
+                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-400">Category / Series</label>
                 <input 
                   type="text" 
-                  value={slides[0]?.category || ''}
-                  onChange={(e) => {
-                    const newCategory = e.target.value;
-                    setSlides(slides.map(s => ({ ...s, category: newCategory })));
-                  }}
+                  value={brandSettings.category}
+                  onChange={(e) => setBrandSettings({ ...brandSettings, category: e.target.value })}
                   className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
                   placeholder="Category"
                 />
-                <p className="text-xs text-gray-500">Applies to all slides</p>
+                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-400">Brand Logo</label>
+                <div className="space-y-3">
+                  {brandSettings.logoUrl ? (
+                    <div className="relative">
+                      <div className="w-full h-32 bg-gray-900/50 border border-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
+                        <img 
+                          src={brandSettings.logoUrl} 
+                          alt="Brand Logo" 
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <button
+                        onClick={handleLogoDelete}
+                        disabled={isSavingBrandSettings}
+                        className="mt-2 w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-500 font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <Trash2 size={16} />
+                        Delete Logo
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full">
+                      <input
+                        ref={logoUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => logoUploadInputRef.current?.click()}
+                        disabled={isUploadingLogo}
+                        className="w-full px-4 py-3 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isUploadingLogo ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={16} />
+                            Upload Logo
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">Upload your brand logo (max 10MB). Applies to all slides and persists across sessions.</p>
               </div>
 
               <div className="space-y-2">
@@ -2134,8 +2860,8 @@ export default function DashboardPage() {
                     ].map(font => (
                         <button
                             key={font.name}
-                            onClick={() => setSlides(slides.map(s => ({ ...s, fontFamily: font.value })))}
-                            className={`px-3 py-2 rounded-lg text-sm border transition ${slides[0]?.fontFamily === font.value ? 'border-[#ffd700] bg-[#ffd700]/10 text-[#ffd700]' : 'border-gray-700 hover:border-gray-500 text-gray-300'}`}
+                            onClick={() => setBrandSettings({ ...brandSettings, fontFamily: font.value })}
+                            className={`px-3 py-2 rounded-lg text-sm border transition ${brandSettings.fontFamily === font.value ? 'border-[#ffd700] bg-[#ffd700]/10 text-[#ffd700]' : 'border-gray-700 hover:border-gray-500 text-gray-300'}`}
                             style={{ fontFamily: font.value }}
                         >
                             {font.name}
@@ -2154,13 +2880,13 @@ export default function DashboardPage() {
                                     <div className="relative w-full h-8">
                                         <input 
                                             type="color"
-                                            value={slides[0]?.backgroundColor || '#0B0F19'}
-                                            onChange={(e) => setSlides(slides.map(s => ({ ...s, backgroundColor: e.target.value })))}
+                                            value={brandSettings.backgroundColor}
+                                            onChange={(e) => setBrandSettings({ ...brandSettings, backgroundColor: e.target.value })}
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         />
                                         <div 
                                             className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: slides[0]?.backgroundColor || '#0B0F19' }}
+                                            style={{ backgroundColor: brandSettings.backgroundColor }}
                                         >
                                         </div>
                                     </div>
@@ -2172,13 +2898,13 @@ export default function DashboardPage() {
                                     <div className="relative w-full h-8">
                                         <input 
                                             type="color"
-                                            value={slides[0]?.textColor || '#ffffff'}
-                                            onChange={(e) => setSlides(slides.map(s => ({ ...s, textColor: e.target.value })))}
+                                            value={brandSettings.textColor}
+                                            onChange={(e) => setBrandSettings({ ...brandSettings, textColor: e.target.value })}
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         />
                                         <div 
                                             className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: slides[0]?.textColor || '#ffffff' }}
+                                            style={{ backgroundColor: brandSettings.textColor }}
                                         >
                                             <span className="text-xs font-bold mix-blend-difference text-white">Aa</span>
                                         </div>
@@ -2191,13 +2917,13 @@ export default function DashboardPage() {
                                     <div className="relative w-full h-8">
                                         <input 
                                             type="color"
-                                            value={slides[0]?.accentColor || '#ffd700'}
-                                            onChange={(e) => setSlides(slides.map(s => ({ ...s, accentColor: e.target.value })))}
+                                            value={brandSettings.accentColor}
+                                            onChange={(e) => setBrandSettings({ ...brandSettings, accentColor: e.target.value })}
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         />
                                         <div 
                                             className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: slides[0]?.accentColor || '#ffd700' }}
+                                            style={{ backgroundColor: brandSettings.accentColor }}
                                         >
                                             <Palette size={14} className="text-black mix-blend-difference" />
                                         </div>
@@ -2213,29 +2939,255 @@ export default function DashboardPage() {
                     {['#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff'].map(color => (
                         <button
                             key={color}
-                            onClick={() => setSlides(slides.map(s => ({ ...s, accentColor: color })))}
-                            className={`w-8 h-8 rounded-full border-2 transition ${slides[0]?.accentColor === color ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
+                            onClick={() => setBrandSettings({ ...brandSettings, accentColor: color })}
+                            className={`w-8 h-8 rounded-full border-2 transition ${brandSettings.accentColor === color ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
                             style={{ backgroundColor: color }}
                         />
                     ))}
                 </div>
-                <p className="text-xs text-gray-500">Applies to all slides</p>
+                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
               </div>
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-800 flex justify-end gap-3">
+            <div className="p-6 border-t border-gray-800 flex justify-between items-center">
               <button
-                onClick={() => setIsSettingsOpen(false)}
+                onClick={resetBrandSettings}
+                disabled={isSavingBrandSettings}
+                className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <X size={16} />
+                Reset to Defaults
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await saveBrandSettings();
+                    setIsSettingsOpen(false);
+                  }}
+                  disabled={isSavingBrandSettings}
+                  className="px-6 py-2.5 bg-[#ffd700] hover:bg-yellow-400 text-black font-bold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSavingBrandSettings ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Features Modal */}
+      {isAiFeaturesOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-4xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-purple-400">
+                <Sparkles size={24} />
+                <h3 className="font-bold text-white text-xl">AI Features</h3>
+              </div>
+              <button 
+                onClick={() => setIsAiFeaturesOpen(false)}
+                className="text-gray-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+              {/* Research Agent */}
+              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Search size={18} className="text-purple-400" />
+                  <h4 className="font-semibold text-white">Research Agent</h4>
+                </div>
+                <p className="text-xs text-gray-400">Research any topic and get comprehensive insights</p>
+                <input
+                  type="text"
+                  value={researchTopic}
+                  onChange={(e) => setResearchTopic(e.target.value)}
+                  placeholder="Enter topic to research..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition"
+                />
+                <button
+                  onClick={handleResearch}
+                  disabled={isResearching || !researchTopic.trim()}
+                  className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isResearching ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Researching...
+                    </>
+                  ) : (
+                    <>
+                      <Search size={16} />
+                      Research
+                    </>
+                  )}
+                </button>
+                {researchResult && (
+                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                    <p className="text-xs text-green-400 mb-2">✓ Research completed</p>
+                    <button
+                      onClick={() => {
+                        setActiveAiToolResult({
+                          tool: 'research',
+                          data: researchResult,
+                          query: researchTopic
+                        });
+                        setIsAiFeaturesOpen(false);
+                      }}
+                      className="text-xs text-purple-400 hover:text-purple-300 underline"
+                    >
+                      View full results →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Design Suggestions */}
+              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={18} className="text-yellow-400" />
+                  <h4 className="font-semibold text-white">Design Suggestions</h4>
+                </div>
+                <p className="text-xs text-gray-400">Get AI-powered design recommendations</p>
+                <button
+                  onClick={handleGetDesignSuggestions}
+                  disabled={isAnalyzingDesign}
+                  className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isAnalyzingDesign ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Lightbulb size={16} />
+                      Get Suggestions
+                    </>
+                  )}
+                </button>
+                {designSuggestions && (
+                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                    <p className="text-xs text-green-400 mb-2">✓ Analysis completed</p>
+                    <button
+                      onClick={() => {
+                        setActiveAiToolResult({
+                          tool: 'design',
+                          data: designSuggestions,
+                          query: 'Design Analysis'
+                        });
+                        setIsAiFeaturesOpen(false);
+                      }}
+                      className="text-xs text-yellow-400 hover:text-yellow-300 underline"
+                    >
+                      View full results →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Performance Prediction */}
+              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={18} className="text-green-400" />
+                  <h4 className="font-semibold text-white">Performance Prediction</h4>
+                </div>
+                <p className="text-xs text-gray-400">Predict how your carousel will perform</p>
+                <button
+                  onClick={handlePredictPerformance}
+                  disabled={isPredictingPerformance || slides.length === 0}
+                  className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isPredictingPerformance ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={16} />
+                      Predict Performance
+                    </>
+                  )}
+                </button>
+                {performancePrediction && (
+                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-green-400">✓ Prediction completed</p>
+                      <span className="text-sm font-bold text-green-400">{performancePrediction.engagementScore}/100</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveAiToolResult({
+                          tool: 'performance',
+                          data: performancePrediction,
+                          query: 'Performance Analysis'
+                        });
+                        setIsAiFeaturesOpen(false);
+                      }}
+                      className="text-xs text-green-400 hover:text-green-300 underline"
+                    >
+                      View full results →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Wand2 size={18} className="text-blue-400" />
+                  <h4 className="font-semibold text-white">Quick Actions</h4>
+                </div>
+                <p className="text-xs text-gray-400">AI-powered content improvements</p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      const content = activeSlide.content || activeSlide.title || '';
+                      if (content) handleEnhanceContent('seo', content);
+                    }}
+                    disabled={isEnhancingContent || !activeSlide.content}
+                    className="w-full px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Wand2 size={14} />
+                    Optimize for SEO
+                  </button>
+                  <button
+                    onClick={() => {
+                      const content = activeSlide.content || activeSlide.title || '';
+                      if (content) handleEnhanceContent('tone', content);
+                    }}
+                    disabled={isEnhancingContent || !activeSlide.content}
+                    className="w-full px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    Adjust Tone
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-800 flex justify-end">
+              <button
+                onClick={() => setIsAiFeaturesOpen(false)}
                 className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => setIsSettingsOpen(false)}
-                className="px-6 py-2.5 bg-[#ffd700] hover:bg-yellow-400 text-black font-bold rounded-xl transition"
-              >
-                Save Changes
+                Close
               </button>
             </div>
           </div>
@@ -2719,7 +3671,314 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Dedicated AI Tool Result Modal */}
+      {activeAiToolResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-5xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                {activeAiToolResult.tool === 'research' && <Search size={24} className="text-purple-400" />}
+                {activeAiToolResult.tool === 'design' && <Lightbulb size={24} className="text-yellow-400" />}
+                {activeAiToolResult.tool === 'performance' && <TrendingUp size={24} className="text-green-400" />}
+                {activeAiToolResult.tool === 'enhancement' && <Wand2 size={24} className="text-blue-400" />}
+                <div>
+                  <h3 className="font-bold text-white text-xl">
+                    {activeAiToolResult.tool === 'research' && 'Research Agent'}
+                    {activeAiToolResult.tool === 'design' && 'Design Suggestions'}
+                    {activeAiToolResult.tool === 'performance' && 'Performance Prediction'}
+                    {activeAiToolResult.tool === 'enhancement' && 'Content Enhancement'}
+                  </h3>
+                  {activeAiToolResult.query && (
+                    <p className="text-sm text-gray-400 mt-1">{activeAiToolResult.query}</p>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={() => setActiveAiToolResult(null)}
+                className="text-gray-400 hover:text-white transition p-2 hover:bg-gray-800 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeAiToolResult.tool === 'research' && (
+                <div className="space-y-6">
+                  {/* Research Content */}
+                  <div className="prose prose-invert max-w-none">
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <Search size={18} className="text-purple-400" />
+                        Research Results
+                      </h4>
+                      <div 
+                        className="text-gray-300 whitespace-pre-wrap leading-relaxed"
+                        dangerouslySetInnerHTML={{ 
+                          __html: formatMarkdown(activeAiToolResult.data.research || '') 
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Key Points */}
+                  {activeAiToolResult.data.keyPoints && activeAiToolResult.data.keyPoints.length > 0 && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Key Points</h4>
+                      <ul className="space-y-3">
+                        {activeAiToolResult.data.keyPoints.map((point: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-3 text-gray-300">
+                            <span className="text-purple-400 font-bold mt-1">{idx + 1}.</span>
+                            <span className="flex-1">{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Action Button */}
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                    <button
+                      onClick={() => {
+                        setAiPrompt(activeAiToolResult.data.research);
+                        setActiveAiToolResult(null);
+                        setIsAiModalOpen(true);
+                      }}
+                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl transition flex items-center gap-2"
+                    >
+                      <Sparkles size={16} />
+                      Use for Generation
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeAiToolResult.tool === 'design' && (
+                <div className="space-y-6">
+                  {/* Overall Score */}
+                  {activeAiToolResult.data.overallScore && (
+                    <div className="bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 border border-yellow-500/50 rounded-xl p-6">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-lg font-semibold text-white">Overall Design Score</h4>
+                        <div className="text-4xl font-bold text-yellow-400">{activeAiToolResult.data.overallScore}/100</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Color Suggestions */}
+                  {activeAiToolResult.data.colorSuggestions && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <Palette size={18} className="text-yellow-400" />
+                        Color Recommendations
+                      </h4>
+                      <div className="space-y-3 text-gray-300">
+                        {activeAiToolResult.data.colorSuggestions.accentColor && (
+                          <p><strong className="text-yellow-400">Accent Color:</strong> {activeAiToolResult.data.colorSuggestions.accentColor}</p>
+                        )}
+                        {activeAiToolResult.data.colorSuggestions.backgroundColor && (
+                          <p><strong className="text-yellow-400">Background:</strong> {activeAiToolResult.data.colorSuggestions.backgroundColor}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Layout Suggestions */}
+                  {activeAiToolResult.data.layoutSuggestions && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Layout Recommendations</h4>
+                      <div className="text-gray-300 whitespace-pre-wrap">{activeAiToolResult.data.layoutSuggestions}</div>
+                    </div>
+                  )}
+
+                  {/* Accessibility */}
+                  {activeAiToolResult.data.accessibility && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Accessibility Analysis</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300">Contrast Score</span>
+                          <span className="text-lg font-bold text-green-400">{activeAiToolResult.data.accessibility.contrastScore}</span>
+                        </div>
+                        {activeAiToolResult.data.accessibility.fixes && activeAiToolResult.data.accessibility.fixes.length > 0 && (
+                          <div>
+                            <p className="text-sm font-semibold text-gray-400 mb-2">Recommended Fixes:</p>
+                            <ul className="space-y-2">
+                              {activeAiToolResult.data.accessibility.fixes.map((fix: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-2 text-gray-300">
+                                  <span className="text-yellow-400 mt-1">•</span>
+                                  <span>{fix}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeAiToolResult.tool === 'performance' && (
+                <div className="space-y-6">
+                  {/* Engagement Score */}
+                  <div className="bg-gradient-to-r from-green-600/20 to-green-500/20 border border-green-500/50 rounded-xl p-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-semibold text-white">Engagement Score</h4>
+                      <div className="text-4xl font-bold text-green-400">{activeAiToolResult.data.engagementScore || 0}/100</div>
+                    </div>
+                  </div>
+
+                  {/* Predicted Metrics */}
+                  {activeAiToolResult.data.predictedMetrics && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Predicted Metrics</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {Object.entries(activeAiToolResult.data.predictedMetrics).map(([key, value]: [string, any]) => (
+                          <div key={key} className="text-center">
+                            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{key}</p>
+                            <p className="text-xl font-bold text-green-400">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Strengths */}
+                  {activeAiToolResult.data.strengths && activeAiToolResult.data.strengths.length > 0 && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <Check size={18} className="text-green-400" />
+                        Strengths
+                      </h4>
+                      <ul className="space-y-2">
+                        {activeAiToolResult.data.strengths.map((strength: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2 text-gray-300">
+                            <span className="text-green-400 mt-1">✓</span>
+                            <span>{strength}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {activeAiToolResult.data.recommendations && activeAiToolResult.data.recommendations.length > 0 && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Recommendations</h4>
+                      <ul className="space-y-2">
+                        {activeAiToolResult.data.recommendations.map((rec: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2 text-gray-300">
+                            <span className="text-yellow-400 mt-1">•</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Hashtags */}
+                  {activeAiToolResult.data.hashtagSuggestions && activeAiToolResult.data.hashtagSuggestions.length > 0 && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Suggested Hashtags</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {activeAiToolResult.data.hashtagSuggestions.map((tag: string, idx: number) => (
+                          <span key={idx} className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:border-green-500 transition">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeAiToolResult.tool === 'enhancement' && (
+                <div className="space-y-6">
+                  {/* Original Content */}
+                  {activeAiToolResult.data.originalContent && (
+                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-white mb-4">Original Content</h4>
+                      <div className="text-gray-400 whitespace-pre-wrap bg-gray-800/50 p-4 rounded-lg">
+                        {activeAiToolResult.data.originalContent}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Enhanced Content */}
+                  <div className="bg-gradient-to-r from-blue-600/20 to-blue-500/20 border border-blue-500/50 rounded-xl p-6">
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Wand2 size={18} className="text-blue-400" />
+                      Enhanced Content
+                    </h4>
+                    <div 
+                      className="text-gray-300 whitespace-pre-wrap leading-relaxed"
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatMarkdown(activeAiToolResult.data.enhancedContent || '') 
+                      }}
+                    />
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                    <button
+                      onClick={() => {
+                        if (activeAiToolResult.data.enhancedContent) {
+                          setSlides(slides.map(s => 
+                            s.id === activeSlideId 
+                              ? { ...s, content: activeAiToolResult.data.enhancedContent }
+                              : s
+                          ));
+                          setActiveAiToolResult(null);
+                        }
+                      }}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition flex items-center gap-2"
+                    >
+                      <Check size={16} />
+                      Apply Enhancement
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Helper function to format markdown-like text
+function formatMarkdown(text: string): string {
+  if (!text) return '';
+  
+  return text
+    // Headers
+    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold text-white mt-6 mb-3">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-semibold text-white mt-8 mb-4">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-white mt-10 mb-5">$1</h1>')
+    // Bold
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-yellow-400 font-semibold">$1</strong>')
+    // Lists
+    .replace(/^\d+\.\s+(.*$)/gim, '<li class="ml-4 mb-2">$1</li>')
+    .replace(/^[-*]\s+(.*$)/gim, '<li class="ml-4 mb-2">$1</li>')
+    // Paragraphs
+    .split('\n\n')
+    .map(para => para.trim() ? `<p class="mb-4">${para}</p>` : '')
+    .join('');
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-[#ffd700]" />
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
 

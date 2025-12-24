@@ -5,9 +5,10 @@ import { getPool, initDB } from '@/lib/db';
 // POST - Auto-save a project (lightweight, no history)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,7 +20,7 @@ export async function POST(
     // Verify ownership
     const ownershipCheck = await db.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (ownershipCheck.rows.length === 0) {
@@ -32,7 +33,7 @@ export async function POST(
       `UPDATE projects 
        SET slides = $1, options = $2, last_auto_saved_at = NOW(), updated_at = NOW()
        WHERE id = $3`,
-      [JSON.stringify(slides), JSON.stringify(options || {}), params.id]
+      [JSON.stringify(slides), JSON.stringify(options || {}), id]
     );
 
     return NextResponse.json({ message: 'Auto-saved successfully' });

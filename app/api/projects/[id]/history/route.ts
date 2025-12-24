@@ -5,9 +5,10 @@ import { getPool, initDB } from '@/lib/db';
 // GET - Get project history for undo/redo
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,7 +20,7 @@ export async function GET(
     // Verify ownership
     const ownershipCheck = await db.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (ownershipCheck.rows.length === 0) {
@@ -34,7 +35,7 @@ export async function GET(
        WHERE project_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
-      [params.id, parseInt(limit as string, 10)]
+      [id, parseInt(limit as string, 10)]
     );
 
     const history = result.rows.map(row => ({

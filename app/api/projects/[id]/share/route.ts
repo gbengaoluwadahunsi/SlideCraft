@@ -7,9 +7,10 @@ import { v4 as uuidv4 } from 'uuid';
 // POST - Enable/disable sharing for a project
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,7 +22,7 @@ export async function POST(
     // Verify ownership
     const ownershipCheck = await db.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (ownershipCheck.rows.length === 0) {
@@ -51,7 +52,7 @@ export async function POST(
        SET is_shared = $1, share_token = $2
        WHERE id = $3
        RETURNING share_token`,
-      [isShared, shareToken, params.id]
+      [isShared, shareToken, id]
     );
 
     return NextResponse.json({

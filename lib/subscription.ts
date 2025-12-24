@@ -250,12 +250,14 @@ export async function trackUsage(
     limit = limits.maxProjects;
   }
 
-  const canUse = limit === Infinity || currentCount < limit;
+  // Check if limit is unlimited (Infinity or not finite)
+  const isUnlimited = !Number.isFinite(limit) || limit === Infinity;
+  const canUse = isUnlimited || currentCount < limit;
 
   if (canUse && increment > 0) {
     // Update or insert usage
     // Use null for unlimited (Infinity) since PostgreSQL can't store Infinity as integer
-    const dbLimit = limit === Infinity ? null : limit;
+    const dbLimit = isUnlimited ? null : limit;
     await db.query(
       `INSERT INTO subscription_usage (user_id, usage_type, usage_count, limit_count, period_start, period_end)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -268,8 +270,8 @@ export async function trackUsage(
 
   return {
     current: currentCount,
-    limit,
-    canUse: limit === Infinity || currentCount < limit,
+    limit: isUnlimited ? Infinity : limit,
+    canUse: isUnlimited || currentCount < limit,
   };
 }
 

@@ -6,9 +6,10 @@ import { v4 as uuidv4 } from 'uuid';
 // GET - Load a specific project
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,7 +22,7 @@ export async function GET(
       `SELECT id, name, slides, options, created_at, updated_at, is_shared, share_token
        FROM projects 
        WHERE id = $1 AND (user_id = $2 OR is_shared = TRUE)`,
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -48,9 +49,10 @@ export async function GET(
 // PUT - Update a project
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,7 +64,7 @@ export async function PUT(
     // Verify ownership
     const ownershipCheck = await db.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (ownershipCheck.rows.length === 0) {
@@ -75,7 +77,7 @@ export async function PUT(
     if (saveHistory) {
       const currentProject = await db.query(
         'SELECT slides, options FROM projects WHERE id = $1',
-        [params.id]
+        [id]
       );
       
       if (currentProject.rows.length > 0) {
@@ -83,7 +85,7 @@ export async function PUT(
           `INSERT INTO project_history (project_id, slides, options)
            VALUES ($1, $2, $3)`,
           [
-            params.id,
+            id,
             currentProject.rows[0].slides,
             currentProject.rows[0].options
           ]
@@ -111,7 +113,7 @@ export async function PUT(
     }
 
     updateFields.push(`updated_at = NOW()`);
-    updateValues.push(params.id);
+    updateValues.push(id);
 
     const result = await db.query(
       `UPDATE projects 
@@ -140,9 +142,10 @@ export async function PUT(
 // DELETE - Delete a project
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -153,7 +156,7 @@ export async function DELETE(
 
     const result = await db.query(
       'DELETE FROM projects WHERE id = $1 AND user_id = $2 RETURNING id',
-      [params.id, session.user.id]
+      [id, session.user.id]
     );
 
     if (result.rows.length === 0) {

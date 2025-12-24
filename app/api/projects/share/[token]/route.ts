@@ -4,9 +4,10 @@ import { getPool, initDB } from '@/lib/db';
 // GET - Load a shared project by token
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const { token } = await params;
     await initDB();
     const db = getPool();
 
@@ -14,7 +15,7 @@ export async function GET(
       `SELECT id, name, slides, options, created_at, updated_at
        FROM projects 
        WHERE share_token = $1 AND is_shared = TRUE`,
-      [params.token]
+      [token]
     );
 
     if (result.rows.length === 0) {

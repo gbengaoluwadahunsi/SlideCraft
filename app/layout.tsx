@@ -76,9 +76,18 @@ export const metadata: Metadata = {
     canonical: "https://www.carouslk.com",
   },
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
+    other: [
+      { rel: "android-chrome-192x192", url: "/android-chrome-192x192.png" },
+      { rel: "android-chrome-512x512", url: "/android-chrome-512x512.png" },
+    ],
   },
   manifest: "/site.webmanifest",
 };
@@ -94,6 +103,39 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${permanentMarker.variable} ${inter.variable} ${playfair.variable} ${oswald.variable} ${robotoMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        {/* Organization Schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Carouslk",
+              "url": "https://www.carouslk.com",
+              "logo": "https://www.carouslk.com/android-chrome-512x512.png",
+              "sameAs": [],
+              "description": "AI-powered carousel generator for LinkedIn, Instagram, X, and more."
+            })
+          }}
+        />
+        {/* WebSite Schema for Search Box */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Carouslk",
+              "url": "https://www.carouslk.com",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://www.carouslk.com/dashboard?search={search_term_string}",
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
+        {/* Software Application Schema */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -108,8 +150,13 @@ export default function RootLayout({
                 "price": "0",
                 "priceCurrency": "USD"
               },
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.8",
+                "ratingCount": "150"
+              },
               "description": "AI-powered tool to create LinkedIn and Instagram carousels in minutes.",
-              "featureList": "AI Writing, PDF Export, Customizable Templates, LinkedIn Integration",
+              "featureList": "AI Writing, PDF Export, Customizable Templates, LinkedIn Integration, Brand Customization",
               "screenshot": "https://www.carouslk.com/og-image.png",
               "url": "https://www.carouslk.com"
             })

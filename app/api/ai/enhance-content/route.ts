@@ -68,11 +68,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { content, action, targetAudience, targetTone } = await request.json();
+    const { content, action, targetAudience, targetTone, slides } = await request.json();
 
-    if (!content || !action) {
+    // Support batch mode (slides array) or single content mode
+    const isBatchMode = Array.isArray(slides) && slides.length > 0;
+
+    if (!isBatchMode && (!content || !action)) {
       return NextResponse.json(
         { error: 'Content and action are required' },
+        { status: 400 }
+      );
+    }
+
+    if (isBatchMode && !action) {
+      return NextResponse.json(
+        { error: 'Action is required' },
         { status: 400 }
       );
     }
@@ -94,6 +104,85 @@ export async function POST(request: NextRequest) {
       systemPrompt = systemPrompt(targetTone || targetAudience || 'general');
     }
 
+    // Batch mode: enhance all slides at once
+    if (isBatchMode) {
+      const batchPrompt = `You are enhancing content for a carousel presentation with ${slides.length} slides.
+For each slide, apply the enhancement while maintaining consistency across the carousel.
+
+${systemPrompt}
+
+IMPORTANT: Return a JSON array with the enhanced content for each slide in the same order.
+Format: ["enhanced content for slide 1", "enhanced content for slide 2", ...]
+Return ONLY the JSON array, no explanation.
+
+Slides to enhance:
+${slides.map((slide: any, i: number) => `
+Slide ${i + 1} (${slide.type}):
+- Title: ${slide.title || '(none)'}
+- Subtitle: ${slide.subtitle || '(none)'}
+- Content: ${slide.content || '(none)'}
+`).join('\n')}`;
+
+      const completion = await groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'You enhance carousel content while maintaining flow and consistency across slides. Always return valid JSON arrays.' },
+          { role: 'user', content: batchPrompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' },
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '{}';
+      let enhancedSlides;
+      
+      try {
+        const parsed = JSON.parse(responseText);
+        // Handle both { slides: [...] } and direct array format
+        enhancedSlides = Array.isArray(parsed) ? parsed : (parsed.slides || parsed.enhanced || Object.values(parsed)[0]);
+        
+        if (!Array.isArray(enhancedSlides)) {
+          throw new Error('Invalid response format');
+        }
+        
+        // Map back to slide structure with enhanced content
+        enhancedSlides = slides.map((slide: any, i: number) => {
+          const enhanced = enhancedSlides[i];
+          if (typeof enhanced === 'string') {
+            // Simple string - apply to content or title
+            return {
+              ...slide,
+              content: slide.content ? markdownToHtml(enhanced) : slide.content,
+              title: !slide.content && slide.title ? markdownToHtml(enhanced) : slide.title,
+            };
+          } else if (typeof enhanced === 'object') {
+            // Object with title/content/subtitle
+            return {
+              ...slide,
+              title: enhanced.title ? markdownToHtml(enhanced.title) : slide.title,
+              subtitle: enhanced.subtitle ? markdownToHtml(enhanced.subtitle) : slide.subtitle,
+              content: enhanced.content ? markdownToHtml(enhanced.content) : slide.content,
+            };
+          }
+          return slide;
+        });
+      } catch (e) {
+        console.error('Failed to parse batch response:', e);
+        return NextResponse.json(
+          { error: 'Failed to process batch enhancement' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ 
+        enhancedSlides,
+        originalSlides: slides,
+        batchMode: true
+      });
+    }
+
+    // Single content mode (original behavior)
     const userPrompt = action === 'hook' || action === 'cta' 
       ? content 
       : `Content to enhance:\n\n${content}\n\n${targetAudience ? `Target audience: ${targetAudience}` : ''}`;

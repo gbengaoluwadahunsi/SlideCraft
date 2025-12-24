@@ -168,7 +168,7 @@ function DashboardContent() {
   // AI Features state
   const [isAiFeaturesOpen, setIsAiFeaturesOpen] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [isEnhancingContent, setIsEnhancingContent] = useState(false);
+  const [isEnhancingContent, setIsEnhancingContent] = useState<string | null>(null); // tracks which action: 'seo-current', 'seo-all', 'tone-current', 'tone-all'
   const [isResearching, setIsResearching] = useState(false);
   const [isAnalyzingDesign, setIsAnalyzingDesign] = useState(false);
   const [isPredictingPerformance, setIsPredictingPerformance] = useState(false);
@@ -1233,7 +1233,7 @@ function DashboardContent() {
 
   // Content Enhancement
   const handleEnhanceContent = async (action: string, content: string) => {
-    setIsEnhancingContent(true);
+    setIsEnhancingContent(`${action}-current`);
     setEnhancementResult(null);
     try {
       const response = await fetch('/api/ai/enhance-content', {
@@ -1260,7 +1260,61 @@ function DashboardContent() {
       console.error('Content enhancement failed:', error);
       toast.error('Failed to enhance content');
     } finally {
-      setIsEnhancingContent(false);
+      setIsEnhancingContent(null);
+    }
+  };
+
+  // Batch Content Enhancement (all slides)
+  const handleEnhanceAllSlides = async (action: string) => {
+    setIsEnhancingContent(`${action}-all`);
+    try {
+      // Prepare slides for analysis (strip large binary data)
+      const slidesForEnhancement = slides.map(slide => ({
+        id: slide.id,
+        type: slide.type,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        content: slide.content,
+      }));
+
+      const response = await fetch('/api/ai/enhance-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides: slidesForEnhancement,
+          action,
+          targetAudience: 'LinkedIn professionals'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.batchMode && data.enhancedSlides) {
+          // Apply enhanced content to all slides
+          setSlides(slides.map((slide, index) => {
+            const enhanced = data.enhancedSlides[index];
+            if (enhanced) {
+              return {
+                ...slide,
+                title: enhanced.title || slide.title,
+                subtitle: enhanced.subtitle || slide.subtitle,
+                content: enhanced.content || slide.content,
+              };
+            }
+            return slide;
+          }));
+          toast.success(`All ${slides.length} slides ${action === 'seo' ? 'optimized for SEO' : 'tone adjusted'}!`);
+          setIsAiFeaturesOpen(false);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Enhancement failed');
+      }
+    } catch (error) {
+      console.error('Batch enhancement failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to enhance slides');
+    } finally {
+      setIsEnhancingContent(null);
     }
   };
 
@@ -1337,11 +1391,33 @@ function DashboardContent() {
     setIsAnalyzingDesign(true);
     setDesignSuggestions(null);
     try {
+      // Strip large binary data (images, videos) before sending - only text/design info needed
+      const slidesForAnalysis = slides.map(slide => ({
+        id: slide.id,
+        type: slide.type,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        content: slide.content,
+        emoji: slide.emoji,
+        category: slide.category,
+        backgroundColor: slide.backgroundColor,
+        textColor: slide.textColor,
+        accentColor: slide.accentColor,
+        fontFamily: slide.fontFamily,
+        fontScale: slide.fontScale,
+        textAlign: slide.textAlign,
+        chartType: slide.chartType,
+        chartData: slide.chartData,
+        // Indicate if slide has background image without sending the data
+        hasBackgroundImage: !!slide.backgroundImage,
+        backgroundOverlayOpacity: slide.backgroundOverlayOpacity,
+      }));
+      
       const response = await fetch('/api/ai/design-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slides,
+          slides: slidesForAnalysis,
           currentSettings: brandSettings
         })
       });
@@ -1373,11 +1449,24 @@ function DashboardContent() {
     setIsPredictingPerformance(true);
     setPerformancePrediction(null);
     try {
+      // Strip large binary data (images, videos) before sending - only text is needed for analysis
+      const slidesForAnalysis = slides.map(slide => ({
+        id: slide.id,
+        type: slide.type,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        content: slide.content,
+        emoji: slide.emoji,
+        category: slide.category,
+        chartType: slide.chartType,
+        chartData: slide.chartData,
+      }));
+      
       const response = await fetch('/api/ai/predict-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slides,
+          slides: slidesForAnalysis,
           platform: 'LinkedIn',
           targetAudience: 'tech professionals'
         })
@@ -1786,16 +1875,16 @@ function DashboardContent() {
             <div className="flex gap-2 mt-2">
               <button
                 onClick={() => handleEnhanceContent('rewrite', activeSlide.content || '')}
-                disabled={isEnhancingContent || !activeSlide.content}
+                disabled={!!isEnhancingContent || !activeSlide.content}
                 className="flex-1 px-3 py-1.5 text-xs bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] rounded-lg hover:bg-[#ffd700]/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                 title="Improve clarity and flow"
               >
-                {isEnhancingContent ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                {isEnhancingContent === 'rewrite-current' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                 Enhance
               </button>
               <button
                 onClick={() => handleEnhanceContent('hook', activeSlide.content || activeSlide.title || '')}
-                disabled={isEnhancingContent}
+                disabled={!!isEnhancingContent}
                 className="px-3 py-1.5 text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 transition disabled:opacity-50 flex items-center gap-1"
                 title="Create better hook"
               >
@@ -3461,28 +3550,57 @@ function DashboardContent() {
                   <h4 className="font-semibold text-white">Quick Actions</h4>
                 </div>
                 <p className="text-xs text-gray-400">AI-powered content improvements</p>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => {
-                      const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
-                      if (content) handleEnhanceContent('seo', content);
-                    }}
-                    disabled={isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
-                    className="w-full px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <Wand2 size={14} />
-                    Optimize for SEO
-                  </button>
-                  <button
-                    onClick={() => {
-                      const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
-                      if (content) handleEnhanceContent('tone', content);
-                    }}
-                    disabled={isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
-                    className="w-full px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    Adjust Tone
-                  </button>
+                
+                {/* SEO Optimization */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Optimize for SEO</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
+                        if (content) handleEnhanceContent('seo', content);
+                      }}
+                      disabled={!!isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
+                      className="flex-1 px-3 py-2 text-xs bg-blue-600/20 border border-blue-600/50 hover:bg-blue-600/30 text-blue-400 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {isEnhancingContent === 'seo-current' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                      Current Slide
+                    </button>
+                    <button
+                      onClick={() => handleEnhanceAllSlides('seo')}
+                      disabled={!!isEnhancingContent || slides.length === 0}
+                      className="flex-1 px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {isEnhancingContent === 'seo-all' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                      All {slides.length} Slides
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tone Adjustment */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Adjust Tone</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
+                        if (content) handleEnhanceContent('tone', content);
+                      }}
+                      disabled={!!isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
+                      className="flex-1 px-3 py-2 text-xs bg-gray-700/50 border border-gray-600 hover:bg-gray-700 text-gray-300 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {isEnhancingContent === 'tone-current' ? <Loader2 size={12} className="animate-spin" /> : null}
+                      Current Slide
+                    </button>
+                    <button
+                      onClick={() => handleEnhanceAllSlides('tone')}
+                      disabled={!!isEnhancingContent || slides.length === 0}
+                      className="flex-1 px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {isEnhancingContent === 'tone-all' ? <Loader2 size={12} className="animate-spin" /> : null}
+                      All {slides.length} Slides
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

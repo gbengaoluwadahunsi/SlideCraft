@@ -51,7 +51,7 @@ export async function generateContentAgent(
   
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are an expert carousel content creator. Convert research into engaging slides.
-      Return a JSON object with a "slides" array. Each slide should have: type, title, content, emoji.`],
+      Return a JSON object with a "slides" array. Each slide should have: type, title, content. Do NOT include emoji.`],
     ['human', `Based on this research, create ${slideCount} slides in ${writingStyle} style:
       {research}`],
   ]);

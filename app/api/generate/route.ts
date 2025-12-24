@@ -23,7 +23,7 @@ Each slide should have:
   - Use <pre><code>...</code></pre> for code snippets.
   - Ensure text is informative and readable.
   - NEVER use markdown like ** or ### - use HTML tags instead.
-- emoji: A relevant emoji for content slides.
+- emoji: DO NOT include emoji. Leave this field empty or omit it entirely.
 - chartType: (for chart slides only) "bar", "line", or "pie"
 - chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number). Example: [{"name": "Q1", "value": 30}, {"name": "Q2", "value": 50}]
 

@@ -54,6 +54,7 @@ import { useConfirm } from '@/components/ConfirmDialog';
 import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 // Types matching Slide.tsx
 interface CustomBlock {
@@ -144,6 +145,7 @@ function DashboardContent() {
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
 
   // Calculate scale for Rnd
   const [currentScale, setCurrentScale] = useState(0.6);
@@ -488,7 +490,7 @@ function DashboardContent() {
       type: 'content',
         title: 'Hook Your Audience',
         content: '<p>Stop the scroll with a <strong>bold promise</strong> or a challenging question.</p>',
-        emoji: '🪝',
+        emoji: '',
         category: '',
         accentColor: '#ffd700',
         handle: '@carouslk',
@@ -508,7 +510,7 @@ function DashboardContent() {
         type: 'content',
         title: 'Tell a Story',
         content: '<p>Facts tell, but <em>stories sell</em>. Connect emotionally.</p>',
-        emoji: '📖',
+        emoji: '',
         category: '',
         accentColor: '#ffd700',
         handle: '@carouslk',
@@ -633,7 +635,7 @@ function DashboardContent() {
       type: 'content',
       title: 'New Slide',
       content: '<p>Edit this content...</p>',
-      emoji: '✨',
+      emoji: '',
       category: brandSettings.category,
       accentColor: brandSettings.accentColor,
       handle: brandSettings.handle,
@@ -1919,20 +1921,70 @@ function DashboardContent() {
         )}
 
         <div className="space-y-2">
-          <label className="text-xs text-gray-400">Slide Emoji / Icon</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              inputMode="text"
-              maxLength={8}
-              value={sanitizeEmoji(activeSlide.emoji) || ''}
-              onChange={(e) => {
-                const cleaned = sanitizeEmoji(e.target.value);
-                setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: cleaned } : s));
-              }}
-              placeholder="✨"
-              className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-            />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-gray-400">Slide Emoji / Icon</label>
+            {/* Toggle for all slides */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-500">All slides</span>
+              <button
+                onClick={() => {
+                  const hasAnyEmoji = slides.some(s => s.emoji && s.emoji.trim() !== '');
+                  if (hasAnyEmoji) {
+                    // Turn off: clear all emojis
+                    setSlides(slides.map(s => ({ ...s, emoji: '' })));
+                    toast.success('Icons removed from all slides');
+                  } else {
+                    // Turn on: add default emoji to content/chart slides
+                    setSlides(slides.map(s => ({
+                      ...s,
+                      emoji: s.type !== 'cover' ? '✨' : ''
+                    })));
+                    toast.success('Icons added to all slides');
+                  }
+                }}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  slides.some(s => s.emoji && s.emoji.trim() !== '')
+                    ? 'bg-[#ffd700]'
+                    : 'bg-gray-700'
+                }`}
+                title={slides.some(s => s.emoji && s.emoji.trim() !== '') ? 'Click to remove all icons' : 'Click to add icons to all slides'}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    slides.some(s => s.emoji && s.emoji.trim() !== '')
+                      ? 'translate-x-5'
+                      : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2 relative">
+            <div className="flex-1 flex gap-2">
+              <input
+                type="text"
+                inputMode="text"
+                maxLength={8}
+                value={sanitizeEmoji(activeSlide.emoji) || ''}
+                onChange={(e) => {
+                  const cleaned = sanitizeEmoji(e.target.value);
+                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: cleaned } : s));
+                }}
+                placeholder="✨"
+                className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+              />
+              <button
+                onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+                className={`px-3 py-2 rounded-lg border text-lg transition ${
+                  isEmojiPickerOpen 
+                    ? 'border-[#ffd700] bg-[#ffd700]/10' 
+                    : 'border-gray-700 hover:border-gray-500'
+                }`}
+                title="Open emoji picker"
+              >
+                😀
+              </button>
+            </div>
             {activeSlide.emoji && activeSlide.emoji.trim() !== '' && (
               <button
                 onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: '' } : s))}
@@ -1943,7 +1995,31 @@ function DashboardContent() {
               </button>
             )}
           </div>
-          <p className="text-[10px] text-gray-500">Leave empty to hide the emoji block.</p>
+          {/* Emoji Picker Popup */}
+          {isEmojiPickerOpen && (
+            <div className="absolute z-50 mt-2 right-0">
+              <div className="relative">
+                <button
+                  onClick={() => setIsEmojiPickerOpen(false)}
+                  className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-gray-800 border border-gray-600 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition"
+                >
+                  <X size={12} />
+                </button>
+                <EmojiPicker
+                  onEmojiClick={(emojiData: EmojiClickData) => {
+                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: emojiData.emoji } : s));
+                    setIsEmojiPickerOpen(false);
+                  }}
+                  theme={Theme.DARK}
+                  width={320}
+                  height={400}
+                  searchPlaceholder="Search emojis..."
+                  previewConfig={{ showPreview: false }}
+                />
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-gray-500">Toggle above to add/remove icons from all slides, or pick an emoji.</p>
         </div>
 
 

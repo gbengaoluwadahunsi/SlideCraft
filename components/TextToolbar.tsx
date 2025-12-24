@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Bold, Italic, Underline, Type, Palette, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { Bold, Italic, Underline, Type, Palette, AlignLeft, AlignCenter, AlignRight, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 export const TextToolbar = () => {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -11,15 +12,52 @@ export const TextToolbar = () => {
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const savedSelectionRef = useRef<Range | null>(null);
+  const savedElementRef = useRef<HTMLElement | null>(null);
+  const emojiPickerOpenRef = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    emojiPickerOpenRef.current = showEmojiPicker;
+  }, [showEmojiPicker]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Don't close if clicking inside the toolbar or emoji picker
+      if (toolbarRef.current?.contains(target)) return;
+      setShowEmojiPicker(false);
+    };
+
+    // Delay adding listener to prevent immediate closure
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   useEffect(() => {
     const handleSelectionChange = () => {
+      // Don't hide toolbar if emoji picker is open
+      if (emojiPickerOpenRef.current) {
+        return;
+      }
+
       const selection = window.getSelection();
       
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         setIsVisible(false);
         setShowColorPicker(false);
         setShowFontPicker(false);
+        setShowEmojiPicker(false);
         return;
       }
 
@@ -54,6 +92,51 @@ export const TextToolbar = () => {
       document.execCommand('styleWithCSS', false, 'true');
     }
     document.execCommand(command, false, value);
+  };
+
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      savedSelectionRef.current = range.cloneRange();
+      // Save the contenteditable element
+      const container = range.commonAncestorContainer;
+      const element = container.nodeType === Node.TEXT_NODE 
+        ? container.parentElement 
+        : container as HTMLElement;
+      savedElementRef.current = element?.closest('[contenteditable="true"]') as HTMLElement | null;
+    }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    // Focus the saved element first
+    if (savedElementRef.current) {
+      savedElementRef.current.focus();
+    }
+
+    // Restore selection
+    const selection = window.getSelection();
+    if (selection && savedSelectionRef.current) {
+      selection.removeAllRanges();
+      selection.addRange(savedSelectionRef.current);
+      
+      // Now insert the emoji
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const textNode = document.createTextNode(emoji);
+      range.insertNode(textNode);
+      
+      // Move cursor after the emoji
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      // Trigger input event so React updates
+      if (savedElementRef.current) {
+        savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
   };
 
   const adjustSelectionFontSize = (delta: number) => {
@@ -116,6 +199,7 @@ export const TextToolbar = () => {
             onClick={() => {
                 setShowFontPicker(!showFontPicker);
                 setShowColorPicker(false);
+                setShowEmojiPicker(false);
             }}
             className={`p-1.5 rounded transition ${showFontPicker ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
             title="Font Family"
@@ -242,6 +326,7 @@ export const TextToolbar = () => {
             onClick={() => {
                 setShowColorPicker(!showColorPicker);
                 setShowFontPicker(false);
+                setShowEmojiPicker(false);
             }}
             className={`p-1.5 rounded transition ${showColorPicker ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
             title="Text Color"
@@ -272,6 +357,49 @@ export const TextToolbar = () => {
                         style={{ backgroundColor: color }}
                     />
                 ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Emoji Picker */}
+      <div className="relative">
+        <motion.button 
+            onClick={() => {
+                saveSelection();
+                setShowEmojiPicker(!showEmojiPicker);
+                setShowColorPicker(false);
+                setShowFontPicker(false);
+            }}
+            className={`p-1.5 rounded transition ${showEmojiPicker ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+            title="Insert Emoji"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+        >
+            <Smile size={16} />
+        </motion.button>
+        
+        <AnimatePresence>
+          {showEmojiPicker && (
+            <motion.div 
+              className="absolute top-full right-0 mt-2 z-50"
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <EmojiPicker
+                onEmojiClick={(emojiData: EmojiClickData) => {
+                  insertEmoji(emojiData.emoji);
+                  setShowEmojiPicker(false);
+                }}
+                theme={Theme.DARK}
+                width={300}
+                height={350}
+                searchPlaceholder="Search..."
+                previewConfig={{ showPreview: false }}
+              />
             </motion.div>
           )}
         </AnimatePresence>

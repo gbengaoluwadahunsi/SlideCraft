@@ -568,9 +568,15 @@ function DashboardContent() {
       mediaAspectRatio: slide.mediaAspectRatio ?? 16 / 9,
       mediaWidthPercent: typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100,
       mediaAlignment: slide.mediaAlignment || 'center',
-      category: slide.category ?? baseSlide?.category ?? '',
-      handle: slide.handle ?? baseSlide?.handle ?? '@carouslk',
-      accentColor: slide.accentColor ?? baseSlide?.accentColor,
+      // Apply brand settings to slides
+      category: slide.category ?? brandSettings.category ?? baseSlide?.category ?? '',
+      handle: slide.handle ?? brandSettings.handle ?? baseSlide?.handle ?? '@carouslk',
+      accentColor: slide.accentColor ?? brandSettings.accentColor ?? baseSlide?.accentColor,
+      backgroundColor: slide.backgroundColor ?? brandSettings.backgroundColor ?? baseSlide?.backgroundColor,
+      textColor: slide.textColor ?? brandSettings.textColor ?? baseSlide?.textColor,
+      fontFamily: slide.fontFamily ?? brandSettings.fontFamily ?? baseSlide?.fontFamily,
+      // Always apply logoUrl from brand settings
+      logoUrl: brandSettings.logoUrl || null,
       elementOrder: slide.elementOrder || getDefaultElementOrder(slide.type, !!slide.infographicData),
       customBlocks: Array.isArray(slide.customBlocks) ? slide.customBlocks : [],
       id: slide.id || `${timestamp}-${index}`,
@@ -662,6 +668,7 @@ function DashboardContent() {
       fontScale: slides[0]?.fontScale || 1,
       backgroundColor: brandSettings.backgroundColor,
       textColor: brandSettings.textColor,
+      logoUrl: brandSettings.logoUrl || null,
       mediaType: null,
       mediaUrl: undefined,
       embedHtml: undefined,
@@ -687,17 +694,31 @@ function DashboardContent() {
     return `${fallback}-${suffix}`;
   };
 
-  // Load project when it's available
+  // Load project when it's available - also apply brand settings
   useEffect(() => {
     if (loadedProject && !projectLoading) {
-      setSlides(loadedProject.slides);
+      // Apply brand settings to loaded project slides
+      const slidesWithBrandSettings = loadedProject.slides.map(slide => ({
+        ...slide,
+        // Apply brand settings if they differ from slide defaults
+        handle: slide.handle || brandSettings.handle,
+        category: slide.category || brandSettings.category,
+        fontFamily: slide.fontFamily || brandSettings.fontFamily,
+        backgroundColor: slide.backgroundColor || brandSettings.backgroundColor,
+        textColor: slide.textColor || brandSettings.textColor,
+        accentColor: slide.accentColor || brandSettings.accentColor,
+        // Always apply logoUrl from brand settings (it's the source of truth)
+        logoUrl: brandSettings.logoUrl || null
+      }));
+      
+      setSlides(slidesWithBrandSettings);
       setProjectName(loadedProject.name);
       setProjectOptions(loadedProject.options || {});
       if (loadedProject.slides.length > 0) {
         setActiveSlideId(loadedProject.slides[0].id);
       }
     }
-  }, [loadedProject, projectLoading]);
+  }, [loadedProject, projectLoading, brandSettings]);
 
   // Auto-save when slides change
   useEffect(() => {
@@ -734,16 +755,28 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAiModalOpen, isAiFeaturesOpen, isSettingsOpen, isPropertiesPanelOpen, isMobileSlidesOpen]);
 
-  // Handle project load from ProjectManager
+  // Handle project load from ProjectManager - also apply brand settings
   const handleProjectLoad = useCallback((project: { id: string; name: string; slides: SlideData[]; options: any }) => {
-    setSlides(project.slides);
+    // Apply brand settings to loaded project slides
+    const slidesWithBrandSettings = project.slides.map(slide => ({
+      ...slide,
+      handle: slide.handle || brandSettings.handle,
+      category: slide.category || brandSettings.category,
+      fontFamily: slide.fontFamily || brandSettings.fontFamily,
+      backgroundColor: slide.backgroundColor || brandSettings.backgroundColor,
+      textColor: slide.textColor || brandSettings.textColor,
+      accentColor: slide.accentColor || brandSettings.accentColor,
+      logoUrl: brandSettings.logoUrl || null
+    }));
+    
+    setSlides(slidesWithBrandSettings);
     setProjectName(project.name);
     setProjectOptions(project.options || {});
     if (project.slides.length > 0) {
       setActiveSlideId(project.slides[0].id);
     }
-    addToHistory(project.slides);
-  }, [addToHistory]);
+    addToHistory(slidesWithBrandSettings);
+  }, [addToHistory, brandSettings]);
 
   // Undo handler
   const handleUndo = useCallback(() => {

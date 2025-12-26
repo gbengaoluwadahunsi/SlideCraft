@@ -127,18 +127,18 @@ Return ONLY valid JSON, no markdown.`;
           
           completion = await generateWithRetry(async () => {
             return together.chat.completions.create({
-              messages: [
-                {
-                  role: 'system',
-                  content: 'You are a design expert specializing in social media carousel design. Provide actionable, specific design recommendations.',
-                },
-                { role: 'user', content: analysisPrompt },
-              ],
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a design expert specializing in social media carousel design. Provide actionable, specific design recommendations.',
+        },
+        { role: 'user', content: analysisPrompt },
+      ],
               model: provider.model,
               temperature: 0.3,
-              max_tokens: 2000,
-              response_format: { type: 'json_object' },
-            });
+      max_tokens: 2000,
+      response_format: { type: 'json_object' },
+    });
           });
         }
         

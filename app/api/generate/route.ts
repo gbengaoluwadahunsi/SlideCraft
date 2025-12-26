@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Check for available API keys
     const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
-    
+
     if (availableProviders.length === 0) {
       return NextResponse.json({
         slides: [
@@ -195,19 +195,19 @@ export async function POST(request: NextRequest) {
     }
 
     const outlineHint = Array.isArray(sections) && sections.length > 0 ? OUTLINE_PROMPT(sections) : '';
-    
+
     const messages = [
       { role: 'system' as const, content: getSystemPrompt(slideStyle) },
-      {
+        {
         role: 'user' as const,
-        content: `
+          content: `
 Here is the content to convert.
 Create exactly ${requestedSlideCount} slides unless the content is empty, in which case explain why no slides were generated.
 ${styleInstruction}
 ${wordCountInstruction}
 ${outlineHint}
 ${combinedText}`,
-      },
+        },
     ];
 
     // Try each provider with retry logic
@@ -244,11 +244,11 @@ ${combinedText}`,
               messages,
               model: provider.model,
               temperature: 0.3,
-              max_tokens: 4096,
-              top_p: 1,
-              stream: false,
-              response_format: { type: 'json_object' },
-            });
+      max_tokens: 4096,
+      top_p: 1,
+      stream: false,
+      response_format: { type: 'json_object' },
+    });
           });
         }
         

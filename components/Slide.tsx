@@ -10,7 +10,11 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -37,6 +41,19 @@ import {
 import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi } from 'lucide-react';
 import { Rnd } from 'react-rnd';
 import { Infographic } from './Infographic';
+
+// Fast, clean drop animation
+const dropAnimation: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '1',
+      },
+    },
+  }),
+  duration: 150,
+  easing: 'ease-out',
+};
 
 type CustomBlock = {
   id: string;
@@ -99,28 +116,41 @@ const sanitizeEmoji = (value: string | undefined | null) => {
     .trim();
 };
 
-// Sortable Item Component
+
+// Sortable Item Component - drag ONLY from handle, not content
 function SortableItem({ id, children, isEditable, className = '' }: { id: string; children: React.ReactNode; isEditable: boolean; className?: string }) {
   const {
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging
   } = useSortable({ id, disabled: !isEditable });
 
+  // Use only translate transform for smoother movement
+  // Only apply transition when NOT dragging (for return animation)
+  // During drag, no transition = instant response = smooth dragging
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : 'auto',
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? 'none' : (transition || 'transform 200ms ease-out'),
+    opacity: isDragging ? 0 : 1, // Hide original when dragging (overlay shows the moving element)
     position: 'relative' as const,
+    willChange: isDragging ? 'transform' : 'auto',
   };
 
+  // IMPORTANT: listeners are ONLY on the drag handle, not the container
+  // This allows normal text selection inside contenteditable elements
   return (
-    <div ref={setNodeRef} style={style} className={`group/item relative ${className}`}>
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={`group/item relative ${className} ${isDragging ? 'z-0' : ''}`}
+    >
       {isEditable && (
         <div 
+            ref={setActivatorNodeRef}
             {...attributes} 
             {...listeners} 
             className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white cursor-grab active:cursor-grabbing opacity-0 group-hover/item:opacity-100 transition-opacity z-50"
@@ -185,6 +215,8 @@ export const Slide: React.FC<SlideProps> = ({
 }) => {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
+  // Track which item is being dragged for the DragOverlay
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   
   useEffect(() => {
     setIsMounted(true);
@@ -199,11 +231,23 @@ export const Slide: React.FC<SlideProps> = ({
   const slideId = React.useId().replace(/:/g, '');
   const scopeClass = `slide-${slideId}`;
 
-  // Sensors for drag and drop
+  // Custom handler to check if we should allow drag - prevents drag from inside contenteditable
+  const shouldHandleEvent = (element: Element | null) => {
+    // Don't start drag if the event target is inside a contenteditable element
+    while (element) {
+      if (element.getAttribute?.('contenteditable') === 'true') {
+        return false;
+      }
+      element = element.parentElement;
+    }
+    return true;
+  };
+
+  // Sensors for drag and drop - filtered to not interfere with contenteditable
   const sensors = useSensors(
     useSensor(PointerSensor, {
         activationConstraint: {
-            distance: 8, // Prevent accidental drags
+            distance: 8, // Slightly larger distance to better differentiate from text selection
         },
     }),
     useSensor(KeyboardSensor, {
@@ -293,14 +337,28 @@ export const Slide: React.FC<SlideProps> = ({
 
   const currentOrder = getOrder();
 
+  const handleDragStart = (event: DragStartEvent) => {
+    // Cancel drag if it originated from a contenteditable element
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement?.closest('[contenteditable="true"]') || activeElement?.isContentEditable) {
+      return;
+    }
+    setActiveDragId(event.active.id as string);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (active.id !== over?.id) {
+    setActiveDragId(null);
+    if (active.id !== over?.id && over) {
         const oldIndex = currentOrder.indexOf(active.id as string);
-        const newIndex = currentOrder.indexOf(over?.id as string);
+        const newIndex = currentOrder.indexOf(over.id as string);
         const newOrder = arrayMove(currentOrder, oldIndex, newIndex);
         onUpdate?.('elementOrder', newOrder);
     }
+  };
+
+  const handleDragCancel = () => {
+    setActiveDragId(null);
   };
 
   const handleCustomBlockChange = (blockId: string, updates: Partial<CustomBlock>) => {
@@ -960,16 +1018,17 @@ export const Slide: React.FC<SlideProps> = ({
 
   return (
     <motion.div 
-      className={`w-[1080px] h-[1080px] flex flex-col relative overflow-hidden shrink-0 ${isEditable ? 'select-text' : 'select-none'} ${scopeClass}`}
+      className={`w-[1080px] h-[1080px] flex flex-col relative overflow-hidden shrink-0 ${scopeClass}`}
       style={{
         backgroundColor: activeBgColor, 
         color: activeTextColor,
         fontFamily: fontFamily,
+        userSelect: isEditable ? 'text' : 'none',
+        WebkitUserSelect: isEditable ? 'text' : 'none',
       }}
       initial={isDownloading ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={isDownloading ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
-      whileHover={isEditable ? { scale: 1.01 } : {}}
     >
       <style>{styles}</style>
       
@@ -1075,7 +1134,9 @@ export const Slide: React.FC<SlideProps> = ({
             <DndContext 
                 sensors={sensors} 
                 collisionDetection={closestCenter} 
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
             >
                 <SortableContext 
                     items={currentOrder} 
@@ -1087,6 +1148,14 @@ export const Slide: React.FC<SlideProps> = ({
                         </SortableItem>
                     ))}
                 </SortableContext>
+                {/* Simple drag overlay - no background effects */}
+                <DragOverlay dropAnimation={dropAnimation}>
+                    {activeDragId ? (
+                        <div className="pointer-events-none">
+                            {renderElement(activeDragId)}
+                        </div>
+                    ) : null}
+                </DragOverlay>
             </DndContext>
         ) : (
             <>

@@ -1133,41 +1133,56 @@ function DashboardContent() {
               }
               
               // Extract key points from content for the infographic
-              const contentText = slide.content?.replace(/<[^>]*>/g, '') || '';
+              const rawContent = slide.content || '';
               const title = slide.title || '';
               
               // Parse bullet points, sentences, or meaningful content
               let items: string[] = [];
               
-              // Strategy 1: Look for bullet points
-              const bulletMatch = contentText.match(/[•\-\*]\s*([^\n•\-\*]+)/g);
-              // Strategy 2: Look for numbered items
-              const numberedMatch = contentText.match(/\d+[.)]\s*([^\n]+)/g);
-              // Strategy 3: Split by line breaks
-              const lineBreaks = contentText.split(/\n+/).filter(s => s.trim().length > 15);
+              // Strategy 0: Extract from HTML <li> tags FIRST (AI often generates this format)
+              const liMatch = rawContent.match(/<li[^>]*>([^<]+)<\/li>/gi);
+              if (liMatch && liMatch.length >= 2) {
+                items = liMatch
+                  .map(li => li.replace(/<\/?[^>]+>/g, '').trim())
+                  .filter(s => s.length > 3);
+              }
               
-              if (bulletMatch && bulletMatch.length >= 2) {
-                items = bulletMatch
-                  .map(b => b.replace(/^[•\-\*]\s*/, '').trim())
-                  .filter(s => s.length > 5);
-              } else if (numberedMatch && numberedMatch.length >= 2) {
-                items = numberedMatch
-                  .map(n => n.replace(/^\d+[.)]\s*/, '').trim())
-                  .filter(s => s.length > 5);
-              } else if (lineBreaks.length >= 2) {
-                items = lineBreaks.map(s => s.trim()).filter(s => s.length > 10);
-              } else {
-                // Split by sentences
-                const sentences = contentText
-                  .split(/[.!?]+/)
-                  .map(s => s.trim())
-                  .filter(s => s.length > 15 && s.length < 120);
+              // Extract text content for later analysis
+              const contentText = rawContent.replace(/<[^>]*>/g, '') || '';
+              
+              // If no HTML list items found, try plain text extraction
+              if (items.length < 2) {
                 
-                if (sentences.length >= 2) {
-                  items = sentences;
-                } else if (contentText.length > 20) {
-                  // Use the whole content if it's meaningful
-                  items = [contentText.slice(0, 100)];
+                // Strategy 1: Look for bullet points
+                const bulletMatch = contentText.match(/[•\-\*]\s*([^\n•\-\*]+)/g);
+                // Strategy 2: Look for numbered items
+                const numberedMatch = contentText.match(/\d+[.)]\s*([^\n]+)/g);
+                // Strategy 3: Split by line breaks
+                const lineBreaks = contentText.split(/\n+/).filter(s => s.trim().length > 15);
+                
+                if (bulletMatch && bulletMatch.length >= 2) {
+                  items = bulletMatch
+                    .map(b => b.replace(/^[•\-\*]\s*/, '').trim())
+                    .filter(s => s.length > 5);
+                } else if (numberedMatch && numberedMatch.length >= 2) {
+                  items = numberedMatch
+                    .map(n => n.replace(/^\d+[.)]\s*/, '').trim())
+                    .filter(s => s.length > 5);
+                } else if (lineBreaks.length >= 2) {
+                  items = lineBreaks.map(s => s.trim()).filter(s => s.length > 10);
+                } else {
+                  // Split by sentences
+                  const sentences = contentText
+                    .split(/[.!?]+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 15 && s.length < 120);
+                  
+                  if (sentences.length >= 2) {
+                    items = sentences;
+                  } else if (contentText.length > 20) {
+                    // Use the whole content if it's meaningful
+                    items = [contentText.slice(0, 100)];
+                  }
                 }
               }
               
@@ -1179,10 +1194,25 @@ function DashboardContent() {
                   items = ['Increased efficiency', 'Better results', 'Time savings', 'Cost reduction'];
                 } else if (titleWords.includes('step') || titleWords.includes('how')) {
                   items = ['Plan your approach', 'Execute with focus', 'Review and adjust', 'Measure success'];
-                } else if (titleWords.includes('tip') || titleWords.includes('hack')) {
+                } else if (titleWords.includes('tip') || titleWords.includes('hack') || titleWords.includes('secret')) {
                   items = ['Start small and scale', 'Stay consistent', 'Track your progress', 'Celebrate wins'];
+                } else if (titleWords.includes('journey') || titleWords.includes('path') || titleWords.includes('road')) {
+                  items = ['Define your destination', 'Map the milestones', 'Embrace the challenges', 'Celebrate progress'];
+                } else if (titleWords.includes('growth') || titleWords.includes('develop') || titleWords.includes('evolve')) {
+                  items = ['Set clear goals', 'Learn continuously', 'Apply new skills', 'Measure progress'];
+                } else if (titleWords.includes('success') || titleWords.includes('achieve') || titleWords.includes('win')) {
+                  items = ['Define your vision', 'Take consistent action', 'Learn from setbacks', 'Stay committed'];
+                } else if (titleWords.includes('mind') || titleWords.includes('think') || titleWords.includes('mental') || titleWords.includes('spiritual')) {
+                  items = ['Cultivate awareness', 'Practice daily', 'Embrace stillness', 'Find inner peace'];
                 } else {
-                  items = ['Key point one', 'Key point two', 'Key point three', 'Key point four'];
+                  // Use title words to create contextual items
+                  const cleanTitle = title.replace(/[^a-zA-Z\s]/g, '').trim();
+                  items = [
+                    `Understand ${cleanTitle}`,
+                    `Apply ${cleanTitle} principles`,
+                    `Master ${cleanTitle} techniques`,
+                    `Share ${cleanTitle} insights`
+                  ];
                 }
               }
               
@@ -3228,7 +3258,7 @@ function DashboardContent() {
             <div className="flex-1 overflow-hidden px-0 lg:px-4 pb-0 lg:pb-8">
                 <div
                     ref={slidesScrollRef}
-                    className="relative z-10 h-full overflow-y-auto lg:snap-y lg:snap-mandatory scroll-smooth space-y-4 lg:space-y-16 pt-4 lg:pt-28 pb-24 lg:pb-32 no-scrollbar"
+                    className="relative z-10 h-full overflow-y-auto lg:snap-y lg:snap-proximity space-y-4 lg:space-y-16 pt-4 lg:pt-28 pb-24 lg:pb-32 no-scrollbar"
                 >
                     {slides.map((slide) => (
                         <div

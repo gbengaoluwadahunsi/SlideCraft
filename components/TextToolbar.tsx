@@ -19,13 +19,15 @@ export const TextToolbar = () => {
   const savedElementRef = useRef<HTMLElement | null>(null);
   const emojiPickerOpenRef = useRef(false);
 
-  // Detect mobile/touch devices - hide toolbar to avoid conflict with native selection menu
+  // Detect mobile devices - only use small screen check, NOT touch capability
+  // Touch-capable laptops should behave like desktops
   useEffect(() => {
     const checkMobile = () => {
-      // Check for touch capability OR small screen
-      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      // Only check screen size - touchscreen laptops should use desktop behavior
       const isSmallScreen = window.innerWidth < 768;
-      setIsMobile(isTouchDevice || isSmallScreen);
+      // Also check if it's likely a phone/tablet (small screen + touch + no mouse typically present)
+      const isLikelyMobileDevice = isSmallScreen && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+      setIsMobile(isLikelyMobileDevice);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -100,6 +102,9 @@ export const TextToolbar = () => {
   }, [showEmojiPicker]);
 
   useEffect(() => {
+    let showTimeoutId: NodeJS.Timeout | null = null;
+    let hideTimeoutId: NodeJS.Timeout | null = null;
+    
     const handleSelectionChange = () => {
       // Don't hide toolbar if emoji picker is open
       if (emojiPickerOpenRef.current) {
@@ -109,11 +114,30 @@ export const TextToolbar = () => {
       const selection = window.getSelection();
       
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        setIsVisible(false);
-        setShowColorPicker(false);
-        setShowFontPicker(false);
-        setShowEmojiPicker(false);
+        // Cancel any pending show
+        if (showTimeoutId) {
+          clearTimeout(showTimeoutId);
+          showTimeoutId = null;
+        }
+        
+        // Delay before hiding to allow commands to complete
+        if (hideTimeoutId) clearTimeout(hideTimeoutId);
+        hideTimeoutId = setTimeout(() => {
+          const currentSelection = window.getSelection();
+          if (!currentSelection || currentSelection.rangeCount === 0 || currentSelection.isCollapsed) {
+            setIsVisible(false);
+            setShowColorPicker(false);
+            setShowFontPicker(false);
+            setShowEmojiPicker(false);
+          }
+        }, 100);
         return;
+      }
+
+      // Cancel any pending hide
+      if (hideTimeoutId) {
+        clearTimeout(hideTimeoutId);
+        hideTimeoutId = null;
       }
 
       const range = selection.getRangeAt(0);
@@ -125,28 +149,59 @@ export const TextToolbar = () => {
         return;
       }
 
+      // Save the selection IMMEDIATELY without any state updates
+      savedSelectionRef.current = range.cloneRange();
+      const element = range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
+        ? range.commonAncestorContainer.parentElement 
+        : range.commonAncestorContainer as HTMLElement;
+      savedElementRef.current = element?.closest('[contenteditable="true"]') as HTMLElement | null;
+
       const rect = range.getBoundingClientRect();
       
-      // Calculate position (centered above selection)
-      setPosition({
-        top: rect.top - 50, // 50px above
-        left: rect.left + rect.width / 2
-      });
-      setIsVisible(true);
+      // Small delay before showing toolbar to ensure selection is stable
+      // This prevents the toolbar from triggering re-renders during selection
+      if (showTimeoutId) clearTimeout(showTimeoutId);
+      showTimeoutId = setTimeout(() => {
+        // Re-check selection is still valid
+        const currentSelection = window.getSelection();
+        if (currentSelection && currentSelection.rangeCount > 0 && !currentSelection.isCollapsed) {
+          setPosition({
+            top: rect.top - 50,
+            left: rect.left + rect.width / 2
+          });
+          setIsVisible(true);
+        }
+      }, 50);
     };
 
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
+      if (showTimeoutId) clearTimeout(showTimeoutId);
+      if (hideTimeoutId) clearTimeout(hideTimeoutId);
     };
   }, []);
 
   const execCommand = (command: string, value: string = '') => {
+    // Restore selection first to ensure we're formatting the right text
+    const selection = window.getSelection();
+    if (selection && savedSelectionRef.current && savedElementRef.current) {
+      // Focus the contenteditable element
+      savedElementRef.current.focus();
+      
+      // Restore the saved selection
+      selection.removeAllRanges();
+      selection.addRange(savedSelectionRef.current.cloneRange());
+    }
+    
     // Ensure we use CSS styles instead of HTML tags (like <font>) where possible
     if (!document.queryCommandState('styleWithCSS')) {
       document.execCommand('styleWithCSS', false, 'true');
     }
     document.execCommand(command, false, value);
+    
+    // Save the selection again after command execution
+    saveSelection();
   };
 
   const saveSelection = () => {
@@ -266,7 +321,7 @@ export const TextToolbar = () => {
           exit={isMobile ? { opacity: 0, y: 20 } : { opacity: 0, scale: 0.8, y: 10 }}
           transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 25 }}
           onMouseDown={(e) => e.preventDefault()} // Prevent losing focus from text
-          onTouchStart={(e) => e.preventDefault()} // Prevent touch events from dismissing selection
+          onTouchStart={isMobile ? (e) => e.preventDefault() : undefined} // Only on mobile: prevent touch from dismissing selection
         >
           <div className="flex items-center gap-1">
       {/* Font Family Picker */}
@@ -338,7 +393,7 @@ export const TextToolbar = () => {
       <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
       <motion.button 
-        onClick={() => execCommand('bold')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Bold"
         whileHover={{ scale: 1.1 }}
@@ -347,7 +402,7 @@ export const TextToolbar = () => {
         <Bold size={16} />
       </motion.button>
       <motion.button 
-        onClick={() => execCommand('italic')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Italic"
         whileHover={{ scale: 1.1 }}
@@ -356,7 +411,7 @@ export const TextToolbar = () => {
         <Italic size={16} />
       </motion.button>
       <motion.button 
-        onClick={() => execCommand('underline')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Underline"
         whileHover={{ scale: 1.1 }}
@@ -369,7 +424,7 @@ export const TextToolbar = () => {
 
       {/* Alignment */}
       <motion.button 
-        onClick={() => execCommand('justifyLeft')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Left"
         whileHover={{ scale: 1.1 }}
@@ -378,7 +433,7 @@ export const TextToolbar = () => {
         <AlignLeft size={16} />
       </motion.button>
       <motion.button 
-        onClick={() => execCommand('justifyCenter')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('justifyCenter'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Center"
         whileHover={{ scale: 1.1 }}
@@ -387,7 +442,7 @@ export const TextToolbar = () => {
         <AlignCenter size={16} />
       </motion.button>
       <motion.button 
-        onClick={() => execCommand('justifyRight')}
+        onMouseDown={(e) => { e.preventDefault(); execCommand('justifyRight'); }}
         className="p-1.5 text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
         title="Align Right"
         whileHover={{ scale: 1.1 }}

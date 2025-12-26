@@ -273,7 +273,7 @@ Slide ${i + 1} (${slide.type}):
       ],
       { temperature: 0.3, max_tokens: 2000 }
     );
-    
+
     if (!enhancedContent) enhancedContent = content;
     
     // Clean up any markdown that slipped through and convert to HTML

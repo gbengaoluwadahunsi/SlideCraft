@@ -20,6 +20,38 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Make text selection more visible - high contrast for dark themes */
+::selection {
+  background-color: rgba(59, 130, 246, 0.7) !important;
+  color: white !important;
+}
+
+*::selection {
+  background-color: rgba(59, 130, 246, 0.7) !important;
+  color: white !important;
+}
+
+/* Ensure selection is visible on contenteditable elements */
+[contenteditable="true"]::selection,
+[contenteditable="true"] *::selection {
+  background-color: rgba(59, 130, 246, 0.7) !important;
+  color: white !important;
+}
+
+/* Ensure contenteditable elements allow text selection */
+[contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  cursor: text !important;
+}
+
+/* Fix for selection on transformed elements */
+[contenteditable="true"], 
+[contenteditable="true"] * {
+  -webkit-touch-callout: default;
+  -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }

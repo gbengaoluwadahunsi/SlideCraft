@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
+import { useAppContextSafe } from '@/lib/hooks/useAppContext';
 import { 
   Layout, 
   Menu,
@@ -44,7 +45,9 @@ import {
   MessageSquare,
   RefreshCw,
   Keyboard,
-  Eye
+  Eye,
+  ExternalLink,
+  ZoomIn
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -66,13 +69,20 @@ interface CustomBlock {
   height: number;
 }
 
+interface InfographicData {
+  items: string[];
+  layout?: 'icon-grid' | 'process-flow' | 'comparison' | 'stats' | 'radial';
+}
+
 interface SlideData {
   id: string;
-  type: 'cover' | 'content' | 'chart';
+  type: 'cover' | 'content' | 'chart' | 'visual';
   title: string;
   subtitle?: string;
   content?: string;
   emoji?: string;
+  icon?: string;
+  infographicData?: InfographicData;
   category?: string;
   accentColor?: string;
   handle?: string;
@@ -111,6 +121,7 @@ function DashboardContent() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const confirm = useConfirm();
+  const appContext = useAppContextSafe();
   const projectId = searchParams.get('project') || undefined;
 
   // Hooks must be called before any conditional returns
@@ -135,6 +146,7 @@ function DashboardContent() {
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectOptions, setProjectOptions] = useState<any>({});
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -143,6 +155,7 @@ function DashboardContent() {
   const [aiSlideCount, setAiSlideCount] = useState(6);
   const [aiWordCount, setAiWordCount] = useState<number | ''>('');
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
+  const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -537,6 +550,17 @@ function DashboardContent() {
   const normalizeSlides = (incomingSlides: SlideData[]) => {
     const timestamp = Date.now();
     const baseSlide = slides[0];
+    
+    // Helper to get default element order based on slide type
+    const getDefaultElementOrder = (type: string, hasInfographic: boolean = false) => {
+      switch (type) {
+        case 'cover': return ['title', 'subtitle', 'media'];
+        case 'chart': return ['emoji', 'title', 'content', 'chart', 'media'];
+        case 'visual': return hasInfographic ? ['title', 'infographic', 'media'] : ['title', 'content', 'media'];
+        default: return ['emoji', 'title', 'content', 'media'];
+      }
+    };
+    
     return incomingSlides.map((slide, index) => ({
       ...slide,
       fontScale: slide.fontScale ?? 1,
@@ -547,7 +571,7 @@ function DashboardContent() {
       category: slide.category ?? baseSlide?.category ?? '',
       handle: slide.handle ?? baseSlide?.handle ?? '@carouslk',
       accentColor: slide.accentColor ?? baseSlide?.accentColor,
-      elementOrder: slide.elementOrder || (slide.type === 'cover' ? ['title', 'subtitle', 'media'] : slide.type === 'chart' ? ['emoji', 'title', 'content', 'chart', 'media'] : ['emoji', 'title', 'content', 'media']),
+      elementOrder: slide.elementOrder || getDefaultElementOrder(slide.type, !!slide.infographicData),
       customBlocks: Array.isArray(slide.customBlocks) ? slide.customBlocks : [],
       id: slide.id || `${timestamp}-${index}`,
     }));
@@ -682,6 +706,34 @@ function DashboardContent() {
     }
   }, [slides, projectOptions, projectId, autoSaveProject]);
 
+  // Sync context with app state for AI assistant
+  useEffect(() => {
+    if (appContext) {
+      appContext.setSlideCount(slides.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides.length]);
+
+  // Track current section for context awareness
+  useEffect(() => {
+    if (appContext) {
+      if (isAiModalOpen) {
+        appContext.setCurrentSection('ai-generate');
+      } else if (isAiFeaturesOpen) {
+        appContext.setCurrentSection('ai-tools');
+      } else if (isSettingsOpen) {
+        appContext.setCurrentSection('theme');
+      } else if (isPropertiesPanelOpen) {
+        appContext.setCurrentSection('properties');
+      } else if (isMobileSlidesOpen) {
+        appContext.setCurrentSection('slides-panel');
+      } else {
+        appContext.setCurrentSection('editor');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAiModalOpen, isAiFeaturesOpen, isSettingsOpen, isPropertiesPanelOpen, isMobileSlidesOpen]);
+
   // Handle project load from ProjectManager
   const handleProjectLoad = useCallback((project: { id: string; name: string; slides: SlideData[]; options: any }) => {
     setSlides(project.slides);
@@ -790,6 +842,12 @@ function DashboardContent() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Close image preview modal on ESC
+      if (e.key === 'Escape' && previewImageUrl) {
+        setPreviewImageUrl(null);
+        return;
+      }
+      
       // Don't trigger shortcuts when typing in inputs/textareas
       const target = e.target as HTMLElement;
       const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -895,7 +953,7 @@ function DashboardContent() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl]);
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -1049,6 +1107,7 @@ function DashboardContent() {
             slideCount: aiSlideCount,
             wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
+            slideStyle: aiSlideStyle,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,
@@ -1063,10 +1122,151 @@ function DashboardContent() {
         
         if (data.slides && Array.isArray(data.slides)) {
           const normalized = normalizeSlides((data.slides || []).slice(0, aiSlideCount));
-          setSlides(normalized);
-          if (normalized.length > 0) {
-            setActiveSlideId(normalized[0].id);
+          
+          // For Visual style: create programmatic infographics (Gamma-style)
+          if (aiSlideStyle === 'visual' || aiSlideStyle === 'mixed') {
+            // Generate polished HTML/CSS infographics for visual slides
+            const slidesWithInfographics = normalized.map((slide, index) => {
+              // Skip cover slides and chart slides
+              if (slide.type === 'cover' || slide.type === 'chart') {
+                return slide;
+              }
+              
+              // Extract key points from content for the infographic
+              const contentText = slide.content?.replace(/<[^>]*>/g, '') || '';
+              const title = slide.title || '';
+              
+              // Parse bullet points, sentences, or meaningful content
+              let items: string[] = [];
+              
+              // Strategy 1: Look for bullet points
+              const bulletMatch = contentText.match(/[•\-\*]\s*([^\n•\-\*]+)/g);
+              // Strategy 2: Look for numbered items
+              const numberedMatch = contentText.match(/\d+[.)]\s*([^\n]+)/g);
+              // Strategy 3: Split by line breaks
+              const lineBreaks = contentText.split(/\n+/).filter(s => s.trim().length > 15);
+              
+              if (bulletMatch && bulletMatch.length >= 2) {
+                items = bulletMatch
+                  .map(b => b.replace(/^[•\-\*]\s*/, '').trim())
+                  .filter(s => s.length > 5);
+              } else if (numberedMatch && numberedMatch.length >= 2) {
+                items = numberedMatch
+                  .map(n => n.replace(/^\d+[.)]\s*/, '').trim())
+                  .filter(s => s.length > 5);
+              } else if (lineBreaks.length >= 2) {
+                items = lineBreaks.map(s => s.trim()).filter(s => s.length > 10);
+              } else {
+                // Split by sentences
+                const sentences = contentText
+                  .split(/[.!?]+/)
+                  .map(s => s.trim())
+                  .filter(s => s.length > 15 && s.length < 120);
+                
+                if (sentences.length >= 2) {
+                  items = sentences;
+                } else if (contentText.length > 20) {
+                  // Use the whole content if it's meaningful
+                  items = [contentText.slice(0, 100)];
+                }
+              }
+              
+              // Ensure we have at least some items (use title-derived content as last resort)
+              if (items.length < 2 && title) {
+                // Generate meaningful items from title context
+                const titleWords = title.toLowerCase();
+                if (titleWords.includes('benefit') || titleWords.includes('advantage')) {
+                  items = ['Increased efficiency', 'Better results', 'Time savings', 'Cost reduction'];
+                } else if (titleWords.includes('step') || titleWords.includes('how')) {
+                  items = ['Plan your approach', 'Execute with focus', 'Review and adjust', 'Measure success'];
+                } else if (titleWords.includes('tip') || titleWords.includes('hack')) {
+                  items = ['Start small and scale', 'Stay consistent', 'Track your progress', 'Celebrate wins'];
+                } else {
+                  items = ['Key point one', 'Key point two', 'Key point three', 'Key point four'];
+                }
+              }
+              
+              // Limit to 6 items max and clean up
+              items = items
+                .slice(0, 6)
+                .map(item => item.charAt(0).toUpperCase() + item.slice(1)); // Capitalize
+              
+              // Choose layout based on content type and slide position
+              // 12 premium layouts for visual variety
+              type InfographicLayoutType = 'cards-grid' | 'timeline' | 'process-steps' | 'feature-list' | 'metrics-row' | 'icon-cards' | 'numbered-list' | 'pyramid' | 'cycle' | 'comparison' | 'checklist' | 'quote-highlight';
+              
+              const layouts: InfographicLayoutType[] = [
+                'cards-grid',      // Good for general content
+                'timeline',        // Good for sequences
+                'process-steps',   // Good for how-to content  
+                'feature-list',    // Good for benefits
+                'metrics-row',     // Good for stats/numbers
+                'icon-cards',      // Good for tips
+                'numbered-list',   // Good for steps
+                'pyramid',         // Good for hierarchy
+                'cycle',           // Good for processes
+                'comparison',      // Good for pros/cons
+                'checklist',       // Good for action items
+                'quote-highlight', // Good for key insights
+              ];
+              
+              // Smart layout selection based on content
+              let layout: InfographicLayoutType;
+              const titleLower = title.toLowerCase();
+              const hasNumbers = /\d+/.test(contentText);
+              const itemCount = items.length;
+              
+              // Intelligent layout matching
+              if (titleLower.includes('step') || titleLower.includes('process') || titleLower.includes('how')) {
+                layout = itemCount <= 4 ? 'process-steps' : 'timeline';
+              } else if (hasNumbers || titleLower.includes('stat') || titleLower.includes('result') || titleLower.includes('number')) {
+                layout = 'metrics-row';
+              } else if (titleLower.includes('benefit') || titleLower.includes('feature') || titleLower.includes('advantage')) {
+                layout = 'feature-list';
+              } else if (titleLower.includes('tip') || titleLower.includes('hack') || titleLower.includes('secret') || titleLower.includes('trick')) {
+                layout = 'icon-cards';
+              } else if (titleLower.includes('priority') || titleLower.includes('important') || titleLower.includes('level') || titleLower.includes('hierarchy')) {
+                layout = 'pyramid';
+              } else if (titleLower.includes('cycle') || titleLower.includes('loop') || titleLower.includes('repeat') || titleLower.includes('continuous')) {
+                layout = 'cycle';
+              } else if (titleLower.includes('vs') || titleLower.includes('compare') || titleLower.includes('difference') || titleLower.includes('pros')) {
+                layout = 'comparison';
+              } else if (titleLower.includes('checklist') || titleLower.includes('todo') || titleLower.includes('action') || titleLower.includes('must')) {
+                layout = 'checklist';
+              } else if (titleLower.includes('quote') || titleLower.includes('insight') || titleLower.includes('key') || titleLower.includes('remember')) {
+                layout = 'quote-highlight';
+              } else if (itemCount <= 3) {
+                // For few items, use more impactful layouts
+                layout = ['cards-grid', 'pyramid', 'quote-highlight'][index % 3] as InfographicLayoutType;
+              } else {
+                // Cycle through varied layouts for visual interest
+                layout = layouts[index % layouts.length];
+              }
+              
+              return {
+                ...slide,
+                type: 'visual' as const,
+                // Set infographic data for programmatic rendering
+                infographicData: {
+                  items,
+                  layout
+                },
+                // Update element order: title, then the infographic
+                elementOrder: ['title', 'infographic'],
+              };
+            });
+            
+            setSlides(slidesWithInfographics);
+            if (slidesWithInfographics.length > 0) {
+              setActiveSlideId(slidesWithInfographics[0].id);
+            }
+          } else {
+            setSlides(normalized);
+            if (normalized.length > 0) {
+              setActiveSlideId(normalized[0].id);
+            }
           }
+          
           setIsAiModalOpen(false);
         }
       } catch (error) {
@@ -1768,6 +1968,11 @@ function DashboardContent() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       setIsExportOpen(false);
+      
+      // Track successful export in context
+      if (appContext) {
+        appContext.markExported();
+      }
 
     } catch (error) {
       console.error('Export failed:', error);
@@ -2928,6 +3133,18 @@ function DashboardContent() {
                                             <Download size={14} />
                                         )}
                                     </button>
+                                    {slide.mediaUrl && slide.mediaType === 'image' && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPreviewImageUrl(slide.mediaUrl || null);
+                                            }}
+                                            className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-[#ffd700] hover:border-[#ffd700] transition"
+                                            title="View infographic full size"
+                                        >
+                                            <ZoomIn size={14} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -3051,6 +3268,7 @@ function DashboardContent() {
                                                     )
                                                 );
                                             }}
+                                            onImagePreview={(url) => setPreviewImageUrl(url)}
                                         />
                                     </div>
                                 </div>
@@ -3999,6 +4217,53 @@ function DashboardContent() {
         </div>
       )}
 
+      {/* Image Preview Modal */}
+      {previewImageUrl && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm cursor-zoom-out"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]">
+            <button
+              onClick={() => setPreviewImageUrl(null)}
+              className="absolute -top-12 right-0 text-white hover:text-[#ffd700] transition flex items-center gap-2"
+            >
+              <span className="text-sm">Press ESC or click anywhere to close</span>
+              <X size={24} />
+            </button>
+            <img
+              src={previewImageUrl}
+              alt="Full size preview"
+              className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="absolute -bottom-12 left-0 right-0 flex justify-center gap-4">
+              <a
+                href={previewImageUrl}
+                download="infographic.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-[#ffd700] text-black font-semibold rounded-lg hover:bg-yellow-400 transition flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download size={18} />
+                Download Full Size
+              </a>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(previewImageUrl, '_blank');
+                }}
+                className="px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition flex items-center gap-2"
+              >
+                <ExternalLink size={18} />
+                Open in New Tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Modal */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -4099,6 +4364,69 @@ function DashboardContent() {
                 {docUploadError && (
                   <p className="text-xs text-red-400">{docUploadError}</p>
                 )}
+              </div>
+
+              {/* Slide Style Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Slide Style
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAiSlideStyle('visual')}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                      aiSlideStyle === 'visual'
+                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                    }`}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    <span className="text-xs font-medium">Visual</span>
+                    <span className="text-[10px] opacity-60">Icons & graphics</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiSlideStyle('text')}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                      aiSlideStyle === 'text'
+                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                    }`}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 7V4h16v3" />
+                      <path d="M9 20h6" />
+                      <path d="M12 4v16" />
+                    </svg>
+                    <span className="text-xs font-medium">Text</span>
+                    <span className="text-[10px] opacity-60">Detailed content</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiSlideStyle('mixed')}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                      aiSlideStyle === 'mixed'
+                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                    }`}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="8" height="8" rx="1" />
+                      <path d="M14 5h7" />
+                      <path d="M14 9h5" />
+                      <path d="M3 16h7" />
+                      <path d="M3 20h5" />
+                      <rect x="13" y="13" width="8" height="8" rx="1" />
+                    </svg>
+                    <span className="text-xs font-medium">Mixed</span>
+                    <span className="text-[10px] opacity-60">Best of both</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

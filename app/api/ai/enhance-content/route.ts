@@ -4,6 +4,92 @@ import { auth } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Provider configuration with fallback
+const PROVIDERS = [
+  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY' },
+  { name: 'together', model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', envKey: 'TOGETHER_API_KEY' },
+];
+
+// Retry logic with exponential backoff
+async function generateWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`Attempt ${i + 1} failed:`, err);
+      if (i === maxRetries - 1) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+// Helper function to call LLM with fallback
+async function callLLMWithFallback(
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+  options: { temperature?: number; max_tokens?: number; json_mode?: boolean } = {}
+): Promise<string> {
+  const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
+  
+  if (availableProviders.length === 0) {
+    throw new Error('No AI provider configured');
+  }
+
+  const { temperature = 0.3, max_tokens = 2000, json_mode = false } = options;
+  let lastError: Error | null = null;
+
+  for (const provider of availableProviders) {
+    try {
+      let completion: any;
+      
+      if (provider.name === 'groq') {
+        const Groq = (await import('groq-sdk')).default;
+        const groq = new Groq({ apiKey: process.env[provider.envKey] });
+        
+        completion = await generateWithRetry(async () => {
+          return groq.chat.completions.create({
+            messages,
+            model: provider.model,
+            temperature,
+            max_tokens,
+            ...(json_mode && { response_format: { type: 'json_object' } }),
+          });
+        });
+      } else if (provider.name === 'together') {
+        const OpenAI = (await import('openai')).default;
+        const together = new OpenAI({
+          apiKey: process.env[provider.envKey],
+          baseURL: 'https://api.together.xyz/v1',
+        });
+        
+        completion = await generateWithRetry(async () => {
+          return together.chat.completions.create({
+            messages,
+            model: provider.model,
+            temperature,
+            max_tokens,
+            ...(json_mode && { response_format: { type: 'json_object' } }),
+          });
+        });
+      }
+      
+      if (completion) {
+        console.log(`Successfully called LLM with provider: ${provider.name}`);
+        return completion.choices[0]?.message?.content || '';
+      }
+    } catch (err) {
+      lastError = err as Error;
+      console.error(`Provider ${provider.name} failed:`, err);
+      continue;
+    }
+  }
+
+  throw lastError || new Error('All providers failed');
+}
+
 // Helper to convert markdown to HTML
 function markdownToHtml(text: string): string {
   return text
@@ -87,16 +173,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    if (!groqApiKey) {
+    // Check for available API keys
+    const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
+    if (availableProviders.length === 0) {
       return NextResponse.json(
         { error: 'AI service not configured' },
         { status: 503 }
       );
     }
-
-    const Groq = (await import('groq-sdk')).default;
-    const groq = new Groq({ apiKey: groqApiKey });
 
     let systemPrompt = ENHANCEMENT_PROMPTS[action as keyof typeof ENHANCEMENT_PROMPTS];
     
@@ -123,18 +207,13 @@ Slide ${i + 1} (${slide.type}):
 - Content: ${slide.content || '(none)'}
 `).join('\n')}`;
 
-      const completion = await groq.chat.completions.create({
-        messages: [
+      const responseText = await callLLMWithFallback(
+        [
           { role: 'system', content: 'You enhance carousel content while maintaining flow and consistency across slides. Always return valid JSON arrays.' },
           { role: 'user', content: batchPrompt },
         ],
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.7,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' },
-      });
-
-      const responseText = completion.choices[0]?.message?.content || '{}';
+        { temperature: 0.3, max_tokens: 4000, json_mode: true }
+      );
       let enhancedSlides;
       
       try {
@@ -187,17 +266,15 @@ Slide ${i + 1} (${slide.type}):
       ? content 
       : `Content to enhance:\n\n${content}\n\n${targetAudience ? `Target audience: ${targetAudience}` : ''}`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
+    let enhancedContent = await callLLMWithFallback(
+      [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
-
-    let enhancedContent = completion.choices[0]?.message?.content || content;
+      { temperature: 0.3, max_tokens: 2000 }
+    );
+    
+    if (!enhancedContent) enhancedContent = content;
     
     // Clean up any markdown that slipped through and convert to HTML
     enhancedContent = markdownToHtml(enhancedContent.trim());

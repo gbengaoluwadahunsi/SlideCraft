@@ -4,6 +4,29 @@ import { auth } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Provider configuration with fallback
+const PROVIDERS = [
+  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY' },
+  { name: 'together', model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', envKey: 'TOGETHER_API_KEY' },
+];
+
+// Retry logic with exponential backoff
+async function generateWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`Attempt ${i + 1} failed:`, err);
+      if (i === maxRetries - 1) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 // Helper to strip markdown from text
 function stripMarkdown(text: string): string {
   if (!text) return text;
@@ -32,16 +55,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    if (!groqApiKey) {
+    // Check for available API keys
+    const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
+    if (availableProviders.length === 0) {
       return NextResponse.json(
         { error: 'AI service not configured' },
         { status: 503 }
       );
     }
-
-    const Groq = (await import('groq-sdk')).default;
-    const groq = new Groq({ apiKey: groqApiKey });
 
     // Build messages array - include history for refinements
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -103,28 +124,61 @@ ${depth === 'comprehensive' ? 'Be thorough and detailed. Include multiple perspe
       messages.push({ role: 'user', content: researchPrompt });
     }
 
-    const completion = await groq.chat.completions.create({
-      messages,
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.3,
-      max_tokens: 3000,
-    });
+    // Helper to call LLM with fallback
+    async function callLLM(
+      msgs: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+      maxTokens: number = 3000
+    ): Promise<string> {
+      for (const provider of availableProviders) {
+        try {
+          let completion: any;
+          
+          if (provider.name === 'groq') {
+            const Groq = (await import('groq-sdk')).default;
+            const groq = new Groq({ apiKey: process.env[provider.envKey] });
+            
+            completion = await generateWithRetry(async () => {
+              return groq.chat.completions.create({
+                messages: msgs,
+                model: provider.model,
+                temperature: 0.3,
+                max_tokens: maxTokens,
+              });
+            });
+          } else if (provider.name === 'together') {
+            const OpenAI = (await import('openai')).default;
+            const together = new OpenAI({
+              apiKey: process.env[provider.envKey],
+              baseURL: 'https://api.together.xyz/v1',
+            });
+            
+            completion = await generateWithRetry(async () => {
+              return together.chat.completions.create({
+                messages: msgs,
+                model: provider.model,
+                temperature: 0.3,
+                max_tokens: maxTokens,
+              });
+            });
+          }
+          
+          if (completion) {
+            return completion.choices[0]?.message?.content || '';
+          }
+        } catch (err) {
+          console.error(`Provider ${provider.name} failed:`, err);
+          continue;
+        }
+      }
+      throw new Error('All providers failed');
+    }
 
-    const researchContent = completion.choices[0]?.message?.content || '';
+    const researchContent = await callLLM(messages, 3000);
 
     // Extract key points
     const keyPointsPrompt = `Extract the main key points from this research:\n\n${researchContent}\n\nReturn as a numbered list of the most important insights (5-8 points). Use plain text only - NO markdown formatting.`;
 
-    const keyPointsCompletion = await groq.chat.completions.create({
-      messages: [
-        { role: 'user', content: keyPointsPrompt },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.3,
-      max_tokens: 1000,
-    });
-
-    const keyPoints = keyPointsCompletion.choices[0]?.message?.content || '';
+    const keyPoints = await callLLM([{ role: 'user', content: keyPointsPrompt }], 1000);
 
     // Clean any remaining markdown from the output
     const cleanedResearch = stripMarkdown(researchContent);

@@ -34,8 +34,9 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { GripVertical, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
+import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi } from 'lucide-react';
 import { Rnd } from 'react-rnd';
+import { Infographic } from './Infographic';
 
 type CustomBlock = {
   id: string;
@@ -47,11 +48,12 @@ type CustomBlock = {
 };
 
 interface SlideProps {
-  type: 'cover' | 'content' | 'chart';
+  type: 'cover' | 'content' | 'chart' | 'visual';
   title: string;
   subtitle?: string;
   content?: string;
   emoji?: string;
+  icon?: string;
   category?: string;
   handle?: string;
   backgroundColor?: string;
@@ -82,6 +84,11 @@ interface SlideProps {
   customBlocks?: CustomBlock[];
   scale?: number;
   logoUrl?: string | null;
+  infographicData?: {
+    items: string[];
+    layout?: 'cards-grid' | 'timeline' | 'process-steps' | 'feature-list' | 'metrics-row' | 'icon-cards' | 'numbered-list' | 'pyramid' | 'cycle' | 'comparison' | 'checklist' | 'quote-highlight';
+  };
+  onImagePreview?: (imageUrl: string) => void;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -141,7 +148,8 @@ export const Slide: React.FC<SlideProps> = ({
   title, 
   subtitle, 
   content, 
-  emoji, 
+  emoji,
+  icon, 
   category = "", 
   handle = "@yourhandle",
   backgroundColor = "#111c24",
@@ -170,7 +178,9 @@ export const Slide: React.FC<SlideProps> = ({
   elementOrder,
   customBlocks = [],
   scale = 1,
+  onImagePreview,
   logoUrl = null,
+  infographicData,
   ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
@@ -201,11 +211,83 @@ export const Slide: React.FC<SlideProps> = ({
     })
   );
 
+  // Icon mapping for visual slides
+  const iconMap: Record<string, React.ReactNode> = {
+    'lightbulb': <Lightbulb />,
+    'target': <Target />,
+    'rocket': <Rocket />,
+    'chart-line': <TrendingUp />,
+    'trending-up': <TrendingUp />,
+    'users': <Users />,
+    'shield': <Shield />,
+    'zap': <Zap />,
+    'brain': <Brain />,
+    'puzzle': <Puzzle />,
+    'trophy': <Trophy />,
+    'clock': <Clock />,
+    'check-circle': <CheckCircle />,
+    'layers': <Layers />,
+    'git-branch': <GitBranch />,
+    'search': <Search />,
+    'lock': <Lock />,
+    'globe': <Globe />,
+    'star': <Star />,
+    'heart': <Heart />,
+    'flag': <Flag />,
+    'compass': <Compass />,
+    'anchor': <Anchor />,
+    'award': <Award />,
+    'briefcase': <Briefcase />,
+    'calendar': <Calendar />,
+    'cloud': <Cloud />,
+    'code': <Code />,
+    'cpu': <Cpu />,
+    'database': <Database />,
+    'download': <Download />,
+    'edit': <Edit />,
+    'eye': <Eye />,
+    'file': <FileText />,
+    'folder': <Folder />,
+    'gift': <Gift />,
+    'grid': <Grid />,
+    'key': <Key />,
+    'layout': <Layout />,
+    'link': <Link />,
+    'list': <List />,
+    'mail': <Mail />,
+    'map': <Map />,
+    'maximize': <Maximize />,
+    'monitor': <Monitor />,
+    'package': <Package />,
+    'play': <Play />,
+    'plus': <Plus />,
+    'power': <Power />,
+    'refresh': <RefreshCw />,
+    'settings': <Settings />,
+    'share': <Share />,
+    'sliders': <Sliders />,
+    'sun': <Sun />,
+    'tag': <Tag />,
+    'thumbs-up': <ThumbsUp />,
+    'tool': <Wrench />,
+    'upload': <UploadCloud />,
+    'user': <User />,
+    'video': <Video />,
+    'wifi': <Wifi />,
+  };
+
+  const getIconComponent = (iconName: string | undefined) => {
+    if (!iconName) return <Lightbulb />;
+    const normalizedName = iconName.toLowerCase().replace(/_/g, '-');
+    return iconMap[normalizedName] || <Lightbulb />;
+  };
+
   // Default orders if not provided
   const getOrder = () => {
       if (elementOrder && elementOrder.length > 0) return elementOrder;
       if (type === 'cover') return ['title', 'subtitle', 'media'];
       if (type === 'chart') return ['emoji', 'title', 'content', 'chart', 'media'];
+      if (type === 'visual') return ['icon', 'title', 'infographic', 'media'];
       return ['emoji', 'title', 'content', 'media'];
   };
 
@@ -376,16 +458,35 @@ export const Slide: React.FC<SlideProps> = ({
         return (
             <div className="mt-6 flex w-full" style={outerStyle}>
                 <div
-                    className="relative group rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0"
+                    className={`relative group rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0 ${onImagePreview ? 'cursor-zoom-in' : ''}`}
                     style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
                     onDragStart={preventDrag}
+                    onClick={(e) => {
+                        if (onImagePreview && mediaUrl) {
+                            e.stopPropagation();
+                            onImagePreview(mediaUrl);
+                        }
+                    }}
                 >
                     <img 
                         src={mediaUrl} 
                         alt="Slide Media" 
-                        className="w-full h-full object-cover select-none"
+                        className="w-full h-full object-contain select-none"
                         draggable={false}
                     />
+                    {/* Zoom indicator overlay */}
+                    {onImagePreview && (
+                        <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                            <div className="bg-black/70 rounded-full p-3">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path d="M21 21l-4.35-4.35" />
+                                    <path d="M11 8v6" />
+                                    <path d="M8 11h6" />
+                                </svg>
+                            </div>
+                        </div>
+                    )}
                     <MediaOverlay />
                 </div>
             </div>
@@ -709,9 +810,37 @@ export const Slide: React.FC<SlideProps> = ({
                 </div>
             );
         }
+        case 'icon':
+            // Render icon for visual slides
+            if (type !== 'visual' || !icon) return null;
+            return (
+                <div 
+                    className="mb-8 flex items-center justify-center"
+                    style={{ 
+                        color: activeAccentColor,
+                    }}
+                >
+                    <div 
+                        className="p-6 rounded-2xl"
+                        style={{ 
+                            backgroundColor: `${activeAccentColor}20`,
+                            border: `2px solid ${activeAccentColor}40`,
+                        }}
+                    >
+                        <div style={{ width: `${5 * fontScale}rem`, height: `${5 * fontScale}rem` }}>
+                            {React.cloneElement(getIconComponent(icon) as React.ReactElement, {
+                                style: { width: '100%', height: '100%' },
+                                strokeWidth: 1.5,
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
         case 'title':
             // Strip HTML to check for actual content
             const titleStripped = title?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+            // Visual slides default to centered text
+            const titleAlign = type === 'visual' ? 'center' : textAlign;
             return isEditable ? (
                 <EditableText 
                     tagName="h1"
@@ -720,7 +849,7 @@ export const Slide: React.FC<SlideProps> = ({
                         color: activeAccentColor, // Consistent color for simplicity in dynamic order
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: textAlign
+                        textAlign: titleAlign
                     }}
                     html={title}
                     onChange={(val) => onUpdate?.('title', val)}
@@ -733,7 +862,7 @@ export const Slide: React.FC<SlideProps> = ({
                         color: activeAccentColor,
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: textAlign
+                        textAlign: titleAlign
                     }}
                     dangerouslySetInnerHTML={{ __html: title }}
                 />
@@ -770,16 +899,21 @@ export const Slide: React.FC<SlideProps> = ({
             ) : null;
         case 'content':
             const contentStripped = content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+            // Visual slides have centered, larger content with special styling
+            const isVisualSlide = type === 'visual';
+            const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
+            const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
-                 <div className="flex-1">
+                 <div className={`flex-1 ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`}>
                     {isEditable ? (
                         <EditableText 
                             tagName="div"
-                            className="slide-content leading-relaxed font-light mb-6"
+                            className={`slide-content leading-relaxed font-light mb-6 ${isVisualSlide ? 'visual-content' : ''}`}
                             style={{ 
                                 color: activeTextColor,
-                                fontSize: `${2.25 * fontScale}rem`,
-                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
+                                fontSize: contentFontSize,
+                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                                textAlign: contentAlign,
                             }} 
                             html={content || ''}
                             onChange={(val) => onUpdate?.('content', val)}
@@ -787,17 +921,34 @@ export const Slide: React.FC<SlideProps> = ({
                         />
                     ) : contentStripped ? (
                         <div 
-                            className="slide-content leading-relaxed font-light mb-6"
+                            className={`slide-content leading-relaxed font-light mb-6 ${isVisualSlide ? 'visual-content' : ''}`}
                             style={{ 
                                 color: activeTextColor,
-                                fontSize: `${2.25 * fontScale}rem`,
-                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none'
+                                fontSize: contentFontSize,
+                                textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                                textAlign: contentAlign,
                             }} 
                             dangerouslySetInnerHTML={{ __html: content }}
                         />
                     ) : null}
                  </div>
             ) : null;
+        case 'infographic':
+            // Render programmatic infographic for visual slides
+            if (!infographicData || !infographicData.items || infographicData.items.length < 1) {
+              return null;
+            }
+            return (
+              <div className="flex-1 w-full rounded-2xl overflow-hidden my-4" style={{ minHeight: '300px' }}>
+                <Infographic
+                  items={infographicData.items}
+                  layout={infographicData.layout || 'cards-grid'}
+                  accentColor={activeAccentColor}
+                  backgroundColor={activeBgColor}
+                  textColor={activeTextColor}
+                />
+              </div>
+            );
         case 'media':
             return renderMediaBlock();
         case 'chart':

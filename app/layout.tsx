@@ -4,6 +4,8 @@ import { ToasterProvider } from "@/components/ToasterProvider";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
+import { HelpChatbot } from "@/components/HelpChatbot";
+import { AppContextProvider } from "@/lib/hooks/useAppContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -164,7 +166,10 @@ export default function RootLayout({
         />
         <SessionProvider>
           <ConfirmProvider>
-            {children}
+            <AppContextProvider>
+              {children}
+              <HelpChatbot />
+            </AppContextProvider>
           </ConfirmProvider>
         </SessionProvider>
         <ToasterProvider />

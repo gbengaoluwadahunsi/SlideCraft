@@ -9,13 +9,20 @@ export interface CustomBlock {
   height: number;
 }
 
+export interface InfographicData {
+  items: string[];
+  layout?: 'icon-grid' | 'process-flow' | 'comparison' | 'stats' | 'radial';
+}
+
 export interface SlideData {
   id: string;
-  type: 'cover' | 'content' | 'chart';
+  type: 'cover' | 'content' | 'chart' | 'visual';
   title: string;
   subtitle?: string;
   content?: string;
   emoji?: string;
+  icon?: string;
+  infographicData?: InfographicData;
   category?: string;
   accentColor?: string;
   handle?: string;

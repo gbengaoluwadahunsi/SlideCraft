@@ -19,10 +19,13 @@ export const TextToolbar = () => {
   const savedElementRef = useRef<HTMLElement | null>(null);
   const emojiPickerOpenRef = useRef(false);
 
-  // Detect mobile screen
+  // Detect mobile/touch devices - hide toolbar to avoid conflict with native selection menu
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      // Check for touch capability OR small screen
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth < 768;
+      setIsMobile(isTouchDevice || isSmallScreen);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -226,7 +229,8 @@ export const TextToolbar = () => {
     { name: 'Marker', value: 'var(--font-permanent-marker)', style: { fontFamily: 'var(--font-permanent-marker)' } },
   ];
 
-  if (!isVisible || !position) return null;
+  // Hide toolbar on mobile to avoid conflict with native selection menu
+  if (!isVisible || !position || isMobile) return null;
 
   const toolbarStyle = adjustedPosition 
     ? { 

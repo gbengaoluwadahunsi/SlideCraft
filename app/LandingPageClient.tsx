@@ -19,8 +19,8 @@ export default function LandingPageClient() {
   const [metricsError, setMetricsError] = useState(false);
   const [currentYear] = useState(() => new Date().getFullYear());
 
-  // Handle "Let's Cook" button click
-  const handleLetsCook = (e?: React.MouseEvent) => {
+  // Handle "Start Creating" button click
+  const handleStartCreating = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
     }
@@ -30,8 +30,8 @@ export default function LandingPageClient() {
     }
     
     if (status === 'unauthenticated' || !session) {
-      toast.error("You can't cook without access to the kitchen", {
-        description: 'Please sign in or create an account to get started',
+      toast.error("Sign in required", {
+        description: 'Please sign in or create an account to start creating',
         action: {
           label: 'Sign In',
           onClick: () => router.push('/login')
@@ -113,10 +113,10 @@ export default function LandingPageClient() {
           </motion.div>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
-              onClick={handleLetsCook}
+              onClick={handleStartCreating}
               className="hidden sm:inline-flex px-5 py-2.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-xl transition transform hover:scale-105 hover:shadow-lg items-center gap-2"
             >
-              Let's Cook <ArrowRight size={16} />
+              Start Creating <ArrowRight size={16} />
             </button>
           </motion.div>
           <motion.button
@@ -158,11 +158,11 @@ export default function LandingPageClient() {
             <button
               onClick={(e) => {
                 setMobileMenuOpen(false);
-                handleLetsCook(e);
+                handleStartCreating(e);
               }}
               className="w-full flex justify-between items-center px-4 py-3 bg-[#ffd700] text-black font-bold rounded-xl"
             >
-              Let's Cook <ArrowRight size={18} />
+              Start Creating <ArrowRight size={18} />
             </button>
             <a 
               href="#how-it-works" 
@@ -213,10 +213,10 @@ export default function LandingPageClient() {
         >
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
-              onClick={handleLetsCook}
+              onClick={handleStartCreating}
               className="px-6 py-3 text-sm bg-[#ffd700] hover:bg-yellow-400 text-black sm:text-base font-bold rounded-xl transition transform hover:scale-105 hover:shadow-lg flex items-center gap-2 sm:px-8 sm:py-4"
             >
-              Let's Cook <ArrowRight size={20} />
+              Start Creating <ArrowRight size={20} />
             </button>
           </motion.div>
           <motion.a 
@@ -490,7 +490,7 @@ export default function LandingPageClient() {
             <p className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using Carouslk to stand out on LinkedIn, Instagram, X, and every other platform.</p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <button
-                onClick={handleLetsCook}
+                onClick={handleStartCreating}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm sm:text-base lg:text-lg font-bold rounded-xl transition transform hover:scale-105 sm:px-8 sm:py-4"
               >
                 Start Creating for Free <ArrowRight size={18} />

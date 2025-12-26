@@ -456,11 +456,6 @@ function DashboardContent() {
 
     handleResize(); // Initial call
     window.addEventListener('resize', handleResize);
-    
-    // Open mobile sidebar by default on small screens
-    if (window.innerWidth < 1024) {
-        setIsMobileSidebarOpen(true);
-    }
 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -2709,15 +2704,15 @@ function DashboardContent() {
       </div>
       {/* Header */}
       <header className="h-14 border-b border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-gray-400 hover:text-white transition">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+          <Link href="/" className="text-gray-400 hover:text-white transition shrink-0">
             <ChevronLeft size={20} />
           </Link>
-          <div className="flex items-center gap-2">
-             <div className="w-6 h-6 bg-[#ffd700] rounded-md rotate-3 flex items-center justify-center">
+          <div className="flex items-center gap-2 min-w-0">
+             <div className="w-6 h-6 bg-[#ffd700] rounded-md rotate-3 flex items-center justify-center shrink-0">
                 <span className="text-black font-bold text-xs">C</span>
              </div>
-             <span className="font-bold tracking-tight text-sm sm:text-base whitespace-nowrap">
+             <span className="font-bold tracking-tight text-sm sm:text-base truncate">
                 <span className="hidden sm:inline">Carouslk / </span>{projectName}
              </span>
           </div>
@@ -2749,12 +2744,12 @@ function DashboardContent() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
              <button
                 onClick={() => setIsMobileSidebarOpen(true)}
                 className="p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center justify-center lg:hidden"
              >
-                <Menu size={24} />
+                <Menu size={20} />
              </button>
              <button 
                 onClick={() => setIsPropertiesPanelOpen(!isPropertiesPanelOpen)}
@@ -3839,6 +3834,30 @@ function DashboardContent() {
                 </button>
             </div>
 
+            {/* Undo/Redo */}
+            <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => {
+                    handleUndo();
+                  }}
+                  disabled={!canUndo}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                    <Undo2 size={18} className="text-gray-300" />
+                    <span className="text-xs font-medium text-gray-300">Undo</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleRedo();
+                  }}
+                  disabled={!canRedo}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                    <Redo2 size={18} className="text-gray-300" />
+                    <span className="text-xs font-medium text-gray-300">Redo</span>
+                </button>
+            </div>
+
             <button
               onClick={() => {
                 setIsExportOpen(true);
@@ -3868,6 +3887,16 @@ function DashboardContent() {
             >
               <Sparkles size={18} />
               AI Generate
+            </button>
+            <button
+              onClick={() => {
+                setIsAiFeaturesOpen(true);
+                setIsMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 transition"
+            >
+              <Sparkles size={18} />
+              AI Tools
             </button>
             <button
               onClick={() => {

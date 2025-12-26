@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Bold, Italic, Underline, Type, Palette, AlignLeft, AlignCenter, AlignRight, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 export const TextToolbar = () => {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState<{ top: number; left: number; transform: string } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -16,6 +18,56 @@ export const TextToolbar = () => {
   const savedSelectionRef = useRef<Range | null>(null);
   const savedElementRef = useRef<HTMLElement | null>(null);
   const emojiPickerOpenRef = useRef(false);
+
+  // Detect mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Adjust position to stay within viewport
+  const adjustPositionToViewport = useCallback(() => {
+    if (!position || !toolbarRef.current) return;
+    
+    const toolbar = toolbarRef.current;
+    const toolbarWidth = toolbar.offsetWidth;
+    const viewportWidth = window.innerWidth;
+    const padding = 8; // Minimum padding from edges
+    
+    let adjustedLeft = position.left;
+    let transform = 'translateX(-50%)';
+    
+    // Calculate the actual left position after centering
+    const actualLeft = position.left - toolbarWidth / 2;
+    const actualRight = position.left + toolbarWidth / 2;
+    
+    if (actualLeft < padding) {
+      // Toolbar would overflow on the left
+      adjustedLeft = padding;
+      transform = 'translateX(0)';
+    } else if (actualRight > viewportWidth - padding) {
+      // Toolbar would overflow on the right
+      adjustedLeft = viewportWidth - padding;
+      transform = 'translateX(-100%)';
+    }
+    
+    setAdjustedPosition({
+      top: position.top,
+      left: adjustedLeft,
+      transform
+    });
+  }, [position]);
+
+  useEffect(() => {
+    if (position && toolbarRef.current) {
+      // Delay to ensure toolbar is rendered before measuring
+      requestAnimationFrame(adjustPositionToViewport);
+    }
+  }, [position, adjustPositionToViewport]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -176,23 +228,34 @@ export const TextToolbar = () => {
 
   if (!isVisible || !position) return null;
 
+  const toolbarStyle = adjustedPosition 
+    ? { 
+        top: adjustedPosition.top, 
+        left: adjustedPosition.left,
+        transform: adjustedPosition.transform
+      }
+    : { 
+        top: position.top, 
+        left: position.left,
+        transform: 'translateX(-50%)'
+      };
+
   return (
     <AnimatePresence>
       {isVisible && position && (
         <motion.div 
           ref={toolbarRef}
-          className="fixed z-50 flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1.5"
-          style={{ 
-            top: position.top, 
-            left: position.left,
-            transform: 'translateX(-50%)'
-          }}
+          className={`fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1.5 ${
+            isMobile ? 'max-w-[calc(100vw-16px)] overflow-x-auto hide-scrollbar' : ''
+          }`}
+          style={toolbarStyle}
           initial={{ opacity: 0, scale: 0.8, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.8, y: 10 }}
           transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 25 }}
           onMouseDown={(e) => e.preventDefault()} // Prevent losing focus from text
         >
+          <div className="flex items-center gap-1">
       {/* Font Family Picker */}
       <div className="relative">
         <motion.button 
@@ -212,7 +275,9 @@ export const TextToolbar = () => {
         <AnimatePresence>
           {showFontPicker && (
             <motion.div 
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden flex flex-col w-32 max-h-60 overflow-y-auto"
+              className={`absolute top-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden flex flex-col w-32 max-h-60 overflow-y-auto ${
+                isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'
+              }`}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -339,7 +404,9 @@ export const TextToolbar = () => {
         <AnimatePresence>
           {showColorPicker && (
             <motion.div 
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 grid grid-cols-5 gap-1 w-40"
+              className={`absolute top-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 grid grid-cols-5 gap-1 w-40 ${
+                isMobile ? 'right-0' : 'left-1/2 -translate-x-1/2'
+              }`}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -382,7 +449,7 @@ export const TextToolbar = () => {
         <AnimatePresence>
           {showEmojiPicker && (
             <motion.div 
-              className="absolute top-full right-0 mt-2 z-50"
+              className={`absolute top-full mt-2 z-50 ${isMobile ? 'right-0 -mr-2' : 'right-0'}`}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -395,8 +462,8 @@ export const TextToolbar = () => {
                   setShowEmojiPicker(false);
                 }}
                 theme={Theme.DARK}
-                width={300}
-                height={350}
+                width={isMobile ? Math.min(280, window.innerWidth - 32) : 300}
+                height={isMobile ? 300 : 350}
                 searchPlaceholder="Search..."
                 previewConfig={{ showPreview: false }}
               />
@@ -404,6 +471,7 @@ export const TextToolbar = () => {
           )}
         </AnimatePresence>
       </div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

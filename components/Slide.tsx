@@ -116,6 +116,18 @@ const sanitizeEmoji = (value: string | undefined | null) => {
     .trim();
 };
 
+// Sanitize handle to strip HTML tags (handles should be plain text)
+const sanitizeHandle = (value: string | undefined | null) => {
+  if (!value) return '';
+  return value
+    .replace(/<[^>]*>/g, '')  // Remove all HTML tags
+    .replace(/&nbsp;/gi, ' ') // Replace &nbsp; with space
+    .replace(/&amp;/gi, '&')  // Decode &amp;
+    .replace(/&lt;/gi, '<')   // Decode &lt;
+    .replace(/&gt;/gi, '>')   // Decode &gt;
+    .trim();
+};
+
 
 // Sortable Item Component - drag ONLY from handle, not content
 function SortableItem({ id, children, isEditable, className = '' }: { id: string; children: React.ReactNode; isEditable: boolean; className?: string }) {
@@ -1178,13 +1190,13 @@ export const Slide: React.FC<SlideProps> = ({
       >
          {isEditable ? (
             <EditableText 
-               html={handle || ''}
-               onChange={(val) => onUpdate?.('handle', val)}
+               html={sanitizeHandle(handle) || ''}
+               onChange={(val) => onUpdate?.('handle', sanitizeHandle(val))}
                tagName="div"
                placeholder="@yourhandle"
             />
          ) : (
-            handle
+            sanitizeHandle(handle)
          )}
       </motion.div>
     </motion.div>

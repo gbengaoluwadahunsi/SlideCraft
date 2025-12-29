@@ -1076,7 +1076,7 @@ function DashboardContent() {
   // Show loading state while checking authentication
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white flex items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[#ffd700]" />
       </div>
     );
@@ -2217,7 +2217,7 @@ function DashboardContent() {
   const renderPropertiesPanelContent = () => (
     <>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Properties</h3>
+        <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Properties</h3>
         <button onClick={() => setIsPropertiesPanelOpen(false)} className="text-gray-500 hover:text-white transition">
           <X size={16} />
         </button>
@@ -2225,7 +2225,7 @@ function DashboardContent() {
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <label className="text-xs text-gray-400">Title</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Title</label>
           <input
             type="text"
             value={activeSlide.title || ''}
@@ -2238,7 +2238,7 @@ function DashboardContent() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs text-gray-400">Font Size</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Font Size</label>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -2276,7 +2276,7 @@ function DashboardContent() {
 
         {activeSlide.type === 'cover' && (
           <div className="space-y-2">
-            <label className="text-xs text-gray-400">Subtitle</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Subtitle</label>
             <textarea
               value={activeSlide.subtitle || ''}
               onChange={(e) => {
@@ -2290,7 +2290,7 @@ function DashboardContent() {
 
         {activeSlide.type === 'content' && (
           <div className="space-y-2">
-            <label className="text-xs text-gray-400">Content</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Content</label>
             <ContentEditableDiv
               slideId={activeSlide.id}
               content={activeSlide.content || ''}
@@ -2324,7 +2324,7 @@ function DashboardContent() {
             {enhancementResult && (
               <div className="mt-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs text-gray-400">Enhanced:</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Enhanced:</span>
                   <button
                     onClick={() => {
                       setSlides(slides.map(s => 
@@ -2350,7 +2350,7 @@ function DashboardContent() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400">Slide Emoji / Icon</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Slide Emoji / Icon</label>
             {/* Toggle for all slides */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-gray-500">All slides</span>
@@ -2429,7 +2429,7 @@ function DashboardContent() {
               <div className="relative">
                 <button
                   onClick={() => setIsEmojiPickerOpen(false)}
-                  className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-gray-800 border border-gray-600 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition"
+                  className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-gray-800 border border-gray-600 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 transition"
                 >
                   <X size={12} />
                 </button>
@@ -2453,7 +2453,7 @@ function DashboardContent() {
 
 
         <div className="space-y-3 pt-4 border-t border-gray-700 media-section-unique">
-          <label className="text-xs text-gray-400">Media / Embeds</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Media / Embeds</label>
           <div className="flex bg-gray-900 rounded-lg p-1 gap-1 mb-2">
             <button
               onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: null, mediaUrl: undefined, embedHtml: undefined } : s))}
@@ -2487,7 +2487,7 @@ function DashboardContent() {
 
           {activeSlide.mediaType === 'image' && (
              <div className="space-y-2">
-                <label className="text-xs text-gray-400">Image Source</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Image Source</label>
                 {activeSlide.mediaUrl ? (
                     <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40">
                         <img src={activeSlide.mediaUrl} className="w-full h-full object-contain" alt="Media Block" />
@@ -2518,13 +2518,13 @@ function DashboardContent() {
                             className="hidden" 
                             onChange={handleMediaImageUpload}
                         />
-                        <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-white">
+                        <div className="flex flex-col items-center gap-2 text-gray-600 dark:text-gray-400 group-hover:text-white">
                             <ImageIcon size={20} />
                             <span className="text-xs">Upload Image Block</span>
                         </div>
                     </label>
                 )}
-                 <label className="text-xs text-gray-400 mt-2 block">Aspect ratio</label>
+                 <label className="text-xs text-gray-600 dark:text-gray-400 mt-2 block">Aspect ratio</label>
                  <input
                     type="number"
                     min={0.5}
@@ -2544,7 +2544,7 @@ function DashboardContent() {
             <div className="space-y-4">
               {activeSlide.mediaUrl ? (
                 <div className="space-y-2">
-                    <label className="text-xs text-gray-400">Current Video (links preferred; uploads ≤100MB)</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Current Video (links preferred; uploads ≤100MB)</label>
                     <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40 flex items-center justify-center">
                         {/* Simple preview */}
                         {activeSlide.mediaUrl.startsWith('blob:') ? (
@@ -2552,7 +2552,7 @@ function DashboardContent() {
                         ) : (
                             <div className="text-center p-4">
                                 <div className="text-red-500 mb-2 flex justify-center"><Upload size={24} /></div>
-                                <div className="text-xs text-gray-400 break-all line-clamp-2">{activeSlide.mediaUrl}</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400 break-all line-clamp-2">{activeSlide.mediaUrl}</div>
                             </div>
                         )}
                         
@@ -2593,7 +2593,7 @@ function DashboardContent() {
               ) : (
                 <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs text-gray-400">Preferred: paste video URL (YouTube/Vimeo/Cloudinary)</label>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Preferred: paste video URL (YouTube/Vimeo/Cloudinary)</label>
                       <span className="text-[10px] text-gray-500">Fastest & most reliable</span>
                     </div>
                     <input
@@ -2620,7 +2620,7 @@ function DashboardContent() {
                         className="hidden" 
                         onChange={handleVideoUpload}
                         />
-                        <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-white">
+                        <div className="flex flex-col items-center gap-2 text-gray-600 dark:text-gray-400 group-hover:text-white">
                             <Upload size={20} />
                             <span className="text-xs text-center leading-tight">
                               Upload video file (≤100MB).
@@ -2632,7 +2632,7 @@ function DashboardContent() {
               )}
 
               <div className="space-y-2">
-                <label className="text-xs text-gray-400">Aspect ratio</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Aspect ratio</label>
                 <input
                     type="number"
                     min={0.5}
@@ -2651,7 +2651,7 @@ function DashboardContent() {
 
           {activeSlide.mediaType === 'embed' && (
             <div className="space-y-2">
-              <label className="text-xs text-gray-400">Embed HTML</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400">Embed HTML</label>
               <textarea
                 value={activeSlide.embedHtml || ''}
                 onChange={(e) => {
@@ -2668,9 +2668,9 @@ function DashboardContent() {
           )}
 
           {activeSlide.mediaType && (
-            <div className="space-y-3 pt-3 border-t border-gray-800">
+            <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-800">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-400">Media Width</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Media Width</label>
                 <span className="text-xs text-gray-500">
                   {Math.round(activeSlide.mediaWidthPercent ?? 100)}%
                 </span>
@@ -2710,7 +2710,7 @@ function DashboardContent() {
                     className={`px-3 py-1.5 rounded-lg text-xs border transition ${
                       Math.round(activeSlide.mediaWidthPercent ?? 100) === preset
                         ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
-                        : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                        : 'border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-500 hover:text-white'
                     }`}
                   >
                     {preset}%
@@ -2719,7 +2719,7 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs text-gray-400">Alignment</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Alignment</label>
                 <div className="flex gap-2">
                   {(['left', 'center', 'right'] as const).map(position => (
                     <button
@@ -2728,7 +2728,7 @@ function DashboardContent() {
                       className={`flex-1 px-3 py-2 rounded-lg text-xs uppercase tracking-wide border transition ${
                         (activeSlide.mediaAlignment || 'center') === position
                           ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
-                          : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                          : 'border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-500 hover:text-white'
                       }`}
                     >
                       {position}
@@ -2741,7 +2741,7 @@ function DashboardContent() {
         </div>
 
         <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400">Background Image (Current Slide)</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Background Image (Current Slide)</label>
           
           {activeSlide.backgroundImage ? (
               <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
@@ -2774,7 +2774,7 @@ function DashboardContent() {
                     setActiveTool('select');
                     fileInputRef.current?.click();
                 }}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-800 transition group"
+                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-600 dark:text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition group"
             >
                 <ImageIcon size={16} className="group-hover:scale-110 transition" />
                 <span className="text-xs">Upload for This Slide</span>
@@ -2834,7 +2834,7 @@ function DashboardContent() {
                 </div>
 
                 <div className="pt-2 border-t border-gray-700 mt-2 space-y-2">
-                   <label className="text-xs text-gray-400">Image Filters</label>
+                   <label className="text-xs text-gray-600 dark:text-gray-400">Image Filters</label>
                    <div className="grid grid-cols-2 gap-2">
                        {/* Brightness */}
                        <div className="space-y-1">
@@ -2939,7 +2939,7 @@ function DashboardContent() {
         </div>
 
         <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400">Handle / Tag</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Handle / Tag</label>
           <input
             type="text"
             value={activeSlide.handle || ''}
@@ -2954,7 +2954,7 @@ function DashboardContent() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs text-gray-400">Category / Series Tag</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Category / Series Tag</label>
           <input
             type="text"
             value={activeSlide.category || ''}
@@ -2970,7 +2970,7 @@ function DashboardContent() {
 
         <div className="pt-4 border-t border-gray-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-400">Type</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">Type</span>
           </div>
           <div className="flex bg-gray-900 rounded-lg p-1 gap-1">
             <button
@@ -3019,7 +3019,7 @@ function DashboardContent() {
         {activeSlide.type === 'chart' && (
           <div className="space-y-4 pt-4 border-t border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="space-y-2">
-              <label className="text-xs text-gray-400">Chart Type</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400">Chart Type</label>
               <div className="flex bg-gray-900 rounded-lg p-1 gap-1">
                 <button
                   onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartType: 'bar' } : s))}
@@ -3044,7 +3044,7 @@ function DashboardContent() {
 
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-400">Data Points</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Data Points</label>
                 <button
                   onClick={() => {
                     const newData = [...(activeSlide.chartData || [])];
@@ -3101,7 +3101,7 @@ function DashboardContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden transition-colors duration-300">
       <TextToolbar />
       <div
         aria-hidden="true"
@@ -3118,9 +3118,9 @@ function DashboardContent() {
         </div>
       </div>
       {/* Header */}
-      <header className="h-14 border-b border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between shrink-0 z-20">
+      <header className="h-14 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f1117] flex items-center px-4 justify-between shrink-0 z-20">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-          <Link href="/" className="text-gray-400 hover:text-white transition shrink-0">
+          <Link href="/" className="text-gray-600 dark:text-gray-400 hover:text-white transition shrink-0">
             <ChevronLeft size={20} />
           </Link>
           <div className="flex items-center gap-2 min-w-0">
@@ -3131,7 +3131,7 @@ function DashboardContent() {
                 <span className="hidden sm:inline">Carouslk / </span>{projectName}
              </span>
           </div>
-          <div className="hidden lg:flex items-center gap-1 border-l border-gray-800 pl-4 ml-4">
+          <div className="hidden lg:flex items-center gap-1 border-l border-gray-200 dark:border-gray-800 pl-4 ml-4">
             <ProjectManager
               currentProjectId={projectId}
               projectName={projectName}
@@ -3143,18 +3143,18 @@ function DashboardContent() {
             <button
               onClick={handleUndo}
               disabled={!canUndo}
-              className="p-2 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
               title="Undo (Ctrl+Z)"
             >
-              <Undo2 size={18} className="text-gray-400" />
+              <Undo2 size={18} className="text-gray-600 dark:text-gray-400" />
             </button>
             <button
               onClick={handleRedo}
               disabled={!canRedo}
-              className="p-2 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
               title="Redo (Ctrl+Y)"
             >
-              <Redo2 size={18} className="text-gray-400" />
+              <Redo2 size={18} className="text-gray-600 dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -3162,13 +3162,13 @@ function DashboardContent() {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
              <button
                 onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition flex items-center justify-center lg:hidden"
+                className="p-2 text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition flex items-center justify-center lg:hidden"
              >
                 <Menu size={20} />
              </button>
              <button 
                 onClick={() => setIsPropertiesPanelOpen(!isPropertiesPanelOpen)}
-                className={`hidden lg:flex p-2 rounded-lg transition ${isPropertiesPanelOpen ? 'text-[#ffd700] bg-[#ffd700]/10' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                className={`hidden lg:flex p-2 rounded-lg transition ${isPropertiesPanelOpen ? 'text-[#ffd700] bg-[#ffd700]/10' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                 title="Toggle Properties Panel"
              >
                 <PanelRight size={20} />
@@ -3176,7 +3176,7 @@ function DashboardContent() {
              <div className="hidden lg:block w-px h-6 bg-gray-800 mx-1"></div>
              <button 
                 onClick={() => setIsAiModalOpen(true)}
-                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition items-center gap-2"
+                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition items-center gap-2"
              >
                 <Sparkles size={16} /> AI Generate
              </button>
@@ -3217,7 +3217,7 @@ function DashboardContent() {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Navigation */}
-        <div className="hidden md:flex w-16 border-r border-gray-800 flex-col items-center py-6 gap-6 bg-[#0f1117] shrink-0 z-10">
+        <div className="hidden md:flex w-16 border-r border-gray-200 dark:border-gray-800 flex-col items-center py-6 gap-6 bg-white dark:bg-[#0f1117] shrink-0 z-10">
             <button 
                 onClick={() => setIsTemplatesOpen(true)}
                 className="w-10 h-10 bg-[#ffd700]/10 text-[#ffd700] rounded-xl flex items-center justify-center border border-[#ffd700]/20 shadow-[0_0_15px_rgba(255,215,0,0.1)] cursor-pointer hover:bg-[#ffd700]/20 transition"
@@ -3227,21 +3227,21 @@ function DashboardContent() {
             </button>
             <button 
                 onClick={() => setIsAiModalOpen(true)}
-                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
+                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
                 title="AI Generate"
             >
                 <Sparkles size={20} />
             </button>
             <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
+                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
                 title="Theme"
             >
                 <Palette size={20} />
             </button>
             <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="mt-auto w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
+                className="mt-auto w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
                 title="Settings"
             >
                 <Settings size={20} />
@@ -3249,9 +3249,9 @@ function DashboardContent() {
         </div>
 
         {/* Slide List */}
-        <div className="hidden lg:flex w-72 border-r border-gray-800 bg-[#0f1117] flex-col shrink-0">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slides ({slides.length})</span>
+        <div className="hidden lg:flex w-72 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f1117] flex-col shrink-0">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Slides ({slides.length})</span>
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => setShowKeyboardShortcuts(true)}
@@ -3262,7 +3262,7 @@ function DashboardContent() {
                     </button>
                     <button 
                         onClick={addNewSlide}
-                        className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-400 hover:text-white transition"
+                        className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white transition"
                         title="Add new slide (Ctrl+Enter)"
                     >
                         <Plus size={14} />
@@ -3275,12 +3275,12 @@ function DashboardContent() {
                         key={slide.id} 
                         ref={(el) => { sidebarSlideRefs.current[slide.id] = el; }}
                         onClick={() => setActiveSlideId(slide.id)}
-                        className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/50 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-800/30 hover:border-gray-700'}`}
+                        className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/50 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/30 hover:border-gray-700'}`}
                     >
                         <div className="p-3">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium text-gray-400">Slide {index + 1}</span>
+                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Slide {index + 1}</span>
                                     {activeSlideId === slide.id && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
                                 </div>
                                 {/* Move buttons */}
@@ -3396,21 +3396,21 @@ function DashboardContent() {
                 </div>
                 <div 
                     onClick={() => handleToolClick('text')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     title="Add Text Block"
                 >
                     <Type size={16} />
                 </div>
                 <div 
                     onClick={() => handleToolClick('image')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     title="Set Background Image (Current Slide)"
                 >
                     <ImageIcon size={16} />
                 </div>
                 <div 
                     onClick={() => handleToolClick('image-all')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     title="Set Background Image (All Slides)"
                 >
                     <div className="relative">
@@ -3507,7 +3507,7 @@ function DashboardContent() {
                 <button
                     onClick={() => goToSlideByIndex(activeSlideIndex - 1)}
                     disabled={activeSlideIndex <= 0}
-                    className="w-12 h-12 rounded-2xl border border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-12 h-12 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     aria-label="Previous slide"
                 >
                     <ChevronLeft size={20} />
@@ -3516,14 +3516,14 @@ function DashboardContent() {
                 <div className="flex-1 flex gap-2">
                     <button
                         onClick={() => setIsMobileSlidesOpen(true)}
-                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg"
+                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg"
                     >
                         <span className="text-[10px] uppercase tracking-wider text-gray-500">Slides</span>
                         <span className="text-sm font-semibold text-white">#{activeSlideIndex + 1} / {slides.length}</span>
                     </button>
                     <button
                         onClick={() => setIsPropertiesPanelOpen(true)}
-                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg active:bg-gray-800"
+                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg active:bg-gray-800"
                     >
                         <span className="text-[10px] uppercase tracking-wider text-gray-500">Edit</span>
                         <Settings size={18} className="text-white" />
@@ -3533,7 +3533,7 @@ function DashboardContent() {
                 <button
                     onClick={() => goToSlideByIndex(activeSlideIndex + 1)}
                     disabled={activeSlideIndex >= slides.length - 1}
-                    className="w-12 h-12 rounded-2xl border border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-12 h-12 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     aria-label="Next slide"
                 >
                     <ChevronLeft size={20} className="rotate-180" />
@@ -3553,7 +3553,7 @@ function DashboardContent() {
                             className="absolute inset-0 bg-black/70"
                             onClick={() => setIsPropertiesPanelOpen(false)}
                         />
-                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-[#0f1117] border-l border-gray-800 rounded-l-3xl p-6 overflow-y-auto hide-scrollbar shadow-2xl animate-in slide-in-from-right duration-300">
+                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-white dark:bg-[#0f1117] border-l border-gray-200 dark:border-gray-800 rounded-l-3xl p-6 overflow-y-auto hide-scrollbar shadow-2xl animate-in slide-in-from-right duration-300">
                             {renderPropertiesPanelContent()}
                         </div>
                     </div>
@@ -3566,24 +3566,24 @@ function DashboardContent() {
       {/* Export Modal */}
       {isExportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+          <div className="w-full max-w-sm bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
               <h3 className="font-bold text-white text-lg">Export Carousel</h3>
               <button 
                 onClick={() => setIsExportOpen(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
             </div>
             
             <div className="p-6 space-y-4">
-              <p className="text-gray-400 text-sm">Choose your preferred format:</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Choose your preferred format:</p>
               
               <button
                 onClick={() => handleExport('pdf')}
                 disabled={!!isExporting}
-                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center text-red-500 group-hover:scale-110 transition">
@@ -3600,7 +3600,7 @@ function DashboardContent() {
               <button
                 onClick={() => handleExport('ppt')}
                 disabled={!!isExporting}
-                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
               >
                  <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-500 group-hover:scale-110 transition">
@@ -3621,15 +3621,15 @@ function DashboardContent() {
       {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-4xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Settings size={20} className="text-gray-400" />
+                <Settings size={20} className="text-gray-600 dark:text-gray-400" />
                 <h3 className="font-bold text-white text-lg">General Settings</h3>
               </div>
               <button 
                 onClick={() => setIsSettingsOpen(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
@@ -3637,7 +3637,7 @@ function DashboardContent() {
             
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Project Name</label>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Project Name</label>
                 <input 
                   type="text" 
                   value={projectName}
@@ -3648,7 +3648,7 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Author Handle</label>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Author Handle</label>
                 <input 
                   type="text" 
                   value={brandSettings.handle}
@@ -3660,7 +3660,7 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Category / Series</label>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Category / Series</label>
                 <input 
                   type="text" 
                   value={brandSettings.category}
@@ -3673,7 +3673,7 @@ function DashboardContent() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-400">Brand Logo</label>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Brand Logo</label>
                   {!canUploadLogo && (
                     <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-medium">PRO</span>
                   )}
@@ -3709,7 +3709,7 @@ function DashboardContent() {
                       <button
                         onClick={() => logoUploadInputRef.current?.click()}
                         disabled={isUploadingLogo}
-                        className="w-full px-4 py-3 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full px-4 py-3 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {isUploadingLogo ? (
                           <>
@@ -3743,7 +3743,7 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Font Family</label>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Font Family</label>
                 <div className="grid grid-cols-2 gap-2">
                     {[
                         { name: 'Inter', value: 'var(--font-inter)' },
@@ -3765,7 +3765,7 @@ function DashboardContent() {
 
               <div className="space-y-4">
                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-400">Colors</label>
+                        <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Colors</label>
                         <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-1">
                                 <label className="text-xs text-gray-500">Background</label>
@@ -3827,7 +3827,7 @@ function DashboardContent() {
                    </div>
 
                    <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400">Accent Presets</label>
+                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Accent Presets</label>
                     <div className="flex gap-2 items-center">
                     {['#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff'].map(color => (
                         <button
@@ -3843,7 +3843,7 @@ function DashboardContent() {
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-800 flex justify-between items-center">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
               <button
                 onClick={resetBrandSettings}
                 disabled={isSavingBrandSettings}
@@ -3885,15 +3885,15 @@ function DashboardContent() {
       {/* AI Features Modal */}
       {isAiFeaturesOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-4xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
               <div className="flex items-center gap-2 text-purple-400">
                 <Sparkles size={24} />
                 <h3 className="font-bold text-white text-xl">AI Features</h3>
               </div>
               <button 
                 onClick={() => setIsAiFeaturesOpen(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
@@ -3906,7 +3906,7 @@ function DashboardContent() {
                   <Search size={18} className="text-purple-400" />
                   <h4 className="font-semibold text-white">Research Agent</h4>
                 </div>
-                <p className="text-xs text-gray-400">Research any topic and get comprehensive insights</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Research any topic and get comprehensive insights</p>
                 <input
                   type="text"
                   value={researchTopic}
@@ -3957,7 +3957,7 @@ function DashboardContent() {
                   <Lightbulb size={18} className="text-yellow-400" />
                   <h4 className="font-semibold text-white">Design Suggestions</h4>
                 </div>
-                <p className="text-xs text-gray-400">Get AI-powered design recommendations</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Get AI-powered design recommendations</p>
                 <button
                   onClick={handleGetDesignSuggestions}
                   disabled={isAnalyzingDesign}
@@ -4001,7 +4001,7 @@ function DashboardContent() {
                   <TrendingUp size={18} className="text-green-400" />
                   <h4 className="font-semibold text-white">Performance Prediction</h4>
                 </div>
-                <p className="text-xs text-gray-400">Predict how your carousel will perform</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Predict how your carousel will perform</p>
                 <button
                   onClick={handlePredictPerformance}
                   disabled={isPredictingPerformance || slides.length === 0}
@@ -4048,7 +4048,7 @@ function DashboardContent() {
                   <Wand2 size={18} className="text-blue-400" />
                   <h4 className="font-semibold text-white">Quick Actions</h4>
                 </div>
-                <p className="text-xs text-gray-400">AI-powered content improvements</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">AI-powered content improvements</p>
                 
                 {/* SEO Optimization */}
                 <div className="space-y-1.5">
@@ -4104,7 +4104,7 @@ function DashboardContent() {
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-800 flex justify-end">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end">
               <button
                 onClick={() => setIsAiFeaturesOpen(false)}
                 className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition"
@@ -4123,9 +4123,9 @@ function DashboardContent() {
             className="absolute inset-0 bg-black/70"
             onClick={() => setIsMobileSlidesOpen(false)}
           />
-          <div className="relative z-10 w-full bg-[#0f1117] border-t border-gray-800 rounded-t-3xl p-4 max-h-[80vh]">
+          <div className="relative z-10 w-full bg-white dark:bg-[#0f1117] border-t border-gray-200 dark:border-gray-800 rounded-t-3xl p-4 max-h-[80vh]">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-gray-400">
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                 <Layout size={18} />
                 <span className="text-sm font-bold uppercase tracking-wider">Slides ({slides.length})</span>
               </div>
@@ -4152,10 +4152,10 @@ function DashboardContent() {
                     setActiveSlideId(slide.id);
                     setIsMobileSlidesOpen(false);
                   }}
-                  className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/60 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-800/40 hover:border-gray-700'}`}
+                  className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/60 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/40 hover:border-gray-700'}`}
                 >
                   <div className="p-3 flex items-center gap-3">
-                    <div className="text-xs font-medium text-gray-400 w-12">#{index + 1}</div>
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 w-12">#{index + 1}</div>
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-white truncate">{slide.title}</div>
                       <div className="text-xs text-gray-500">{slide.type === 'cover' ? 'Cover slide' : 'Content slide'}</div>
@@ -4202,9 +4202,9 @@ function DashboardContent() {
             className="absolute inset-0 bg-black/70"
             onClick={() => setIsMobileSidebarOpen(false)}
           />
-          <div className="relative z-10 w-64 bg-[#0f1117] border-r border-gray-800 h-full p-5 flex flex-col gap-4 shadow-2xl">
+          <div className="relative z-10 w-64 bg-white dark:bg-[#0f1117] border-r border-gray-200 dark:border-gray-800 h-full p-5 flex flex-col gap-4 shadow-2xl">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                 Tools
               </span>
               <button
@@ -4225,7 +4225,7 @@ function DashboardContent() {
                   className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
                 >
                     <Type size={20} className="text-[#ffd700]" />
-                    <span className="text-[10px] font-medium text-gray-400">Text</span>
+                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Text</span>
                 </button>
                 <button
                   onClick={() => {
@@ -4235,7 +4235,7 @@ function DashboardContent() {
                   className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
                 >
                     <ImageIcon size={20} className="text-blue-400" />
-                    <span className="text-[10px] font-medium text-gray-400">Image</span>
+                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Image</span>
                 </button>
                  <button
                   onClick={() => {
@@ -4248,7 +4248,7 @@ function DashboardContent() {
                         <ImageIcon size={20} className="text-purple-400" />
                         <div className="absolute -bottom-1 -right-2 text-[8px] font-bold bg-purple-500 text-white px-1 rounded">ALL</div>
                     </div>
-                    <span className="text-[10px] font-medium text-gray-400">All</span>
+                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">All</span>
                 </button>
                 <button
                   onClick={() => {
@@ -4258,7 +4258,7 @@ function DashboardContent() {
                   className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
                 >
                     <Palette size={20} className="text-pink-400" />
-                    <span className="text-[10px] font-medium text-gray-400">Color</span>
+                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Color</span>
                 </button>
             </div>
 
@@ -4341,7 +4341,7 @@ function DashboardContent() {
                 setIsMobileSlidesOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="mt-auto px-4 py-3 rounded-2xl bg-gray-900 text-white border border-gray-700 hover:bg-gray-800 transition flex items-center justify-between"
+              className="mt-auto px-4 py-3 rounded-2xl bg-gray-900 text-white border border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
                 <Layout size={18} />
@@ -4356,15 +4356,15 @@ function DashboardContent() {
       {/* Templates Modal */}
       {isTemplatesOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-6xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[70vh]">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center shrink-0">
+          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[70vh]">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <Layout size={20} className="text-[#ffd700]" />
                 <h3 className="font-bold text-white text-lg">Theme Gallery</h3>
               </div>
               <button 
                 onClick={() => setIsTemplatesOpen(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
@@ -4401,7 +4401,7 @@ function DashboardContent() {
                                         }));
                                         setIsTemplatesOpen(false);
                                     }}
-                                    className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
+                                    className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
                                 >
                                     <div className="aspect-[4/3] p-4 flex flex-col justify-center items-center gap-2" style={{ backgroundColor: theme.backgroundColor }}>
                                         <div className="text-center space-y-1">
@@ -4413,7 +4413,7 @@ function DashboardContent() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-gray-900 border-t border-gray-800 flex justify-between items-center">
+                                    <div className="p-3 bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
                                         <span className="text-sm font-medium text-gray-300">{theme.name}</span>
                                         <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">Apply</span>
                                     </div>
@@ -4477,15 +4477,15 @@ function DashboardContent() {
       {/* AI Modal */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center shrink-0">
+          <div className="w-full max-w-lg bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2 text-[#ffd700]">
                 <Sparkles size={20} />
                 <h3 className="font-bold text-white text-lg">Generate with AI</h3>
               </div>
               <button 
                 onClick={() => setIsAiModalOpen(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
@@ -4499,7 +4499,7 @@ function DashboardContent() {
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                     aiInputTab === 'prompt'
                       ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
                   <Type size={16} />
@@ -4510,7 +4510,7 @@ function DashboardContent() {
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                     aiInputTab === 'document'
                       ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
                   <FileText size={16} />
@@ -4521,7 +4521,7 @@ function DashboardContent() {
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                     aiInputTab === 'url'
                       ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
                   <Link2 size={16} />
@@ -4532,7 +4532,7 @@ function DashboardContent() {
               {/* Tab Content: Topic/Prompt */}
               {aiInputTab === 'prompt' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                     What&apos;s your carousel about?
                   </label>
                   <textarea
@@ -4548,7 +4548,7 @@ function DashboardContent() {
               {/* Tab Content: Document Upload */}
               {aiInputTab === 'document' && (
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-400">
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400">
                     Upload your document
                   </label>
                   <input
@@ -4566,7 +4566,7 @@ function DashboardContent() {
                             <FileText size={16} className="text-[#ffd700]" />
                             <span className="break-all">{docAttachment.name}</span>
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                             {docAttachment.wordCount ?? '—'} words
                             {docAttachment.truncated ? ' • trimmed to first 20k characters' : ''}
                           </p>
@@ -4574,14 +4574,14 @@ function DashboardContent() {
                         <button
                           type="button"
                           onClick={clearDocAttachment}
-                          className="text-gray-400 hover:text-red-400 transition"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition"
                           title="Remove attachment"
                         >
                           <Trash size={16} />
                         </button>
                       </div>
                       {docAttachment.sections && docAttachment.sections.length > 0 && (
-                        <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
+                        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 max-h-28 overflow-y-auto">
                           <p className="font-semibold text-gray-300">Detected Sections</p>
                           <ul className="list-disc pl-4 space-y-1">
                             {docAttachment.sections.slice(0, 6).map((section, idx) => (
@@ -4627,7 +4627,7 @@ function DashboardContent() {
                       <RefreshCw size={20} className="text-purple-400 shrink-0 mt-0.5" />
                       <div>
                         <h4 className="font-semibold text-white text-sm">Repurpose Your Content</h4>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                           Turn your blog posts, articles, or web content into engaging carousels. 
                           Perfect for repurposing content you&apos;ve already created.
                         </p>
@@ -4646,7 +4646,7 @@ function DashboardContent() {
                           <p className="text-xs text-gray-500 mt-1 truncate">
                             {urlAttachment.sourceDomain}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                             {urlAttachment.wordCount ?? '—'} words
                             {urlAttachment.truncated ? ' • trimmed for processing' : ''}
                           </p>
@@ -4654,19 +4654,19 @@ function DashboardContent() {
                         <button
                           type="button"
                           onClick={clearUrlAttachment}
-                          className="text-gray-400 hover:text-red-400 transition shrink-0"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition shrink-0"
                           title="Remove URL"
                         >
                           <Trash size={16} />
                         </button>
                       </div>
                       {urlAttachment.description && (
-                        <p className="text-xs text-gray-400 line-clamp-2">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
                           {urlAttachment.description}
                         </p>
                       )}
                       {urlAttachment.sections && urlAttachment.sections.length > 0 && (
-                        <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
+                        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 max-h-28 overflow-y-auto">
                           <p className="font-semibold text-gray-300">Detected Sections</p>
                           <ul className="list-disc pl-4 space-y-1">
                             {urlAttachment.sections.slice(0, 6).map((section, idx) => (
@@ -4682,7 +4682,7 @@ function DashboardContent() {
                   ) : (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                           Paste your content URL
                         </label>
                         <div className="flex gap-2">
@@ -4711,7 +4711,7 @@ function DashboardContent() {
                       </div>
 
                       {/* Ownership Confirmation */}
-                      <label className="flex items-start gap-3 p-3 bg-gray-900/30 border border-gray-800 rounded-xl cursor-pointer hover:bg-gray-900/50 transition">
+                      <label className="flex items-start gap-3 p-3 bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:bg-gray-900/50 transition">
                         <input
                           type="checkbox"
                           checked={urlOwnershipConfirmed}
@@ -4743,7 +4743,7 @@ function DashboardContent() {
               {(aiInputTab !== 'prompt' && aiPrompt.trim()) || 
                (aiInputTab !== 'document' && docAttachment) || 
                (aiInputTab !== 'url' && urlAttachment) ? (
-                <div className="bg-gray-900/30 border border-gray-800 rounded-xl p-3">
+                <div className="bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-xl p-3">
                   <p className="text-xs text-gray-500 mb-2">Active sources:</p>
                   <div className="flex flex-wrap gap-2">
                     {aiPrompt.trim() && (
@@ -4771,7 +4771,7 @@ function DashboardContent() {
 
               {/* Slide Style Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                   Slide Style
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -4781,7 +4781,7 @@ function DashboardContent() {
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
                       aiSlideStyle === 'visual'
                         ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
                     }`}
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -4798,7 +4798,7 @@ function DashboardContent() {
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
                       aiSlideStyle === 'text'
                         ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
                     }`}
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -4815,7 +4815,7 @@ function DashboardContent() {
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
                       aiSlideStyle === 'mixed'
                         ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
                     }`}
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -4834,7 +4834,7 @@ function DashboardContent() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                     Writing Style
                   </label>
                   <select
@@ -4850,7 +4850,7 @@ function DashboardContent() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                     Word count per slide
                   </label>
                   <input
@@ -4869,7 +4869,7 @@ function DashboardContent() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                   Target slide count
                 </label>
                 <div className="flex items-center gap-3">
@@ -4904,7 +4904,7 @@ function DashboardContent() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => setIsAiModalOpen(false)}
-                  className="px-4 py-2 text-gray-400 hover:text-white font-medium transition"
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-white font-medium transition"
                 >
                   Cancel
                 </button>
@@ -4934,9 +4934,9 @@ function DashboardContent() {
       {/* Dedicated AI Tool Result Modal */}
       {activeAiToolResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-5xl bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8 max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-5xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8 max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center shrink-0">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 {activeAiToolResult.tool === 'research' && <Search size={24} className="text-purple-400" />}
                 {activeAiToolResult.tool === 'design' && <Lightbulb size={24} className="text-yellow-400" />}
@@ -4950,13 +4950,13 @@ function DashboardContent() {
                     {activeAiToolResult.tool === 'enhancement' && 'Content Enhancement'}
                   </h3>
                   {activeAiToolResult.query && (
-                    <p className="text-sm text-gray-400 mt-1">{activeAiToolResult.query}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{activeAiToolResult.query}</p>
                   )}
                 </div>
               </div>
               <button 
                 onClick={() => setActiveAiToolResult(null)}
-                className="text-gray-400 hover:text-white transition p-2 hover:bg-gray-800 rounded-lg"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
               >
                 <X size={20} />
               </button>
@@ -4969,7 +4969,7 @@ function DashboardContent() {
                   {/* Conversation History */}
                   {researchHistory.length > 2 && (
                     <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
                         <MessageSquare size={14} />
                         Conversation History
                       </h4>
@@ -5021,7 +5021,7 @@ function DashboardContent() {
                       <MessageSquare size={14} />
                       Refine or Continue Research
                     </h4>
-                    <p className="text-xs text-gray-400 mb-3">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                       Ask follow-up questions, request more details, or ask to focus on specific aspects.
                     </p>
                     <div className="flex gap-2">
@@ -5063,7 +5063,7 @@ function DashboardContent() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex justify-between gap-3 pt-4 border-t border-gray-800">
+                  <div className="flex justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <button
                       onClick={() => {
                         setResearchHistory([]);
@@ -5071,7 +5071,7 @@ function DashboardContent() {
                         setActiveAiToolResult(null);
                         setIsAiFeaturesOpen(true);
                       }}
-                      className="px-4 py-2.5 text-gray-400 hover:text-white transition flex items-center gap-2"
+                      className="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:text-white transition flex items-center gap-2"
                     >
                       <RefreshCw size={16} />
                       Start New Research
@@ -5126,7 +5126,7 @@ function DashboardContent() {
                             <div className="flex items-start gap-3">
                               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex-shrink-0 shadow-inner" />
                               <div className="min-w-0">
-                                <p className="text-xs text-gray-400 font-medium">Accent</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Accent</p>
                                 <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.accentColor).split(',')[0]}</p>
                               </div>
                             </div>
@@ -5135,7 +5135,7 @@ function DashboardContent() {
                             <div className="flex items-start gap-3">
                               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex-shrink-0 shadow-inner border border-gray-600" />
                               <div className="min-w-0">
-                                <p className="text-xs text-gray-400 font-medium">Background</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Background</p>
                                 <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.backgroundColor).split(',')[0]}</p>
                               </div>
                             </div>
@@ -5144,7 +5144,7 @@ function DashboardContent() {
                             <div className="flex items-start gap-3">
                               <div className="w-8 h-8 rounded-lg bg-white flex-shrink-0 shadow-inner border border-gray-300" />
                               <div className="min-w-0">
-                                <p className="text-xs text-gray-400 font-medium">Text</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Text</p>
                                 <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.textColor).split(',')[0]}</p>
                               </div>
                             </div>
@@ -5163,12 +5163,12 @@ function DashboardContent() {
                         <div className="space-y-2">
                           {activeAiToolResult.data.fontSuggestions.recommendedFont && (
                             <div>
-                              <p className="text-xs text-gray-400 font-medium mb-1">Recommended Font</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mb-1">Recommended Font</p>
                               <p className="text-white font-semibold">{activeAiToolResult.data.fontSuggestions.recommendedFont}</p>
                             </div>
                           )}
                           {activeAiToolResult.data.fontSuggestions.reason && (
-                            <p className="text-gray-400 text-xs leading-relaxed">{activeAiToolResult.data.fontSuggestions.reason}</p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs leading-relaxed">{activeAiToolResult.data.fontSuggestions.reason}</p>
                           )}
                         </div>
                       </div>
@@ -5223,7 +5223,7 @@ function DashboardContent() {
                         )}
                         {activeAiToolResult.data.accessibility.fixes && activeAiToolResult.data.accessibility.fixes.length > 0 && (
                           <div className="space-y-2">
-                            <p className="text-xs text-gray-400 font-medium">Improvements</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Improvements</p>
                             {activeAiToolResult.data.accessibility.fixes.slice(0, 3).map((fix: string, idx: number) => (
                               <div key={idx} className="flex items-start gap-2 text-sm">
                                 <span className="text-cyan-400 mt-0.5">→</span>
@@ -5255,7 +5255,7 @@ function DashboardContent() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {Object.entries(activeAiToolResult.data.predictedMetrics).map(([key, value]: [string, any]) => (
                           <div key={key} className="text-center">
-                            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{key}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">{key}</p>
                             <p className="text-xl font-bold text-green-400">{value}</p>
                           </div>
                         ))}
@@ -5317,9 +5317,9 @@ function DashboardContent() {
                   {/* Original Content */}
                   {activeAiToolResult.data.originalContent && (
                     <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wide">Original Content</h4>
+                      <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Original Content</h4>
                       <div 
-                        className="text-gray-400 bg-gray-800/50 p-4 rounded-lg leading-relaxed"
+                        className="text-gray-600 dark:text-gray-400 bg-gray-800/50 p-4 rounded-lg leading-relaxed"
                         dangerouslySetInnerHTML={{ 
                           __html: activeAiToolResult.data.originalContent 
                         }}
@@ -5342,7 +5342,7 @@ function DashboardContent() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex justify-between items-center pt-4 border-t border-gray-800">
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-800">
                     <p className="text-xs text-gray-500">
                       Click "Apply" to replace the current slide content
                     </p>
@@ -5392,15 +5392,15 @@ function DashboardContent() {
       {/* Keyboard Shortcuts Modal */}
       {showKeyboardShortcuts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+          <div className="w-full max-w-lg bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Keyboard className="text-[#ffd700]" size={20} />
                 <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
               </div>
               <button 
                 onClick={() => setShowKeyboardShortcuts(false)}
-                className="text-gray-400 hover:text-white transition"
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
                 <X size={20} />
               </button>
@@ -5411,11 +5411,11 @@ function DashboardContent() {
                 <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Navigation</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Previous slide</span>
+                    <span className="text-gray-600 dark:text-gray-400">Previous slide</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↑</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Next slide</span>
+                    <span className="text-gray-600 dark:text-gray-400">Next slide</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↓</kbd>
                   </div>
                 </div>
@@ -5426,19 +5426,19 @@ function DashboardContent() {
                 <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Editing</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Undo</span>
+                    <span className="text-gray-600 dark:text-gray-400">Undo</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Z</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Redo</span>
+                    <span className="text-gray-600 dark:text-gray-400">Redo</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Y</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Bold text</span>
+                    <span className="text-gray-600 dark:text-gray-400">Bold text</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+B</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Italic text</span>
+                    <span className="text-gray-600 dark:text-gray-400">Italic text</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+I</kbd>
                   </div>
                 </div>
@@ -5449,23 +5449,23 @@ function DashboardContent() {
                 <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Slides</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">New slide</span>
+                    <span className="text-gray-600 dark:text-gray-400">New slide</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Enter</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Duplicate slide</span>
+                    <span className="text-gray-600 dark:text-gray-400">Duplicate slide</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+D</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Delete slide</span>
+                    <span className="text-gray-600 dark:text-gray-400">Delete slide</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Delete</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Move slide up</span>
+                    <span className="text-gray-600 dark:text-gray-400">Move slide up</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↑</kbd>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Move slide down</span>
+                    <span className="text-gray-600 dark:text-gray-400">Move slide down</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↓</kbd>
                   </div>
                 </div>
@@ -5476,14 +5476,14 @@ function DashboardContent() {
                 <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Project</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Save project</span>
+                    <span className="text-gray-600 dark:text-gray-400">Save project</span>
                     <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+S</kbd>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
-              <p className="text-xs text-gray-500 text-center">Press <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">?</kbd> anytime to show shortcuts</p>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-900/50">
+              <p className="text-xs text-gray-500 text-center">Press <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-600 dark:text-gray-400 font-mono">?</kbd> anytime to show shortcuts</p>
             </div>
           </div>
         </div>
@@ -5562,7 +5562,7 @@ function formatMarkdown(text: string): string {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white flex items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[#ffd700]" />
       </div>
     }>

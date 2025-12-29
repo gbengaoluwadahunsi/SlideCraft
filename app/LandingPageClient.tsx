@@ -80,7 +80,7 @@ export default function LandingPageClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden transition-colors duration-300">
       {/* Navbar */}
       <motion.nav 
         initial={{ y: -20, opacity: 0 }}
@@ -106,7 +106,7 @@ export default function LandingPageClient() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link 
               href="/pricing" 
-              className="hidden sm:inline-flex px-4 py-2 text-sm text-gray-300 hover:text-white transition"
+              className="hidden sm:inline-flex px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition"
             >
               Pricing
             </Link>
@@ -146,7 +146,7 @@ export default function LandingPageClient() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -20, opacity: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-gray-800/60 border border-gray-700 rounded-2xl p-4 space-y-3"
+              className="bg-gray-200 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700 rounded-2xl p-4 space-y-3"
             >
             <Link 
               href="/pricing" 
@@ -166,7 +166,7 @@ export default function LandingPageClient() {
             </button>
             <a 
               href="#how-it-works" 
-              className="block px-4 py-3 rounded-xl border border-gray-700 text-gray-200 hover:bg-gray-800"
+              className="block px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-200 hover:bg-gray-200 dark:bg-gray-800"
               onClick={() => setMobileMenuOpen(false)}
             >
               See How It Works
@@ -200,7 +200,7 @@ export default function LandingPageClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-base sm:text-lg lg:text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
+          className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
         >
           Create scroll-stopping carousels for LinkedIn, Instagram, X, pitch decks, newsletters—anywhere you publish. No design skills needed—just paste your content, customize, and export.
         </motion.p>
@@ -221,7 +221,7 @@ export default function LandingPageClient() {
           </motion.div>
           <motion.a 
             href="#how-it-works" 
-            className="px-6 py-3 text-sm bg-gray-800 hover:bg-gray-700 text-white sm:text-base font-medium rounded-xl border border-gray-700 transition sm:px-8 sm:py-4"
+            className="px-6 py-3 text-sm bg-gray-200 dark:bg-gray-800 hover:bg-gray-700 text-white sm:text-base font-medium rounded-xl border border-gray-300 dark:border-gray-700 transition sm:px-8 sm:py-4"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -249,15 +249,15 @@ export default function LandingPageClient() {
           }}
         ></motion.div>
         
-            <div className="relative bg-[#0f1117] border border-gray-800 rounded-xl shadow-2xl overflow-hidden">
+            <div className="relative bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl overflow-hidden">
             {/* Mock Window Header */}
-            <div className="h-12 border-b border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between">
+            <div className="h-12 border-b border-gray-200 dark:border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between">
                 <div className="flex gap-2">
                     <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
                     <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></div>
                 </div>
-                <div className="px-4 py-1.5 bg-gray-800/50 rounded-md text-xs text-gray-400 flex items-center gap-2 w-80 border border-gray-700/50">
+                <div className="px-4 py-1.5 bg-gray-200 dark:bg-gray-800/50 rounded-md text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2 w-80 border border-gray-300 dark:border-gray-700/50">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     carouslk.new/untitled-project
                 </div>
@@ -267,40 +267,40 @@ export default function LandingPageClient() {
             {/* App Interface */}
             <div className="flex h-[460px] sm:h-[600px] bg-[#0B0F19]">
                 {/* Left Sidebar */}
-                <div className="w-16 border-r border-gray-800 flex flex-col items-center py-6 gap-6 bg-[#0f1117]">
+                <div className="w-16 border-r border-gray-200 dark:border-gray-800 flex flex-col items-center py-6 gap-6 bg-[#0f1117]">
                     <div className="w-10 h-10 bg-[#ffd700]/10 text-[#ffd700] rounded-xl flex items-center justify-center border border-[#ffd700]/20 shadow-[0_0_15px_rgba(255,215,0,0.1)]">
                         <Layout size={20} />
                     </div>
-                    <div className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
+                    <div className="w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
                         <Sparkles size={20} />
                     </div>
-                    <div className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
+                    <div className="w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
                         <Palette size={20} />
                     </div>
-                    <div className="mt-auto w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
+                    <div className="mt-auto w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
                         <Settings size={20} />
                     </div>
                 </div>
 
                 {/* Slide List */}
-                <div className="w-72 border-r border-gray-800 bg-[#0f1117] hidden md:flex flex-col">
-                    <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slides (5)</span>
-                        <div className="w-6 h-6 bg-gray-800 rounded flex items-center justify-center text-gray-400 cursor-pointer hover:text-white">+</div>
+                <div className="w-72 border-r border-gray-200 dark:border-gray-800 bg-[#0f1117] hidden md:flex flex-col">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Slides (5)</span>
+                        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-800 rounded flex items-center justify-center text-gray-600 dark:text-gray-400 cursor-pointer hover:text-white">+</div>
                     </div>
                     <div className="p-4 space-y-4 overflow-y-auto">
                         {[1, 2, 3].map((i) => (
-                            <div key={i} className={`group cursor-pointer rounded-xl transition-all duration-300 ${i === 1 ? 'bg-gray-800/50 ring-1 ring-[#ffd700]/50 shadow-lg' : 'hover:bg-gray-800/30 opacity-60 hover:opacity-100'}`}>
+                            <div key={i} className={`group cursor-pointer rounded-xl transition-all duration-300 ${i === 1 ? 'bg-gray-200 dark:bg-gray-800/50 ring-1 ring-[#ffd700]/50 shadow-lg' : 'hover:bg-gray-200 dark:bg-gray-800/30 opacity-60 hover:opacity-100'}`}>
                                 <div className="p-3">
                                     <div className="flex items-center justify-between mb-3">
-                                        <span className="text-xs font-medium text-gray-400">Slide {i}</span>
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Slide {i}</span>
                                         {i === 1 && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
                                     </div>
-                                    <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition">
+                                    <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition">
                                         <div className="absolute inset-3 flex flex-col gap-2">
                                             <div className="w-3/4 h-2 bg-gray-700/50 rounded-full"></div>
                                             <div className="w-1/2 h-2 bg-gray-700/50 rounded-full"></div>
-                                            <div className="mt-auto w-full h-16 bg-gray-800/50 rounded-md border border-gray-700/30"></div>
+                                            <div className="mt-auto w-full h-16 bg-gray-200 dark:bg-gray-800/50 rounded-md border border-gray-300 dark:border-gray-700/30"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -317,10 +317,10 @@ export default function LandingPageClient() {
                     </div>
 
                     {/* Floating Toolbar */}
-                    <div className="absolute top-6 bg-gray-800/80 backdrop-blur-md border border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20 transform -translate-y-2 opacity-0 animate-fade-in-down" style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}>
+                    <div className="absolute top-6 bg-gray-200 dark:bg-gray-800/80 backdrop-blur-md border border-gray-300 dark:border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20 transform -translate-y-2 opacity-0 animate-fade-in-down" style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}>
                         <div className="w-8 h-8 flex items-center justify-center bg-[#ffd700] text-black rounded-full cursor-pointer shadow-lg"><MousePointer2 size={14} /></div>
-                        <div className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><Type size={14} /></div>
-                        <div className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><ImageIcon size={14} /></div>
+                        <div className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><Type size={14} /></div>
+                        <div className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><ImageIcon size={14} /></div>
                     </div>
                     
                     {/* Active Slide */}
@@ -368,7 +368,7 @@ export default function LandingPageClient() {
                                 <div className="mt-auto flex items-center justify-between pt-8 border-t border-gray-100">
                                     <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-md">C</div>
-                                        <span className="text-sm font-bold text-gray-400">@carouslk</span>
+                                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">@carouslk</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-xs font-black text-gray-900 uppercase tracking-wider bg-[#ffd700] px-3 py-1 rounded-full">
                                         Swipe <ArrowRight size={12} />
@@ -379,8 +379,8 @@ export default function LandingPageClient() {
                     </motion.div>
 
                     {/* Context Menu Mockup */}
-                    <div className="absolute right-20 bottom-32 bg-gray-800 border border-gray-700 rounded-lg p-1 shadow-2xl w-48 opacity-0 animate-scale-in origin-top-left" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>
-                        <div className="px-3 py-2 text-xs font-medium text-gray-400 border-b border-gray-700 mb-1">Slide Actions</div>
+                    <div className="absolute right-20 bottom-32 bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg p-1 shadow-2xl w-48 opacity-0 animate-scale-in origin-top-left" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>
+                        <div className="px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700 mb-1">Slide Actions</div>
                         <div className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded cursor-pointer text-sm text-gray-200">
                             <RefreshCw size={14} /> Regenerate Content
                         </div>
@@ -412,7 +412,7 @@ export default function LandingPageClient() {
       </main>
 
       {/* Features Grid */}
-      <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-24 border-t border-gray-800">
+      <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-24 border-t border-gray-200 dark:border-gray-800">
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -421,12 +421,12 @@ export default function LandingPageClient() {
           className="text-center mb-16"
         >
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">Everything You Need</h2>
-            <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto">Packed with powerful features to help you create engaging content faster.</p>
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Packed with powerful features to help you create engaging content faster.</p>
         </motion.div>
         
         <div className="grid md:grid-cols-3 gap-8">
             <motion.div 
-              className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
+              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
@@ -437,12 +437,12 @@ export default function LandingPageClient() {
                     <Zap size={24} />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold mb-3">Lightning Fast</h3>
-                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
                     Stop wasting hours on design tools. Input your text and let our engine generate beautiful slides instantly.
                 </p>
             </motion.div>
             <motion.div 
-              className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
+              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
@@ -453,12 +453,12 @@ export default function LandingPageClient() {
                     <Sparkles size={24} />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold mb-3">AI Writing Partner</h3>
-                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
                     Stuck on ideas? Use our built-in AI to expand topics into full educational carousels.
                 </p>
             </motion.div>
             <motion.div 
-              className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700 hover:border-[#ffd700]/50 transition group"
+              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
@@ -469,7 +469,7 @@ export default function LandingPageClient() {
                     <Layout size={24} />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold mb-3">Fully Customizable</h3>
-                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
                     Brand your slides. Change colors, fonts, and layout to match your personal brand identity.
                 </p>
             </motion.div>
@@ -479,7 +479,7 @@ export default function LandingPageClient() {
       {/* CTA Section */}
       <section className="py-16 sm:py-24 px-4 sm:px-6">
          <motion.div 
-           className="max-w-4xl mx-auto bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 sm:p-12 border border-gray-700 text-center relative overflow-hidden"
+           className="max-w-4xl mx-auto bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 sm:p-12 border border-gray-300 dark:border-gray-700 text-center relative overflow-hidden"
            initial={{ opacity: 0, scale: 0.95 }}
            whileInView={{ opacity: 1, scale: 1 }}
            viewport={{ once: true, margin: "-100px" }}
@@ -487,7 +487,7 @@ export default function LandingPageClient() {
          >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-[#ffd700]"></div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to go viral?</h2>
-            <p className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using Carouslk to stand out on LinkedIn, Instagram, X, and every other platform.</p>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using Carouslk to stand out on LinkedIn, Instagram, X, and every other platform.</p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <button
                 onClick={handleStartCreating}
@@ -500,7 +500,7 @@ export default function LandingPageClient() {
       </section>
 
       {/* Simple Footer */}
-      <footer className="border-t border-gray-800 py-12 text-center text-gray-500">
+      <footer className="border-t border-gray-200 dark:border-gray-800 py-12 text-center text-gray-500 dark:text-gray-500">
         <div className="flex items-center justify-center gap-2 mb-4">
           <div className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center">
             <span className="text-black font-bold text-xl">C</span>
@@ -516,27 +516,27 @@ export default function LandingPageClient() {
           transition={{ duration: 0.6 }}
         >
           <motion.div 
-            className="bg-gray-800/40 border border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
+            className="bg-gray-200 dark:bg-gray-800/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
             whileHover={{ scale: 1.05, y: -5 }}
           >
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Creations Today</span>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 dark:text-gray-500 font-bold">Creations Today</span>
             <span className="text-xl sm:text-2xl font-black text-[#ffd700] leading-none mt-1">
               {renderMetricValue(metrics?.todayCreations ?? null)}
             </span>
           </motion.div>
           <motion.div 
-            className="bg-gray-800/40 border border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
+            className="bg-gray-200 dark:bg-gray-800/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.2 }}
             whileHover={{ scale: 1.05, y: -5 }}
           >
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Total Creations</span>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 dark:text-gray-500 font-bold">Total Creations</span>
             <span className="text-xl sm:text-2xl font-black text-[#ffd700] leading-none mt-1">
               {renderMetricValue(metrics?.totalCreations ?? null)}
             </span>

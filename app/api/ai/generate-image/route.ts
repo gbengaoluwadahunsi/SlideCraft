@@ -20,27 +20,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build the image prompt (avoid word "carousel" - AI interprets it as merry-go-round!)
-    const imagePrompt = `Professional, modern abstract image for social media slide background. Theme: ${slideContent}. Style: ${style}. ${brandColors.length > 0 ? `Colors: ${brandColors.join(', ')}.` : ''} Clean, minimalist, business context. No text, no people, no brands. Visual metaphors and geometric shapes.`;
+    // Build a SHORT image prompt (long URLs fail!)
+    // Extract key theme words only
+    const themeWords = slideContent
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter((w: string) => w.length > 3)
+      .slice(0, 5)
+      .join(' ');
+    
+    const imagePrompt = `${themeWords} abstract minimalist ${style} background gradient`;
 
     // PRIORITY 1: Pollinations.ai - FREE AI image generation (no API key needed!)
-    // Available models: flux (best), turbo (fast), zimage, gptimage, seedream
-    // Note: Pollinations generates images lazily when URL is accessed - no need to verify
+    // Using 'turbo' model for faster generation
     if (!preferPremium) {
-      // Pollinations.ai generates images via URL - encode the prompt
-      // Keep prompt short to avoid URL length issues
-      const shortPrompt = imagePrompt.slice(0, 500);
-      const encodedPrompt = encodeURIComponent(shortPrompt);
-      // Use the specified model (default: flux - most popular and highest quality)
-      const validModels = ['flux', 'turbo', 'zimage', 'gptimage', 'seedream'];
-      const selectedModel = validModels.includes(model) ? model : 'flux';
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=${selectedModel}`;
+      const encodedPrompt = encodeURIComponent(imagePrompt);
+      // Use turbo model (faster) and add seed for consistency
+      const seed = Date.now() % 10000;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=turbo&seed=${seed}`;
       
-      // Return URL directly - Pollinations generates images on-demand when URL is accessed
       return NextResponse.json({ 
         imageUrl: pollinationsUrl,
         source: 'pollinations',
-        model: selectedModel,
+        model: 'turbo',
         cost: 'free'
       });
     }

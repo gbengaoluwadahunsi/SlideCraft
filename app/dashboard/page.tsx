@@ -47,7 +47,10 @@ import {
   Keyboard,
   Eye,
   ExternalLink,
-  ZoomIn
+  ZoomIn,
+  Link2,
+  Globe,
+  CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -116,6 +119,71 @@ const sanitizeEmoji = (value: string | undefined | null) => {
     .trim();
 };
 
+// Mobile-friendly contentEditable component
+function ContentEditableDiv({ 
+  slideId, 
+  content, 
+  onChange 
+}: { 
+  slideId: string; 
+  content: string; 
+  onChange: (content: string) => void;
+}) {
+  const divRef = useRef<HTMLDivElement>(null);
+  const lastContentRef = useRef(content);
+  const isComposingRef = useRef(false);
+
+  // Only update innerHTML when slide changes (not on every content update)
+  useEffect(() => {
+    if (divRef.current && lastContentRef.current !== content) {
+      // Only set innerHTML if the element doesn't have focus
+      // This prevents resetting content while user is typing
+      if (document.activeElement !== divRef.current) {
+        divRef.current.innerHTML = content;
+      }
+      lastContentRef.current = content;
+    }
+  }, [slideId, content]);
+
+  // Set initial content on mount
+  useEffect(() => {
+    if (divRef.current) {
+      divRef.current.innerHTML = content;
+    }
+  }, [slideId]); // Only on slideId change
+
+  const handleInput = useCallback(() => {
+    if (divRef.current && !isComposingRef.current) {
+      const newContent = divRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange(newContent);
+    }
+  }, [onChange]);
+
+  // Handle composition events for IME input (important for some mobile keyboards)
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    isComposingRef.current = false;
+    handleInput();
+  }, [handleInput]);
+
+  return (
+    <div
+      ref={divRef}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={handleInput}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition min-h-[8rem] max-h-64 overflow-y-auto"
+      style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
+    />
+  );
+}
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -176,6 +244,23 @@ function DashboardContent() {
   const [docAttachment, setDocAttachment] = useState<{ name: string; text: string; sections?: string[]; wordCount?: number; truncated?: boolean } | null>(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState<string | null>(null);
+  
+  // URL Import state
+  const [aiInputTab, setAiInputTab] = useState<'prompt' | 'document' | 'url'>('prompt');
+  const [urlInput, setUrlInput] = useState('');
+  const [urlAttachment, setUrlAttachment] = useState<{ 
+    title: string; 
+    text: string; 
+    sections?: string[]; 
+    wordCount?: number; 
+    truncated?: boolean;
+    sourceUrl: string;
+    sourceDomain: string;
+    description?: string;
+  } | null>(null);
+  const [isParsingUrl, setIsParsingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlOwnershipConfirmed, setUrlOwnershipConfirmed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [useStreaming, setUseStreaming] = useState(false); // Streaming disabled - use regular endpoint
@@ -1092,9 +1177,9 @@ function DashboardContent() {
   };
 
   const handleAiGenerate = async () => {
-    const combinedSource = [docAttachment?.text, aiPrompt.trim()].filter(Boolean).join('\n\n').trim();
+    const combinedSource = [urlAttachment?.text, docAttachment?.text, aiPrompt.trim()].filter(Boolean).join('\n\n').trim();
     if (!combinedSource) {
-      setDocUploadError('Add a prompt or attach a document to proceed.');
+      setDocUploadError('Add a prompt, attach a document, or import a URL to proceed.');
       return;
     }
     
@@ -1132,6 +1217,12 @@ function DashboardContent() {
     // Regular generation (streaming UI can be added later)
     if (!useStream) {
       try {
+        // Combine sections from document and URL
+        const combinedSections = [
+          ...(docAttachment?.sections || []),
+          ...(urlAttachment?.sections || []),
+        ];
+
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1141,11 +1232,19 @@ function DashboardContent() {
             wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
             slideStyle: aiSlideStyle,
+            sections: combinedSections.length > 0 ? combinedSections : undefined,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,
                   wordCount: docAttachment.wordCount,
                   truncated: docAttachment.truncated,
+                }
+              : urlAttachment
+              ? {
+                  name: urlAttachment.title,
+                  wordCount: urlAttachment.wordCount,
+                  truncated: urlAttachment.truncated,
+                  sourceUrl: urlAttachment.sourceUrl,
                 }
               : undefined,
           }),
@@ -1330,11 +1429,15 @@ function DashboardContent() {
             }
           }
           
+          // Clear inputs after successful generation
+          setAiPrompt('');
+          clearDocAttachment();
+          clearUrlAttachment();
           setIsAiModalOpen(false);
         }
       } catch (error) {
         console.error('Failed to generate slides:', error);
-        // You might want to show a toast error here
+        toast.error('Failed to generate slides. Please try again.');
       } finally {
         setIsGenerating(false);
       }
@@ -1456,6 +1559,60 @@ function DashboardContent() {
     if (docUploadInputRef.current) docUploadInputRef.current.value = '';
   };
 
+  // URL Import handling
+  const handleParseUrl = async () => {
+    if (!urlInput.trim()) {
+      setUrlError('Please enter a URL');
+      return;
+    }
+
+    if (!urlOwnershipConfirmed) {
+      setUrlError('Please confirm this is your own content');
+      return;
+    }
+
+    setIsParsingUrl(true);
+    setUrlError(null);
+
+    try {
+      const response = await fetch('/api/parse-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to parse URL');
+      }
+
+      setUrlAttachment({
+        title: data.title || 'Untitled',
+        text: data.text,
+        sections: data.sections,
+        wordCount: data.wordCount,
+        truncated: data.truncated,
+        sourceUrl: data.sourceUrl,
+        sourceDomain: data.sourceDomain,
+        description: data.description,
+      });
+      setUrlInput('');
+    } catch (error) {
+      console.error('URL parse failed:', error);
+      setUrlError(error instanceof Error ? error.message : 'Failed to fetch URL content');
+    } finally {
+      setIsParsingUrl(false);
+    }
+  };
+
+  const clearUrlAttachment = () => {
+    setUrlAttachment(null);
+    setUrlError(null);
+    setUrlInput('');
+    setUrlOwnershipConfirmed(false);
+  };
+
   // AI Image Generation
   const handleGenerateImage = async (slideId: string) => {
     const slide = slides.find(s => s.id === slideId);
@@ -1476,12 +1633,24 @@ function DashboardContent() {
       if (response.ok) {
         const data = await response.json();
         if (data.imageUrl) {
+          // Set the image URL directly - Pollinations generates on-demand when URL is accessed
+          // The image will appear once it's generated (may take 5-30 seconds on first load)
           setSlides(slides.map(s => 
             s.id === slideId 
               ? { ...s, backgroundImage: data.imageUrl, mediaType: 'image', mediaUrl: data.imageUrl }
               : s
           ));
+          
+          toast.success(
+            'Image URL set! The AI image will appear shortly (may take 10-30 seconds to generate).', 
+            { id: 'image-gen', duration: 5000 }
+          );
+        } else {
+          toast.error('No image URL returned');
         }
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to generate image');
       }
     } catch (error) {
       console.error('Image generation failed:', error);
@@ -2122,16 +2291,12 @@ function DashboardContent() {
         {activeSlide.type === 'content' && (
           <div className="space-y-2">
             <label className="text-xs text-gray-400">Content</label>
-            <div
-              key={activeSlide.id}
-              contentEditable
-              suppressContentEditableWarning
-              dangerouslySetInnerHTML={{ __html: activeSlide.content || '' }}
-              onBlur={(e) => {
-                const newContent = e.currentTarget.innerHTML;
+            <ContentEditableDiv
+              slideId={activeSlide.id}
+              content={activeSlide.content || ''}
+              onChange={(newContent) => {
                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, content: newContent } : s));
               }}
-              className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition min-h-[8rem] max-h-64 overflow-y-auto"
             />
             <p className="text-[10px] text-gray-500">
               Format with shortcuts: <strong>Ctrl+B</strong> bold, <em>Ctrl+I</em> italic.
@@ -2359,24 +2524,6 @@ function DashboardContent() {
                         </div>
                     </label>
                 )}
-                {/* AI Image Generation */}
-                <button
-                  onClick={() => handleGenerateImage(activeSlide.id)}
-                  disabled={isGeneratingImage}
-                  className="w-full mt-2 px-3 py-2 text-xs bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] rounded-lg hover:bg-[#ffd700]/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isGeneratingImage ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={14} />
-                      Generate Image with AI
-                    </>
-                  )}
-                </button>
                  <label className="text-xs text-gray-400 mt-2 block">Aspect ratio</label>
                  <input
                     type="number"
@@ -4330,8 +4477,8 @@ function DashboardContent() {
       {/* AI Modal */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+          <div className="w-full max-w-lg bg-[#0f1117] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2 text-[#ffd700]">
                 <Sparkles size={20} />
                 <h3 className="font-bold text-white text-lg">Generate with AI</h3>
@@ -4344,90 +4491,283 @@ function DashboardContent() {
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  What&apos;s your carousel about?
-                </label>
-                <textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g., 5 tips for better sleep, How to learn React in 2024..."
-                  className="w-full h-32 bg-gray-900/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] resize-none transition"
-                  autoFocus
-                />
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Input Source Tabs */}
+              <div className="flex gap-1 p-1 bg-gray-900/50 rounded-xl">
+                <button
+                  onClick={() => setAiInputTab('prompt')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    aiInputTab === 'prompt'
+                      ? 'bg-[#ffd700] text-black'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <Type size={16} />
+                  <span className="hidden sm:inline">Topic</span>
+                </button>
+                <button
+                  onClick={() => setAiInputTab('document')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    aiInputTab === 'document'
+                      ? 'bg-[#ffd700] text-black'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <FileText size={16} />
+                  <span className="hidden sm:inline">Document</span>
+                </button>
+                <button
+                  onClick={() => setAiInputTab('url')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    aiInputTab === 'url'
+                      ? 'bg-[#ffd700] text-black'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <Link2 size={16} />
+                  <span className="hidden sm:inline">URL</span>
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-400">
-                  Attach a document (optional)
-                </label>
-                <input
-                  ref={docUploadInputRef}
-                  type="file"
-                  accept=".md,.markdown,.docx,.txt"
-                  className="hidden"
-                  onChange={handleDocUpload}
-                />
-                {docAttachment ? (
-                  <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 text-white font-semibold">
-                          <FileText size={16} className="text-[#ffd700]" />
-                          <span className="break-all">{docAttachment.name}</span>
+              {/* Tab Content: Topic/Prompt */}
+              {aiInputTab === 'prompt' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    What&apos;s your carousel about?
+                  </label>
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="e.g., 5 tips for better sleep, How to learn React in 2024..."
+                    className="w-full h-32 bg-gray-900/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] resize-none transition"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {/* Tab Content: Document Upload */}
+              {aiInputTab === 'document' && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-400">
+                    Upload your document
+                  </label>
+                  <input
+                    ref={docUploadInputRef}
+                    type="file"
+                    accept=".md,.markdown,.docx,.txt"
+                    className="hidden"
+                    onChange={handleDocUpload}
+                  />
+                  {docAttachment ? (
+                    <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 text-white font-semibold">
+                            <FileText size={16} className="text-[#ffd700]" />
+                            <span className="break-all">{docAttachment.name}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {docAttachment.wordCount ?? '—'} words
+                            {docAttachment.truncated ? ' • trimmed to first 20k characters' : ''}
+                          </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={clearDocAttachment}
+                          className="text-gray-400 hover:text-red-400 transition"
+                          title="Remove attachment"
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                      {docAttachment.sections && docAttachment.sections.length > 0 && (
+                        <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
+                          <p className="font-semibold text-gray-300">Detected Sections</p>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {docAttachment.sections.slice(0, 6).map((section, idx) => (
+                              <li key={idx}>{section}</li>
+                            ))}
+                            {docAttachment.sections.length > 6 && (
+                              <li>+ {docAttachment.sections.length - 6} more…</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => docUploadInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-300 hover:text-white hover:border-gray-500 transition"
+                    >
+                      {isUploadingDoc ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Reading document...
+                        </>
+                      ) : (
+                        <>
+                          <Paperclip size={16} />
+                          Upload .docx / .md / .txt
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {docUploadError && (
+                    <p className="text-xs text-red-400">{docUploadError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Tab Content: URL Import */}
+              {aiInputTab === 'url' && (
+                <div className="space-y-3">
+                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <RefreshCw size={20} className="text-purple-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Repurpose Your Content</h4>
                         <p className="text-xs text-gray-400 mt-1">
-                          {docAttachment.wordCount ?? '—'} words
-                          {docAttachment.truncated ? ' • trimmed to first 20k characters' : ''}
+                          Turn your blog posts, articles, or web content into engaging carousels. 
+                          Perfect for repurposing content you&apos;ve already created.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={clearDocAttachment}
-                        className="text-gray-400 hover:text-red-400 transition"
-                        title="Remove attachment"
-                      >
-                        <Trash size={16} />
-                      </button>
                     </div>
-                    {docAttachment.sections && docAttachment.sections.length > 0 && (
-                      <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
-                        <p className="font-semibold text-gray-300">Detected Sections</p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          {docAttachment.sections.slice(0, 6).map((section, idx) => (
-                            <li key={idx}>{section}</li>
-                          ))}
-                          {docAttachment.sections.length > 6 && (
-                            <li>+ {docAttachment.sections.length - 6} more…</li>
-                          )}
-                        </ul>
+                  </div>
+
+                  {urlAttachment ? (
+                    <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-white font-semibold">
+                            <Globe size={16} className="text-[#ffd700] shrink-0" />
+                            <span className="truncate">{urlAttachment.title}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 truncate">
+                            {urlAttachment.sourceDomain}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {urlAttachment.wordCount ?? '—'} words
+                            {urlAttachment.truncated ? ' • trimmed for processing' : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearUrlAttachment}
+                          className="text-gray-400 hover:text-red-400 transition shrink-0"
+                          title="Remove URL"
+                        >
+                          <Trash size={16} />
+                        </button>
                       </div>
+                      {urlAttachment.description && (
+                        <p className="text-xs text-gray-400 line-clamp-2">
+                          {urlAttachment.description}
+                        </p>
+                      )}
+                      {urlAttachment.sections && urlAttachment.sections.length > 0 && (
+                        <div className="text-xs text-gray-400 space-y-1 max-h-28 overflow-y-auto">
+                          <p className="font-semibold text-gray-300">Detected Sections</p>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {urlAttachment.sections.slice(0, 6).map((section, idx) => (
+                              <li key={idx}>{section}</li>
+                            ))}
+                            {urlAttachment.sections.length > 6 && (
+                              <li>+ {urlAttachment.sections.length - 6} more…</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-2">
+                          Paste your content URL
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={urlInput}
+                            onChange={(e) => {
+                              setUrlInput(e.target.value);
+                              setUrlError(null);
+                            }}
+                            placeholder="https://yourblog.com/your-article"
+                            className="flex-1 bg-gray-900/50 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] transition text-sm"
+                          />
+                          <button
+                            onClick={handleParseUrl}
+                            disabled={isParsingUrl || !urlInput.trim() || !urlOwnershipConfirmed}
+                            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition flex items-center gap-2 shrink-0"
+                          >
+                            {isParsingUrl ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Download size={16} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Ownership Confirmation */}
+                      <label className="flex items-start gap-3 p-3 bg-gray-900/30 border border-gray-800 rounded-xl cursor-pointer hover:bg-gray-900/50 transition">
+                        <input
+                          type="checkbox"
+                          checked={urlOwnershipConfirmed}
+                          onChange={(e) => {
+                            setUrlOwnershipConfirmed(e.target.checked);
+                            setUrlError(null);
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm text-gray-300 font-medium flex items-center gap-2">
+                            <CheckCircle2 size={14} className={urlOwnershipConfirmed ? 'text-green-400' : 'text-gray-500'} />
+                            This is my own content
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            I confirm I have the rights to repurpose this content
+                          </p>
+                        </div>
+                      </label>
+                    </>
+                  )}
+                  {urlError && (
+                    <p className="text-xs text-red-400">{urlError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Show active sources summary */}
+              {(aiInputTab !== 'prompt' && aiPrompt.trim()) || 
+               (aiInputTab !== 'document' && docAttachment) || 
+               (aiInputTab !== 'url' && urlAttachment) ? (
+                <div className="bg-gray-900/30 border border-gray-800 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 mb-2">Active sources:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiPrompt.trim() && (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
+                        <Type size={12} /> Topic
+                      </span>
+                    )}
+                    {docAttachment && (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
+                        <FileText size={12} /> {docAttachment.name}
+                      </span>
+                    )}
+                    {urlAttachment && (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
+                        <Globe size={12} /> {urlAttachment.sourceDomain}
+                      </span>
                     )}
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => docUploadInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-300 hover:text-white hover:border-gray-500 transition"
-                  >
-                    {isUploadingDoc ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Reading document...
-                      </>
-                    ) : (
-                      <>
-                        <Paperclip size={16} />
-                        Attach .docx / .md / .txt
-                      </>
-                    )}
-                  </button>
-                )}
-                {docUploadError && (
-                  <p className="text-xs text-red-400">{docUploadError}</p>
-                )}
-              </div>
+                </div>
+              ) : null}
+
+              {docUploadError && aiInputTab === 'prompt' && (
+                <p className="text-xs text-red-400">{docUploadError}</p>
+              )}
 
               {/* Slide Style Selector */}
               <div>
@@ -4570,7 +4910,7 @@ function DashboardContent() {
                 </button>
                 <button
                   onClick={handleAiGenerate}
-                  disabled={(!docAttachment && !aiPrompt.trim()) || isGenerating}
+                  disabled={(!docAttachment && !aiPrompt.trim() && !urlAttachment) || isGenerating}
                   className="px-6 py-2 bg-[#ffd700] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl transition flex items-center gap-2"
                 >
                   {isGenerating ? (

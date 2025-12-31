@@ -40,6 +40,7 @@ import {
   Lightbulb,
   Check,
   Copy,
+  Clipboard,
   CreditCard,
   Send,
   MessageSquare,
@@ -50,7 +51,8 @@ import {
   ZoomIn,
   Link2,
   Globe,
-  CheckCircle2
+  CheckCircle2,
+  History
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -218,7 +220,8 @@ function DashboardContent() {
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectOptions, setProjectOptions] = useState<any>({});
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | null>(null);
+  const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | 'images' | null>(null);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlideCount, setAiSlideCount] = useState(6);
   const [aiWordCount, setAiWordCount] = useState<number | ''>('');
@@ -271,6 +274,22 @@ function DashboardContent() {
   const [isEnhancingContent, setIsEnhancingContent] = useState<string | null>(null); // tracks which action: 'seo-current', 'seo-all', 'tone-current', 'tone-all'
   const [isResearching, setIsResearching] = useState(false);
   const [isAnalyzingDesign, setIsAnalyzingDesign] = useState(false);
+  
+  // Image Picker state (Unsplash search)
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+  const [imagePickerMode, setImagePickerMode] = useState<'single' | 'all'>('single');
+  const [unsplashQuery, setUnsplashQuery] = useState('');
+  const [unsplashResults, setUnsplashResults] = useState<any[]>([]);
+  const [unsplashLoading, setUnsplashLoading] = useState(false);
+  const [unsplashPage, setUnsplashPage] = useState(1);
+  const [unsplashTotal, setUnsplashTotal] = useState(0);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  
+  // Version History state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [restoringHistoryId, setRestoringHistoryId] = useState<string | null>(null);
   const [isPredictingPerformance, setIsPredictingPerformance] = useState(false);
   const [enhancementResult, setEnhancementResult] = useState<string | null>(null);
   const [researchResult, setResearchResult] = useState<any>(null);
@@ -1169,11 +1188,132 @@ function DashboardContent() {
     }
   };
 
+  // Copy slide to clipboard as image
+  const [copyingSlideId, setCopyingSlideId] = useState<string | null>(null);
+  
+  const handleCopySlideToClipboard = async (slide: SlideData, index: number) => {
+    if (copyingSlideId) return;
+    
+    try {
+      setCopyingSlideId(slide.id);
+      
+      const tempSlideData = { ...slide, _isDownloading: true } as any;
+      setSlideDownloadData(tempSlideData);
+      
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      
+      if (!slideDownloadRef.current) {
+        throw new Error('Slide canvas not available');
+      }
+      
+      const dataUrl = await toPng(slideDownloadRef.current, {
+        cacheBust: true,
+        width: 1080,
+        height: 1080,
+        pixelRatio: 2,
+      });
+      
+      // Convert to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Copy to clipboard
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'image/png': blob
+        })
+      ]);
+      
+      toast.success('Slide copied to clipboard!');
+    } catch (error) {
+      console.error('Copy to clipboard failed:', error);
+      toast.error('Failed to copy. Try downloading instead.');
+    } finally {
+      setTimeout(() => {
+        setCopyingSlideId(null);
+        setSlideDownloadData(null);
+      }, 300);
+    }
+  };
+
   const adjustFontScale = (delta: number) => {
     if (!activeSlide) return;
     const current = activeSlide.fontScale ?? 1;
     const next = Math.min(1.5, Math.max(0.7, parseFloat((current + delta).toFixed(2))));
     setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, fontScale: next } : s));
+  };
+
+  // Fetch version history
+  const fetchHistory = async () => {
+    if (!projectId) {
+      toast.error('Save your project first to view history');
+      return;
+    }
+    
+    setHistoryLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/history?limit=30`);
+      if (!response.ok) throw new Error('Failed to fetch history');
+      
+      const data = await response.json();
+      setHistoryEntries(data.history || []);
+      setIsHistoryOpen(true);
+    } catch (error) {
+      console.error('History fetch error:', error);
+      toast.error('Failed to load version history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Restore from history
+  const restoreFromHistory = async (entry: any) => {
+    const confirmed = await confirm({
+      title: 'Restore Version',
+      message: 'This will replace your current slides with this version. Your current work will be added to history. Continue?',
+      confirmText: 'Restore',
+      variant: 'warning'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+      setRestoringHistoryId(entry.id);
+      
+      // Save current state to history first
+      if (projectId) {
+        await fetch(`/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: projectName, 
+            slides, 
+            options: projectOptions, 
+            saveHistory: true 
+          })
+        });
+      }
+      
+      // Restore the selected version
+      const restoredSlides = entry.slides.map((slide: any) => ({
+        ...slide,
+        id: slide.id || Date.now().toString() + Math.random().toString(36).substr(2, 9)
+      }));
+      
+      setSlides(restoredSlides);
+      if (entry.options) {
+        setProjectOptions(entry.options);
+      }
+      
+      setIsHistoryOpen(false);
+      toast.success('Version restored successfully');
+      addToHistory(restoredSlides);
+    } catch (error) {
+      console.error('Restore error:', error);
+      toast.error('Failed to restore version');
+    } finally {
+      setRestoringHistoryId(null);
+    }
   };
 
   const handleAiGenerate = async () => {
@@ -1447,8 +1587,12 @@ function DashboardContent() {
   const handleToolClick = (tool: 'select' | 'text' | 'image' | 'image-all' | 'color') => {
     setActiveTool(tool);
     if (tool === 'image' || tool === 'image-all') {
-        fileInputRef.current?.click();
-        // Don't reset activeTool here - let handleImageUpload do it after applying the image
+        // Open the image picker modal instead of directly triggering file input
+        setImagePickerMode(tool === 'image-all' ? 'all' : 'single');
+        setIsImagePickerOpen(true);
+        setUnsplashQuery('');
+        setUnsplashResults([]);
+        setImageUrlInput('');
     } else if (tool === 'text') {
         if (!activeSlide) return;
         const newBlock = createCustomBlock();
@@ -1461,6 +1605,55 @@ function DashboardContent() {
         colorInputRef.current?.click();
         setTimeout(() => setActiveTool('select'), 100);
     }
+  };
+
+  // Unsplash search function
+  const searchUnsplash = async (query: string, page: number = 1) => {
+    if (!query.trim()) return;
+    
+    setUnsplashLoading(true);
+    try {
+      const response = await fetch(`/api/unsplash/search?query=${encodeURIComponent(query)}&page=${page}&per_page=20`);
+      if (!response.ok) throw new Error('Search failed');
+      
+      const data = await response.json();
+      if (page === 1) {
+        setUnsplashResults(data.photos);
+      } else {
+        setUnsplashResults(prev => [...prev, ...data.photos]);
+      }
+      setUnsplashTotal(data.total);
+      setUnsplashPage(page);
+    } catch (error) {
+      console.error('Unsplash search error:', error);
+      toast.error('Failed to search photos');
+    } finally {
+      setUnsplashLoading(false);
+    }
+  };
+
+  // Apply image from Unsplash or URL
+  const applyBackgroundImage = async (imageUrl: string, downloadLink?: string) => {
+    // Track download if from Unsplash (required by API guidelines)
+    if (downloadLink) {
+      fetch('/api/unsplash/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ downloadLink }),
+      }).catch(() => {});
+    }
+
+    if (imagePickerMode === 'all') {
+      setSlides(slides.map(s => ({ ...s, backgroundImage: imageUrl })));
+      toast.success('Background applied to all slides');
+    } else {
+      setSlides(slides.map(s => s.id === activeSlideId ? { ...s, backgroundImage: imageUrl } : s));
+      toast.success('Background applied to slide');
+    }
+    
+    setIsImagePickerOpen(false);
+    setActiveTool('select');
+    addToHistory(slides);
   };
 
   const handleBackgroundColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2045,46 +2238,111 @@ function DashboardContent() {
       });
   };
 
-  const handleExport = async (format: 'pdf' | 'ppt') => {
-    setIsExporting(format);
+  // Export as Images ZIP (client-side only, no server needed)
+  const handleExportImages = async () => {
+    setIsExporting('images');
+    setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
     
     try {
-      // Step 1: Client-side Capture
-      // To ensure 100% visual fidelity (especially with local blobs, fonts, etc.),
-      // we capture each slide as an image here in the browser.
-      const slideImages: string[] = [];
-      const slidesContainer = document.querySelector('.slides-container'); // Need to ensure we target the main renderer
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const folder = zip.folder('carousel-images');
       
-      // We'll iterate through slides, set them as active to ensure they render, and capture
-      // Note: This might be flickery, a better approach is to have a hidden "ExportRenderer"
-      // or just capture the current DOM if all slides are rendered.
-      // But currently, the carousel renders all slides in a flex row.
+      await new Promise(r => setTimeout(r, 100));
+
+      const totalSlides = slides.length;
       
-      // Find all slide elements currently in the DOM
-      // We rely on the fact that the main carousel renders <Slide> components
-      // Let's assume they are identifiable by ID or class.
-      // In the current render, we map slides:
-      // <div key={slide.id} className="w-[1080px] h-[1080px] ... transform origin-top-left scale-[...]" ...>
-      //    <Slide ... />
-      // </div>
+      for (let index = 0; index < totalSlides; index++) {
+        const slide = slides[index];
+        
+        setExportProgress({ 
+          current: index + 1, 
+          total: totalSlides, 
+          status: `Capturing slide ${index + 1} of ${totalSlides}...` 
+        });
+        
+        setSlideDownloadData({ ...slide, _isDownloading: true } as any);
+        await new Promise(r => setTimeout(r, index === 0 ? 200 : 50));
+        
+        if (slideDownloadRef.current) {
+          try {
+            // Use PNG for higher quality images
+            const dataUrl = await toPng(slideDownloadRef.current, {
+              cacheBust: true,
+              width: 1080,
+              height: 1080,
+              pixelRatio: 2, // Higher quality for images
+              skipAutoScale: true,
+            });
+            
+            // Convert data URL to blob
+            const data = dataUrl.split(',')[1];
+            folder?.file(`slide-${String(index + 1).padStart(2, '0')}.png`, data, { base64: true });
+          } catch (err) {
+            console.warn(`Failed to capture slide ${index}`, err);
+          }
+        }
+      }
       
-      // Wait for a render cycle to ensure all images/styles are applied
-      await new Promise(r => setTimeout(r, 200));
+      setExportProgress({ current: totalSlides, total: totalSlides, status: 'Creating ZIP file...' });
+      
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = window.URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'carousel'}-images.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setIsExportOpen(false);
+      toast.success('Images downloaded successfully!');
+      
+      if (appContext) {
+        appContext.markExported();
+      }
+    } catch (error) {
+      console.error('Export images failed:', error);
+      toast.error('Failed to export images');
+    } finally {
+      setIsExporting(null);
+      setSlideDownloadData(null);
+      setExportProgress({ current: 0, total: 0, status: '' });
+    }
+  };
+
+  const handleExport = async (format: 'pdf' | 'ppt') => {
+    setIsExporting(format);
+    setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
+    
+    try {
+      // Step 1: Client-side Capture - optimized for speed
+      // Wait for initial render cycle
+      await new Promise(r => setTimeout(r, 100));
 
       const capturedSlides = [];
-      for (let index = 0; index < slides.length; index++) {
+      const totalSlides = slides.length;
+      
+      for (let index = 0; index < totalSlides; index++) {
           const slide = slides[index];
           
-          // Temporarily set this slide as "downloading" to trigger any print-specific styles (like video placeholders)
-          // Since React state is async, we need to wait for it to apply
+          // Update progress
+          setExportProgress({ 
+            current: index + 1, 
+            total: totalSlides, 
+            status: `Capturing slide ${index + 1} of ${totalSlides}...` 
+          });
+          
+          // Set slide data for rendering
           setSlideDownloadData({ ...slide, _isDownloading: true } as any);
           
-          // Wait for render update
-          await new Promise(r => setTimeout(r, index === 0 ? 500 : 150));
+          // Reduced delay: only need time for React to update the DOM
+          // First slide needs slightly more time for fonts/images to load
+          await new Promise(r => setTimeout(r, index === 0 ? 200 : 50));
           
           if (slideDownloadRef.current) {
               try {
-                 // Use JPEG with quality 0.85 instead of PNG to drastically reduce payload size (fixes 413 error)
+                 // Use JPEG with quality 0.85 for faster export and smaller payload
                  const dataUrl = await toJpeg(slideDownloadRef.current, {
                     cacheBust: true,
                     width: 1080,
@@ -2096,9 +2354,9 @@ function DashboardContent() {
                  capturedSlides.push({ id: slide.id, dataUrl, index });
               } catch (err) {
                   console.warn(`Failed to capture slide ${index}`, err);
-                  // Retry once
+                  // Single retry with shorter delay
                   try {
-                      await new Promise(r => setTimeout(r, 500));
+                      await new Promise(r => setTimeout(r, 150));
                       const retryDataUrl = await toJpeg(slideDownloadRef.current, { width: 1080, height: 1080, quality: 0.85, cacheBust: true });
                       capturedSlides.push({ id: slide.id, dataUrl: retryDataUrl, index });
                   } catch (retryErr) {
@@ -2108,14 +2366,15 @@ function DashboardContent() {
           }
       }
       
-      const validCaptures = capturedSlides; // They are already ordered because we looped sequentially
+      setExportProgress({ current: totalSlides, total: totalSlides, status: 'Processing images...' });
+      
+      const validCaptures = capturedSlides;
 
       // Prepare FormData
       const formData = new FormData();
       
-      // Attach captured images as the slide backgrounds/content
+      // Attach captured images as blobs
       validCaptures.forEach((cap, i) => {
-          // Convert dataURL to blob to save space in JSON and use multipart
           const header = cap.dataUrl.split(',')[0];
           const data = cap.dataUrl.split(',')[1];
           const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -2125,12 +2384,12 @@ function DashboardContent() {
               array.push(binary.charCodeAt(k));
           }
           const blob = new Blob([new Uint8Array(array)], { type: mime });
-          
           formData.append(`slide_image_${i}`, blob, `slide-${i}.jpg`);
       });
 
-      // Also attach videos if PPT export
+      // Attach videos if PPT export
       if (format === 'ppt') {
+          setExportProgress({ current: totalSlides, total: totalSlides, status: 'Attaching videos...' });
           await Promise.all(slides.map(async (slide, index) => {
               if (slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
                   try {
@@ -2145,26 +2404,17 @@ function DashboardContent() {
       }
 
       // Construct simplified payload
-      // We only need to tell the backend: "Here are the images, put them on slides."
-      // And "Here are videos, overlay them on top of these slides."
       const payloadSlides = slides.map((slide, index) => ({
           ...slide,
-          // We will tell backend to use the attached image as background
           _useAttachedImage: true,
           _attachedImageKey: `slide_image_${index}`,
-          
-          // Flags for video
           _hasAttachedVideo: slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:'),
           _videoAttachmentIndex: index,
-          
-          // Strip heavy data from JSON
-          backgroundImage: undefined, // Burned into image
-          mediaUrl: slide.mediaType === 'video' ? slide.mediaUrl : undefined // Keep URL if remote, strip if blob? 
-                                                                             // Actually keep it, backend logic needs it to decide embed type.
-                                                                             // But if blob, backend can't read it anyway.
+          backgroundImage: undefined,
+          mediaUrl: slide.mediaType === 'video' ? slide.mediaUrl : undefined
       }));
 
-      // Strip blob URLs from payload to avoid "string too long"
+      // Strip blob URLs from payload
       const safePayload = payloadSlides.map(s => {
           if (s.mediaUrl?.startsWith('blob:')) return { ...s, mediaUrl: '' };
           return s;
@@ -2173,12 +2423,11 @@ function DashboardContent() {
       formData.append('data', JSON.stringify({
           slides: safePayload,
           format,
-          options: {
-              // Options are mostly burned into images now, but keep for metadata
-              title: slides[0]?.title
-          },
-          mode: 'client-side-images' // Flag for backend to switch logic
+          options: { title: slides[0]?.title },
+          mode: 'client-side-images'
       }));
+
+      setExportProgress({ current: totalSlides, total: totalSlides, status: `Generating ${format.toUpperCase()}...` });
 
       const response = await fetch('/api/export', {
         method: 'POST',
@@ -2189,6 +2438,8 @@ function DashboardContent() {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `Export failed with status ${response.status}`);
       }
+
+      setExportProgress({ current: totalSlides, total: totalSlides, status: 'Downloading...' });
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -2210,7 +2461,8 @@ function DashboardContent() {
       console.error('Export failed:', error);
     } finally {
       setIsExporting(null);
-      setSlideDownloadData(null); // Cleanup
+      setSlideDownloadData(null);
+      setExportProgress({ current: 0, total: 0, status: '' });
     }
   };
 
@@ -3156,6 +3408,20 @@ function DashboardContent() {
             >
               <Redo2 size={18} className="text-gray-600 dark:text-gray-400" />
             </button>
+            {projectId && (
+              <button
+                onClick={fetchHistory}
+                disabled={historyLoading}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition"
+                title="Version History"
+              >
+                {historyLoading ? (
+                  <Loader2 size={18} className="animate-spin text-gray-400" />
+                ) : (
+                  <History size={18} className="text-gray-600 dark:text-gray-400" />
+                )}
+              </button>
+            )}
           </div>
         </div>
         
@@ -3327,6 +3593,21 @@ function DashboardContent() {
                                         title="Duplicate slide (Ctrl+D)"
                                     >
                                         <Copy size={14} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopySlideToClipboard(slide, index);
+                                        }}
+                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-green-400 hover:border-green-500 transition disabled:opacity-40"
+                                        title="Copy slide to clipboard"
+                                        disabled={copyingSlideId !== null}
+                                    >
+                                        {copyingSlideId === slide.id ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <Clipboard size={14} />
+                                        )}
                                     </button>
                                     <button
                                         onClick={(e) => {
@@ -3578,41 +3859,86 @@ function DashboardContent() {
             </div>
             
             <div className="p-6 space-y-4">
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Choose your preferred format:</p>
-              
-              <button
-                onClick={() => handleExport('pdf')}
-                disabled={!!isExporting}
-                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center text-red-500 group-hover:scale-110 transition">
-                    <Download size={20} />
+              {isExporting ? (
+                // Progress view during export
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Loader2 size={24} className="animate-spin text-[#ffd700]" />
+                    <div>
+                      <div className="font-medium text-white">{exportProgress.status}</div>
+                      {exportProgress.total > 0 && (
+                        <div className="text-xs text-gray-500">
+                          {exportProgress.current} / {exportProgress.total} slides
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <div className="font-bold text-white">Export as PDF</div>
-                    <div className="text-xs text-gray-500">Best for LinkedIn & Printing</div>
-                  </div>
+                  {exportProgress.total > 0 && (
+                    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-[#ffd700] to-[#ffed4a] h-full transition-all duration-300 ease-out"
+                        style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
-                {isExporting === 'pdf' ? <Loader2 size={18} className="animate-spin text-gray-500" /> : <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />}
-              </button>
+              ) : (
+                // Format selection buttons
+                <>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">Choose your preferred format:</p>
+                  
+                  <button
+                    onClick={() => handleExport('pdf')}
+                    disabled={!!isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center text-red-500 group-hover:scale-110 transition">
+                        <Download size={20} />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-white">Export as PDF</div>
+                        <div className="text-xs text-gray-500">Best for LinkedIn & Printing</div>
+                      </div>
+                    </div>
+                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
+                  </button>
 
-              <button
-                onClick={() => handleExport('ppt')}
-                disabled={!!isExporting}
-                className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-              >
-                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-500 group-hover:scale-110 transition">
-                    <Layout size={20} />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-bold text-white">Export as PowerPoint</div>
-                    <div className="text-xs text-gray-500">Editable PPTX Slides</div>
-                  </div>
-                </div>
-                {isExporting === 'ppt' ? <Loader2 size={18} className="animate-spin text-gray-500" /> : <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />}
-              </button>
+                  <button
+                    onClick={() => handleExport('ppt')}
+                    disabled={!!isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-500 group-hover:scale-110 transition">
+                        <Layout size={20} />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-white">Export as PowerPoint</div>
+                        <div className="text-xs text-gray-500">Editable PPTX Slides</div>
+                      </div>
+                    </div>
+                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
+                  </button>
+
+                  <button
+                    onClick={() => handleExportImages()}
+                    disabled={!!isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500 group-hover:scale-110 transition">
+                        <ImageIcon size={20} />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-white">Export as Images</div>
+                        <div className="text-xs text-gray-500">ZIP of PNG files • Best for Instagram</div>
+                      </div>
+                    </div>
+                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -5382,6 +5708,270 @@ function DashboardContent() {
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version History Modal */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <History className="text-[#ffd700]" size={20} />
+                <h2 className="text-lg font-semibold text-white">Version History</h2>
+              </div>
+              <button 
+                onClick={() => setIsHistoryOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {historyEntries.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <History size={40} className="mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No version history yet</p>
+                  <p className="text-sm mt-1">Save your project to create history snapshots</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {historyEntries.map((entry, index) => {
+                    const date = new Date(entry.createdAt);
+                    const isRecent = Date.now() - date.getTime() < 3600000; // Less than 1 hour
+                    
+                    return (
+                      <div
+                        key={entry.id}
+                        className="p-4 bg-gray-900/50 border border-gray-800 hover:border-gray-700 rounded-xl transition group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-white">
+                                {index === 0 ? 'Latest Save' : `Version ${historyEntries.length - index}`}
+                              </span>
+                              {isRecent && (
+                                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                                  Recent
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              {entry.slides?.length || 0} slides
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => restoreFromHistory(entry)}
+                            disabled={restoringHistoryId === entry.id}
+                            className="px-4 py-2 bg-[#ffd700]/10 hover:bg-[#ffd700]/20 border border-[#ffd700]/50 text-[#ffd700] text-sm font-medium rounded-lg transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                          >
+                            {restoringHistoryId === entry.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              'Restore'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+              <p className="text-xs text-gray-500 text-center">
+                History is saved automatically when you save your project
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Picker Modal (Unsplash Search) */}
+      {isImagePickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="text-[#ffd700]" size={20} />
+                <h2 className="text-lg font-semibold text-white">
+                  {imagePickerMode === 'all' ? 'Set Background (All Slides)' : 'Set Background Image'}
+                </h2>
+              </div>
+              <button 
+                onClick={() => { setIsImagePickerOpen(false); setActiveTool('select'); }}
+                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {/* Upload & URL Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Upload from device */}
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setIsImagePickerOpen(false);
+                  }}
+                  className="flex items-center gap-3 p-4 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 rounded-xl transition group"
+                >
+                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 group-hover:scale-110 transition">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium text-white">Upload from Device</div>
+                    <div className="text-xs text-gray-500">JPG, PNG, GIF, WebP</div>
+                  </div>
+                </button>
+
+                {/* Paste URL */}
+                <div className="flex items-center gap-2 p-2 bg-gray-900/50 border border-gray-700 rounded-xl">
+                  <input
+                    type="text"
+                    value={imageUrlInput}
+                    onChange={(e) => setImageUrlInput(e.target.value)}
+                    placeholder="Paste image URL..."
+                    className="flex-1 bg-transparent border-none outline-none text-white text-sm px-2"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && imageUrlInput.trim()) {
+                        applyBackgroundImage(imageUrlInput.trim());
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (imageUrlInput.trim()) {
+                        applyBackgroundImage(imageUrlInput.trim());
+                      }
+                    }}
+                    disabled={!imageUrlInput.trim()}
+                    className="px-3 py-2 bg-[#ffd700] text-black rounded-lg text-sm font-medium hover:bg-[#ffed4a] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+
+              {/* Unsplash Search */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 flex items-center gap-2 bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2">
+                    <Search size={16} className="text-gray-500" />
+                    <input
+                      type="text"
+                      value={unsplashQuery}
+                      onChange={(e) => setUnsplashQuery(e.target.value)}
+                      placeholder="Search free photos on Unsplash..."
+                      className="flex-1 bg-transparent border-none outline-none text-white text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          searchUnsplash(unsplashQuery, 1);
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => searchUnsplash(unsplashQuery, 1)}
+                    disabled={unsplashLoading || !unsplashQuery.trim()}
+                    className="px-4 py-2 bg-[#ffd700] text-black rounded-xl text-sm font-medium hover:bg-[#ffed4a] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    {unsplashLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                    Search
+                  </button>
+                </div>
+
+                {/* Quick search tags */}
+                <div className="flex flex-wrap gap-2">
+                  {['business', 'technology', 'nature', 'abstract', 'gradient', 'minimal', 'office', 'creative'].map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        setUnsplashQuery(tag);
+                        searchUnsplash(tag, 1);
+                      }}
+                      className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-full transition capitalize"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Results Grid */}
+              {unsplashResults.length > 0 && (
+                <div className="space-y-3">
+                  <div className="text-xs text-gray-500">
+                    {unsplashTotal.toLocaleString()} photos found • Photos by <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="text-[#ffd700] hover:underline">Unsplash</a>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {unsplashResults.map((photo) => (
+                      <button
+                        key={photo.id}
+                        onClick={() => applyBackgroundImage(photo.urls.regular, photo.downloadLink)}
+                        className="group relative aspect-square rounded-lg overflow-hidden border border-gray-700 hover:border-[#ffd700] transition"
+                        style={{ backgroundColor: photo.color }}
+                      >
+                        <img
+                          src={photo.urls.small}
+                          alt={photo.alt}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center">
+                          <Check size={24} className="text-white opacity-0 group-hover:opacity-100 transition" />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition">
+                          <div className="text-[10px] text-white truncate">
+                            by {photo.user.name}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Load more */}
+                  {unsplashResults.length < unsplashTotal && (
+                    <div className="flex justify-center pt-2">
+                      <button
+                        onClick={() => searchUnsplash(unsplashQuery, unsplashPage + 1)}
+                        disabled={unsplashLoading}
+                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition flex items-center gap-2"
+                      >
+                        {unsplashLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                        Load More
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!unsplashLoading && unsplashResults.length === 0 && unsplashQuery && (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon size={40} className="mx-auto mb-2 opacity-50" />
+                  <p>No photos found for "{unsplashQuery}"</p>
+                  <p className="text-xs mt-1">Try a different search term</p>
+                </div>
+              )}
+
+              {/* Initial state */}
+              {!unsplashQuery && unsplashResults.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <Search size={40} className="mx-auto mb-2 opacity-50" />
+                  <p>Search millions of free photos</p>
+                  <p className="text-xs mt-1">Powered by Unsplash</p>
                 </div>
               )}
             </div>

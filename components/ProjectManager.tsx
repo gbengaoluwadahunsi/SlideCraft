@@ -21,7 +21,8 @@ import {
   Search,
   CheckSquare,
   Square,
-  ArrowUpDown
+  ArrowUpDown,
+  Files
 } from 'lucide-react';
 import { SlideData } from '@/app/dashboard/page';
 
@@ -52,6 +53,7 @@ export function ProjectManager({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'created'>('updated');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const { projects, loading, createProject, deleteProject, loadProjects } = useProjects();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -201,6 +203,34 @@ export function ProjectManager({
       toast.success('Project deleted');
     } catch (error) {
       toast.error('Failed to delete project');
+    }
+  };
+
+  const handleDuplicate = async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      setDuplicatingId(projectId);
+      const response = await fetch(`/api/projects/${projectId}/duplicate`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to duplicate');
+      }
+      
+      const data = await response.json();
+      await loadProjects();
+      toast.success('Project duplicated');
+      
+      // Optionally open the duplicated project
+      router.push(`/dashboard?project=${data.project.id}`);
+      setIsOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to duplicate project');
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -512,8 +542,21 @@ export function ProjectManager({
                               </span>
                             )}
                             <button
+                              onClick={(e) => handleDuplicate(project.id, e)}
+                              disabled={duplicatingId === project.id}
+                              className="p-2 text-gray-500 hover:text-[#ffd700] hover:bg-[#ffd700]/10 rounded-lg transition disabled:opacity-50"
+                              title="Duplicate project"
+                            >
+                              {duplicatingId === project.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Files size={16} />
+                              )}
+                            </button>
+                            <button
                               onClick={(e) => handleDelete(project.id, e)}
                               className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition"
+                              title="Delete project"
                             >
                               <Trash2 size={16} />
                             </button>

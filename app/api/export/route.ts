@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
+import { PDFDocument } from 'pdf-lib';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -239,65 +240,62 @@ export async function POST(request: NextRequest) {
             });
             buffer = await pptx.write('nodebuffer') as Buffer;
         } else {
-            // PDF Mode for Client Images
-            // Puppeteer is still useful here to stitch images into a PDF properly
-            const browser = await launchBrowser();
-            const page = await browser.newPage();
+            // PDF Mode for Client Images - Use pdf-lib for MUCH faster generation
+            // No need for Puppeteer just to stitch images!
+            const pdfDoc = await PDFDocument.create();
             
-            const pagesHtml = slides.map((slide: any, index: number) => {
-                 const imageKey = slide._attachedImageKey;
-                 const b64 = imageAttachments[imageKey] ? imageAttachments[imageKey].toString('base64') : '';
-                 
-                 // Detect MIME
-                 let mime = 'image/jpeg';
-                 if (imageAttachments[imageKey] && imageAttachments[imageKey][0] === 0x89) {
-                     mime = 'image/png';
-                 }
-                 
-                 const imgSrc = b64 ? `data:${mime};base64,${b64}` : '';
-                 
-                 // If video link exists AND is remote, wrap in anchor to make it clickable.
-                 // Local blob videos cannot be linked in PDF, so we just show the static image.
-                 let overlayLink = '';
-                 
-                 // Check for remote video URL (Cloudinary or YouTube)
-                 if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
-                      overlayLink = `
-                        <a href="${slide.mediaUrl}" target="_blank" style="
-                            position: absolute; 
-                            top: 0; left: 0; width: 100%; height: 100%;
-                            z-index: 1000;
-                            display: block;
-                            cursor: pointer;
-                            background: transparent;
-                        " title="Click to watch video">
-                            <span style="display: none;">Watch Video</span>
-                        </a>
-                      `;
-                 }
-
-                 return `
-                    <div class="page" style="width: 1080px; height: 1080px; page-break-after: always; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; background: white;">
-                        <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
-                        ${overlayLink}
-                    </div>
-                 `;
-            }).join('');
-
-            await page.setContent(`
-                <style>
-                    body { margin: 0; padding: 0; }
-                    @page { size: 1080px 1080px; margin: 0; }
-                </style>
-                ${pagesHtml}
-            `);
+            // Page size: 1080x1080 pixels at 72 DPI = 1080 points (PDF uses points, 1 point = 1/72 inch)
+            // But for better quality, we'll use the actual pixel size
+            const pageWidth = 1080;
+            const pageHeight = 1080;
             
-            buffer = await page.pdf({
-                width: '1080px',
-                height: '1080px',
-                printBackground: true,
-            });
-            await browser.close();
+            for (let index = 0; index < slides.length; index++) {
+                const slide = slides[index];
+                const imageKey = slide._attachedImageKey;
+                const imageBuffer = imageAttachments[imageKey];
+                
+                if (!imageBuffer) continue;
+                
+                // Create a new page
+                const page = pdfDoc.addPage([pageWidth, pageHeight]);
+                
+                // Detect image type and embed accordingly
+                const isPng = imageBuffer[0] === 0x89;
+                
+                let image;
+                if (isPng) {
+                    image = await pdfDoc.embedPng(imageBuffer);
+                } else {
+                    image = await pdfDoc.embedJpg(imageBuffer);
+                }
+                
+                // Draw the image to fill the entire page
+                page.drawImage(image, {
+                    x: 0,
+                    y: 0,
+                    width: pageWidth,
+                    height: pageHeight,
+                });
+                
+                // Add clickable video link if exists (as annotation)
+                if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
+                    page.node.set(pdfDoc.context.obj({
+                        Type: 'Page',
+                        Annots: [pdfDoc.context.obj({
+                            Type: 'Annot',
+                            Subtype: 'Link',
+                            Rect: [0, 0, pageWidth, pageHeight],
+                            A: {
+                                Type: 'Action',
+                                S: 'URI',
+                                URI: slide.mediaUrl,
+                            },
+                        })],
+                    }));
+                }
+            }
+            
+            buffer = Buffer.from(await pdfDoc.save());
         }
     } else {
         // --- PUPPETEER SERVER-SIDE RENDERING MODE (Legacy/Fallback) ---

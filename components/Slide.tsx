@@ -1009,14 +1009,16 @@ export const Slide: React.FC<SlideProps> = ({
               return null;
             }
             return (
-              <div className="flex-1 w-full rounded-2xl overflow-hidden my-4" style={{ minHeight: '300px' }}>
-                <Infographic
-                  items={infographicData.items}
-                  layout={infographicData.layout || 'cards-grid'}
-                  accentColor={activeAccentColor}
-                  backgroundColor={activeBgColor}
-                  textColor={activeTextColor}
-                />
+              <div className="flex-1 w-full rounded-2xl overflow-hidden my-4 relative" style={{ minHeight: '400px' }}>
+                <div className="relative z-10 h-full">
+                  <Infographic
+                    items={infographicData.items}
+                    layout={infographicData.layout || 'cards-grid'}
+                    accentColor={activeAccentColor}
+                    backgroundColor={activeBgColor}
+                    textColor={activeTextColor}
+                  />
+                </div>
               </div>
             );
         case 'media':

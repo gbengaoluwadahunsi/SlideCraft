@@ -244,6 +244,7 @@ function DashboardContent() {
   const activeSlideIdRef = useRef(activeSlideId);
   const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
   const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
+  const [copyingSlideId, setCopyingSlideId] = useState<string | null>(null);
   const [docAttachment, setDocAttachment] = useState<{ name: string; text: string; sections?: string[]; wordCount?: number; truncated?: boolean } | null>(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [docUploadError, setDocUploadError] = useState<string | null>(null);
@@ -1189,8 +1190,6 @@ function DashboardContent() {
   };
 
   // Copy slide to clipboard as image
-  const [copyingSlideId, setCopyingSlideId] = useState<string | null>(null);
-  
   const handleCopySlideToClipboard = async (slide: SlideData, index: number) => {
     if (copyingSlideId) return;
     
@@ -1399,8 +1398,42 @@ function DashboardContent() {
           if (aiSlideStyle === 'visual' || aiSlideStyle === 'mixed') {
             // Generate polished HTML/CSS infographics for visual slides
             const slidesWithInfographics = normalized.map((slide, index) => {
-              // Skip cover slides and chart slides
-              if (slide.type === 'cover' || slide.type === 'chart') {
+              // For chart slides with data, generate QuickChart image URLs
+              if (slide.type === 'chart' && slide.chartData && slide.chartData.length > 0) {
+                const chartConfig = {
+                  type: slide.chartType === 'pie' ? 'outlabeledPie' : (slide.chartType || 'bar'),
+                  data: {
+                    labels: slide.chartData.map((d: any) => d.name),
+                    datasets: [{
+                      label: slide.title || 'Data',
+                      data: slide.chartData.map((d: any) => d.value),
+                      backgroundColor: ['#3b82f6', '#a855f7', '#ec4899', '#10b981', '#f59e0b', '#ef4444'],
+                    }]
+                  },
+                  options: {
+                    plugins: {
+                      legend: { display: true, position: 'bottom' },
+                      title: { display: false }
+                    }
+                  }
+                };
+                
+                const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=600&backgroundColor=transparent`;
+                
+                return {
+                  ...slide,
+                  mediaType: 'image' as const,
+                  mediaUrl: chartUrl,
+                  mediaWidthPercent: 90,
+                  mediaAlignment: 'center' as const,
+                  // Clear the chart data to use image instead
+                  chartData: undefined,
+                  chartType: undefined,
+                };
+              }
+              
+              // Skip cover slides
+              if (slide.type === 'cover') {
                 return slide;
               }
               
@@ -1419,8 +1452,21 @@ function DashboardContent() {
                   .filter(s => s.length > 3);
               }
               
+              // Strategy 0.5: Extract from <p> tags if no <li> tags found
+              if (items.length < 2) {
+                const pMatch = rawContent.match(/<p[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>)*[^<]*)<\/p>/gi);
+                if (pMatch && pMatch.length >= 2) {
+                  items = pMatch
+                    .map(p => p.replace(/<\/?[^>]+>/g, '').trim())
+                    .filter(s => s.length > 5);
+                }
+              }
+              
               // Extract text content for later analysis
               const contentText = rawContent.replace(/<[^>]*>/g, '') || '';
+              
+              console.log(`📝 Extracted ${items.length} items from content for "${title}":`, items.slice(0, 3));
+
               
               // If no HTML list items found, try plain text extraction
               if (items.length < 2) {
@@ -1458,40 +1504,32 @@ function DashboardContent() {
                 }
               }
               
-              // Ensure we have at least some items (use title-derived content as last resort)
-              if (items.length < 2 && title) {
-                // Generate meaningful items from title context
-                const titleWords = title.toLowerCase();
-                if (titleWords.includes('benefit') || titleWords.includes('advantage')) {
-                  items = ['Increased efficiency', 'Better results', 'Time savings', 'Cost reduction'];
-                } else if (titleWords.includes('step') || titleWords.includes('how')) {
-                  items = ['Plan your approach', 'Execute with focus', 'Review and adjust', 'Measure success'];
-                } else if (titleWords.includes('tip') || titleWords.includes('hack') || titleWords.includes('secret')) {
-                  items = ['Start small and scale', 'Stay consistent', 'Track your progress', 'Celebrate wins'];
-                } else if (titleWords.includes('journey') || titleWords.includes('path') || titleWords.includes('road')) {
-                  items = ['Define your destination', 'Map the milestones', 'Embrace the challenges', 'Celebrate progress'];
-                } else if (titleWords.includes('growth') || titleWords.includes('develop') || titleWords.includes('evolve')) {
-                  items = ['Set clear goals', 'Learn continuously', 'Apply new skills', 'Measure progress'];
-                } else if (titleWords.includes('success') || titleWords.includes('achieve') || titleWords.includes('win')) {
-                  items = ['Define your vision', 'Take consistent action', 'Learn from setbacks', 'Stay committed'];
-                } else if (titleWords.includes('mind') || titleWords.includes('think') || titleWords.includes('mental') || titleWords.includes('spiritual')) {
-                  items = ['Cultivate awareness', 'Practice daily', 'Embrace stillness', 'Find inner peace'];
-                } else {
-                  // Use title words to create contextual items
-                  const cleanTitle = title.replace(/[^a-zA-Z\s]/g, '').trim();
-                  items = [
-                    `Understand ${cleanTitle}`,
-                    `Apply ${cleanTitle} principles`,
-                    `Master ${cleanTitle} techniques`,
-                    `Share ${cleanTitle} insights`
-                  ];
-                }
+              // Ensure we have at least some items
+              if (items.length < 2) {
+                console.warn(`⚠️ Not enough items (${items.length}) for infographic on slide "${title}". Falling back to content slide.`);
+                // If we don't have enough real items, don't force a visual slide
+                // Fall back to a standard content slide instead of fake data
+                return {
+                  ...slide,
+                  type: 'content' as const,
+                };
               }
               
-              // Limit to 6 items max and clean up
+              // Truncate and clean items for the infographic (keep them short and punchy)
               items = items
                 .slice(0, 6)
-                .map(item => item.charAt(0).toUpperCase() + item.slice(1)); // Capitalize
+                .map(item => {
+                  // Strip ALL HTML tags to get clean text
+                  let cleaned = item.replace(/<[^>]*>/g, '').trim();
+                  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                  // Truncate to 60 chars max for infographic cards to maintain design
+                  if (cleaned.length > 60) {
+                    cleaned = cleaned.substring(0, 57) + '...';
+                  }
+                  return cleaned;
+                });
+              
+              console.log(`🎨 Creating visual infographic for "${title}" with ${items.length} items:`, items);
               
               // Choose layout based on content type and slide position
               // 12 premium layouts for visual variety
@@ -1502,7 +1540,6 @@ function DashboardContent() {
                 'timeline',        // Good for sequences
                 'process-steps',   // Good for how-to content  
                 'feature-list',    // Good for benefits
-                'metrics-row',     // Good for stats/numbers
                 'icon-cards',      // Good for tips
                 'numbered-list',   // Good for steps
                 'pyramid',         // Good for hierarchy
@@ -1515,35 +1552,95 @@ function DashboardContent() {
               // Smart layout selection based on content
               let layout: InfographicLayoutType;
               const titleLower = title.toLowerCase();
-              const hasNumbers = /\d+/.test(contentText);
+              const hasLotsOfNumbers = (contentText.match(/\d+/g) || []).length > 3;
               const itemCount = items.length;
               
-              // Intelligent layout matching
-              if (titleLower.includes('step') || titleLower.includes('process') || titleLower.includes('how')) {
-                layout = itemCount <= 4 ? 'process-steps' : 'timeline';
-              } else if (hasNumbers || titleLower.includes('stat') || titleLower.includes('result') || titleLower.includes('number')) {
-                layout = 'metrics-row';
-              } else if (titleLower.includes('benefit') || titleLower.includes('feature') || titleLower.includes('advantage')) {
-                layout = 'feature-list';
-              } else if (titleLower.includes('tip') || titleLower.includes('hack') || titleLower.includes('secret') || titleLower.includes('trick')) {
-                layout = 'icon-cards';
-              } else if (titleLower.includes('priority') || titleLower.includes('important') || titleLower.includes('level') || titleLower.includes('hierarchy')) {
-                layout = 'pyramid';
-              } else if (titleLower.includes('cycle') || titleLower.includes('loop') || titleLower.includes('repeat') || titleLower.includes('continuous')) {
-                layout = 'cycle';
-              } else if (titleLower.includes('vs') || titleLower.includes('compare') || titleLower.includes('difference') || titleLower.includes('pros')) {
-                layout = 'comparison';
-              } else if (titleLower.includes('checklist') || titleLower.includes('todo') || titleLower.includes('action') || titleLower.includes('must')) {
-                layout = 'checklist';
-              } else if (titleLower.includes('quote') || titleLower.includes('insight') || titleLower.includes('key') || titleLower.includes('remember')) {
-                layout = 'quote-highlight';
-              } else if (itemCount <= 3) {
-                // For few items, use more impactful layouts
-                layout = ['cards-grid', 'pyramid', 'quote-highlight'][index % 3] as InfographicLayoutType;
-              } else {
-                // Cycle through varied layouts for visual interest
-                layout = layouts[index % layouts.length];
+              // Check if items contain metrics/numbers that would look better as QuickChart
+              const metricsPattern = /(\d+%?|\d+x|\d+\+|\d+k|\d+K|\d+M)/i;
+              const hasMetrics = items.some(item => metricsPattern.test(item));
+              
+              // If content is data-heavy with lots of metrics, use QuickChart bar chart
+              if (hasMetrics && items.length >= 3 && hasLotsOfNumbers) {
+                // Extract metrics for QuickChart
+                const chartData = items.map(item => {
+                  const match = item.match(/(\d+\.?\d*)/);
+                  const value = match ? parseFloat(match[1]) : 0;
+                  const label = item.replace(/\d+\.?\d*%?/, '').trim().substring(0, 20);
+                  return { name: label || 'Metric', value };
+                }).filter(d => d.value > 0);
+                
+                if (chartData.length >= 2) {
+                  // Generate QuickChart horizontal bar chart for metrics
+                  const chartConfig = {
+                    type: 'horizontalBar',
+                    data: {
+                      labels: chartData.map(d => d.name),
+                      datasets: [{
+                        data: chartData.map(d => d.value),
+                        backgroundColor: ['#3b82f6', '#a855f7', '#ec4899', '#10b981', '#f59e0b'],
+                      }]
+                    },
+                    options: {
+                      legend: { display: false },
+                      scales: {
+                        xAxes: [{ ticks: { fontColor: '#fff', fontSize: 16 } }],
+                        yAxes: [{ ticks: { fontColor: '#fff', fontSize: 16 } }]
+                      },
+                      plugins: {
+                        datalabels: {
+                          anchor: 'end',
+                          align: 'end',
+                          color: '#fff',
+                          font: { size: 18, weight: 'bold' }
+                        }
+                      }
+                    }
+                  };
+                  
+                  const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=900&height=500&backgroundColor=rgba(15,23,42,0.8)`;
+                  
+                  return {
+                    ...slide,
+                    type: 'content' as const,
+                    mediaType: 'image' as const,
+                    mediaUrl: chartUrl,
+                    mediaWidthPercent: 100,
+                    mediaAlignment: 'center' as const,
+                    content: `<p><strong>Key Insights:</strong></p><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`,
+                  };
+                }
               }
+              
+              // Intelligent layout matching with MORE VARIETY
+              // Use slide index to ensure visual variety across the carousel
+              const variedLayouts: InfographicLayoutType[] = [
+                'cards-grid',      // Slide 1
+                'timeline',        // Slide 2
+                'icon-cards',      // Slide 3
+                'cycle',           // Slide 4
+                'feature-list',    // Slide 5
+                'process-steps',   // Slide 6
+                'numbered-list',   // Slide 7
+                'checklist',       // Slide 8
+              ];
+              
+              // Smart keyword-based override (only for very obvious cases)
+              if ((titleLower.includes('step') || titleLower.includes('process')) && itemCount <= 5) {
+                layout = 'process-steps';
+              } else if (titleLower.includes('timeline') || titleLower.includes('history') || titleLower.includes('evolution')) {
+                layout = 'timeline';
+              } else if (titleLower.includes('cycle') || titleLower.includes('loop')) {
+                layout = 'cycle';
+              } else if (titleLower.includes('vs') || titleLower.includes('compare')) {
+                layout = 'comparison';
+              } else if (titleLower.includes('pyramid') || titleLower.includes('hierarchy')) {
+                layout = 'pyramid';
+              } else {
+                // Use varied layouts based on slide position for visual diversity
+                layout = variedLayouts[index % variedLayouts.length];
+              }
+              
+              console.log(`🎨 Slide ${index + 1} "${title}" → Layout: ${layout}`);
               
               return {
                 ...slide,
@@ -1551,9 +1648,11 @@ function DashboardContent() {
                 // Set infographic data for programmatic rendering
                 infographicData: {
                   items,
-                  layout
+                  layout: slide.infographicLayout || layout
                 },
-                // Update element order: title, then the infographic
+                // Clear content so it doesn't render as text
+                content: undefined,
+                // Update element order: title, then the infographic ONLY
                 elementOrder: ['title', 'infographic'],
               };
             });
@@ -3682,13 +3781,14 @@ function DashboardContent() {
                 >
                     <Type size={16} />
                 </div>
-                <div 
+                <button 
                     onClick={() => handleToolClick('image')}
                     className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     title="Set Background Image (Current Slide)"
+                    aria-label="Set Background Image"
                 >
                     <ImageIcon size={16} />
-                </div>
+                </button>
                 <div 
                     onClick={() => handleToolClick('image-all')}
                     className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}

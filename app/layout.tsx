@@ -32,11 +32,11 @@ const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mo
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.carouslk.com'),
   title: {
-    default: "Carouslk – AI Carousel Generator for LinkedIn & Instagram",
+    default: "Carouslk – Turn Ideas Into Scroll-Stopping Carousels",
     template: "%s | Carouslk"
   },
-  description: "Create viral carousels for LinkedIn, Instagram, and X in seconds. AI-powered writing, beautiful templates, and one-click PDF export. No design skills needed.",
-  keywords: ["LinkedIn Carousel Generator", "Instagram Carousel Maker", "AI Content Creation", "PDF Slider Tool", "Social Media Marketing", "Carousel Templates", "LinkedIn PDF"],
+  description: "Create stunning carousels for any platform—social media, presentations, pitch decks, newsletters, and more. AI-powered content generation, beautiful templates, and instant export. Zero design skills needed.",
+  keywords: ["AI Carousel Generator", "Visual Storytelling Tool", "Presentation Creator", "Pitch Deck Designer", "Social Media Content", "Newsletter Graphics", "AI Content Creation", "PDF Carousel Export", "Carousel Templates", "Content Marketing Tool"],
   authors: [{ name: "Carouslk Team" }],
   creator: "Carouslk",
   publisher: "Carouslk",
@@ -55,8 +55,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://www.carouslk.com",
-    title: "Carouslk – Create Viral Carousels in Seconds",
-    description: "Transform your ideas into multi-platform carousels instantly. AI-powered, customizable, and free to try.",
+    title: "Carouslk – Visual Storytelling for Every Platform",
+    description: "Turn any idea into stunning carousels for social media, presentations, pitch decks, newsletters—anywhere visual content matters. AI-powered and effortless.",
     siteName: "Carouslk",
     images: [
       {
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Carouslk – AI Carousel Generator",
-    description: "Stop wasting hours on design. Generate LinkedIn & Instagram carousels instantly with AI.",
+    description: "Stop wasting hours on design. Create stunning carousels for any platform—social media, presentations, newsletters—in seconds with AI.",
     images: ["/og-image.png"],
     creator: "@carouslk", // Update if you have a handle
   },
@@ -117,7 +117,7 @@ export default function RootLayout({
               "url": "https://www.carouslk.com",
               "logo": "https://www.carouslk.com/android-chrome-512x512.png",
               "sameAs": [],
-              "description": "AI-powered carousel generator for LinkedIn, Instagram, X, and more."
+              "description": "AI-powered visual storytelling tool for social media, presentations, pitch decks, newsletters, and beyond."
             })
           }}
         />
@@ -158,7 +158,7 @@ export default function RootLayout({
                 "ratingValue": "4.8",
                 "ratingCount": "150"
               },
-              "description": "AI-powered tool to create LinkedIn and Instagram carousels in minutes.",
+              "description": "AI-powered tool to create stunning carousels for any platform—social media, presentations, pitch decks—in minutes.",
               "featureList": "AI Writing, PDF Export, Customizable Templates, LinkedIn Integration, Brand Customization",
               "screenshot": "https://www.carouslk.com/og-image.png",
               "url": "https://www.carouslk.com"

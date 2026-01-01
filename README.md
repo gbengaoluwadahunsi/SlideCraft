@@ -1,6 +1,6 @@
-# Carouslk Carousel Generator
+# Carouslk – AI Visual Storytelling Platform
 
-This is a Next.js application that generates "Under The Hood" style carousels for LinkedIn, Instagram, X, newsletters, pitch decks, or any other platform where you need swipe-friendly storytelling.
+This is a Next.js application that transforms ideas into stunning carousels for any platform. Whether you're creating content for social media (LinkedIn, Instagram, X), pitch decks, presentations, newsletters, or any other visual medium—Carouslk makes it effortless.
 
 ## Features
 - **Visual Editor**: Add, edit, and reorder slides.

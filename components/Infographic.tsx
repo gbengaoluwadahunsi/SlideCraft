@@ -11,6 +11,7 @@ import {
   ThumbsUp, Bookmark, Share2, Play, Coffee,
   Check, Circle, Diamond, Hexagon
 } from 'lucide-react';
+import * as PhosphorIcons from 'phosphor-react';
 
 export type InfographicLayout = 
   | 'cards-grid' 
@@ -32,6 +33,7 @@ interface InfographicProps {
   accentColor?: string;
   textColor?: string;
   backgroundColor?: string;
+  infographicIcons?: string[]; // Add this prop
 }
 
 // Animation variants
@@ -61,36 +63,85 @@ const scaleVariants = {
   }
 };
 
-// Smart icon mapping based on content
+// Smart icon mapping based on content (using Phosphor + Lucide)
 const getIconForText = (text: string, index: number) => {
   const lowerText = text.toLowerCase();
   
-  if (lowerText.includes('goal') || lowerText.includes('target') || lowerText.includes('aim')) return Target;
-  if (lowerText.includes('idea') || lowerText.includes('tip') || lowerText.includes('insight')) return Lightbulb;
-  if (lowerText.includes('fast') || lowerText.includes('quick') || lowerText.includes('speed') || lowerText.includes('energy')) return Zap;
-  if (lowerText.includes('success') || lowerText.includes('done') || lowerText.includes('complete') || lowerText.includes('achieve')) return CheckCircle;
-  if (lowerText.includes('grow') || lowerText.includes('increase') || lowerText.includes('boost') || lowerText.includes('improve')) return TrendingUp;
-  if (lowerText.includes('team') || lowerText.includes('people') || lowerText.includes('community') || lowerText.includes('social')) return Users;
-  if (lowerText.includes('secure') || lowerText.includes('safe') || lowerText.includes('protect') || lowerText.includes('trust')) return Shield;
-  if (lowerText.includes('best') || lowerText.includes('top') || lowerText.includes('quality') || lowerText.includes('premium')) return Star;
-  if (lowerText.includes('health') || lowerText.includes('care') || lowerText.includes('wellness') || lowerText.includes('love')) return Heart;
-  if (lowerText.includes('launch') || lowerText.includes('start') || lowerText.includes('begin') || lowerText.includes('new')) return Rocket;
-  if (lowerText.includes('think') || lowerText.includes('mind') || lowerText.includes('learn') || lowerText.includes('smart')) return Brain;
-  if (lowerText.includes('time') || lowerText.includes('schedule') || lowerText.includes('hour') || lowerText.includes('morning')) return Clock;
-  if (lowerText.includes('money') || lowerText.includes('cost') || lowerText.includes('price') || lowerText.includes('save')) return DollarSign;
-  if (lowerText.includes('award') || lowerText.includes('win') || lowerText.includes('reward')) return Award;
-  if (lowerText.includes('data') || lowerText.includes('analytics') || lowerText.includes('measure')) return BarChart3;
-  if (lowerText.includes('focus') || lowerText.includes('attention')) return Eye;
-  if (lowerText.includes('connect') || lowerText.includes('network') || lowerText.includes('global')) return Globe;
-  if (lowerText.includes('message') || lowerText.includes('communicate')) return MessageCircle;
-  if (lowerText.includes('like') || lowerText.includes('positive')) return ThumbsUp;
-  if (lowerText.includes('action') || lowerText.includes('move') || lowerText.includes('exercise')) return Play;
-  if (lowerText.includes('routine') || lowerText.includes('habit') || lowerText.includes('daily')) return Coffee;
-  if (lowerText.includes('magic') || lowerText.includes('special')) return Sparkles;
-  if (lowerText.includes('perform') || lowerText.includes('active')) return Activity;
-  if (lowerText.includes('layer') || lowerText.includes('level')) return Layers;
+  // Phosphor icons for more variety and professional look
+  if (lowerText.includes('goal') || lowerText.includes('target') || lowerText.includes('aim')) return PhosphorIcons.Target;
+  if (lowerText.includes('idea') || lowerText.includes('tip') || lowerText.includes('insight')) return PhosphorIcons.Lightbulb;
+  if (lowerText.includes('fast') || lowerText.includes('quick') || lowerText.includes('speed') || lowerText.includes('energy')) return PhosphorIcons.Lightning;
+  if (lowerText.includes('success') || lowerText.includes('done') || lowerText.includes('complete') || lowerText.includes('achieve')) return PhosphorIcons.CheckCircle;
+  if (lowerText.includes('grow') || lowerText.includes('increase') || lowerText.includes('boost') || lowerText.includes('improve')) return PhosphorIcons.TrendUp;
+  if (lowerText.includes('team') || lowerText.includes('people') || lowerText.includes('community') || lowerText.includes('social')) return PhosphorIcons.Users;
+  if (lowerText.includes('secure') || lowerText.includes('safe') || lowerText.includes('protect') || lowerText.includes('trust')) return PhosphorIcons.ShieldCheck;
+  if (lowerText.includes('best') || lowerText.includes('top') || lowerText.includes('quality') || lowerText.includes('premium')) return PhosphorIcons.Star;
+  if (lowerText.includes('health') || lowerText.includes('care') || lowerText.includes('wellness') || lowerText.includes('love')) return PhosphorIcons.Heart;
+  if (lowerText.includes('launch') || lowerText.includes('start') || lowerText.includes('begin') || lowerText.includes('new')) return PhosphorIcons.Rocket;
+  if (lowerText.includes('think') || lowerText.includes('mind') || lowerText.includes('learn') || lowerText.includes('smart')) return PhosphorIcons.Brain;
+  if (lowerText.includes('time') || lowerText.includes('schedule') || lowerText.includes('hour') || lowerText.includes('morning')) return PhosphorIcons.Clock;
+  if (lowerText.includes('money') || lowerText.includes('cost') || lowerText.includes('price') || lowerText.includes('save')) return PhosphorIcons.CurrencyDollar;
+  if (lowerText.includes('award') || lowerText.includes('win') || lowerText.includes('reward') || lowerText.includes('trophy')) return PhosphorIcons.Trophy;
+  if (lowerText.includes('data') || lowerText.includes('analytics') || lowerText.includes('measure')) return PhosphorIcons.ChartBar;
+  if (lowerText.includes('focus') || lowerText.includes('attention') || lowerText.includes('vision')) return PhosphorIcons.Eye;
+  if (lowerText.includes('connect') || lowerText.includes('network') || lowerText.includes('global')) return PhosphorIcons.Globe;
+  if (lowerText.includes('message') || lowerText.includes('communicate') || lowerText.includes('chat')) return PhosphorIcons.ChatCircle;
+  if (lowerText.includes('like') || lowerText.includes('positive') || lowerText.includes('thumbs')) return PhosphorIcons.ThumbsUp;
+  if (lowerText.includes('action') || lowerText.includes('move') || lowerText.includes('exercise')) return PhosphorIcons.Play;
+  if (lowerText.includes('routine') || lowerText.includes('habit') || lowerText.includes('daily')) return PhosphorIcons.Coffee;
+  if (lowerText.includes('magic') || lowerText.includes('special') || lowerText.includes('sparkle')) return PhosphorIcons.Sparkle;
+  if (lowerText.includes('perform') || lowerText.includes('active') || lowerText.includes('activity')) return PhosphorIcons.Activity;
+  if (lowerText.includes('layer') || lowerText.includes('level') || lowerText.includes('stack')) return PhosphorIcons.Stack;
+  if (lowerText.includes('book') || lowerText.includes('read') || lowerText.includes('learn')) return PhosphorIcons.Book;
+  if (lowerText.includes('chart') || lowerText.includes('graph')) return PhosphorIcons.ChartLine;
+  if (lowerText.includes('download') || lowerText.includes('save')) return PhosphorIcons.DownloadSimple;
+  if (lowerText.includes('upload')) return PhosphorIcons.UploadSimple;
+  if (lowerText.includes('design') || lowerText.includes('create')) return PhosphorIcons.PaintBrush;
+  if (lowerText.includes('code') || lowerText.includes('develop')) return PhosphorIcons.Code;
+  if (lowerText.includes('fire') || lowerText.includes('hot') || lowerText.includes('trending')) return PhosphorIcons.Fire;
+  if (lowerText.includes('sun') || lowerText.includes('light') || lowerText.includes('day')) return PhosphorIcons.Sun;
+  if (lowerText.includes('moon') || lowerText.includes('night') || lowerText.includes('dark')) return PhosphorIcons.Moon;
+  if (lowerText.includes('gift') || lowerText.includes('present') || lowerText.includes('bonus')) return PhosphorIcons.Gift;
+  if (lowerText.includes('music') || lowerText.includes('audio') || lowerText.includes('sound')) return PhosphorIcons.MusicNote;
+  if (lowerText.includes('phone') || lowerText.includes('call')) return PhosphorIcons.Phone;
+  if (lowerText.includes('camera') || lowerText.includes('photo')) return PhosphorIcons.Camera;
+  if (lowerText.includes('video')) return PhosphorIcons.VideoCamera;
+  if (lowerText.includes('calendar') || lowerText.includes('date')) return PhosphorIcons.Calendar;
+  if (lowerText.includes('bell') || lowerText.includes('notification')) return PhosphorIcons.Bell;
+  if (lowerText.includes('gear') || lowerText.includes('setting')) return PhosphorIcons.Gear;
+  if (lowerText.includes('link') || lowerText.includes('chain')) return PhosphorIcons.Link;
+  if (lowerText.includes('flag')) return PhosphorIcons.Flag;
+  if (lowerText.includes('pin') || lowerText.includes('location')) return PhosphorIcons.MapPin;
+  if (lowerText.includes('key') || lowerText.includes('password')) return PhosphorIcons.Key;
+  if (lowerText.includes('lock')) return PhosphorIcons.Lock;
+  if (lowerText.includes('unlock')) return PhosphorIcons.LockOpen;
+  if (lowerText.includes('cloud')) return PhosphorIcons.Cloud;
+  if (lowerText.includes('database') || lowerText.includes('storage')) return PhosphorIcons.Database;
+  if (lowerText.includes('cpu') || lowerText.includes('processor')) return PhosphorIcons.Cpu;
+  if (lowerText.includes('battery') || lowerText.includes('power')) return PhosphorIcons.BatteryCharging;
+  if (lowerText.includes('wifi') || lowerText.includes('wireless')) return PhosphorIcons.WifiHigh;
+  if (lowerText.includes('bluetooth')) return PhosphorIcons.Bluetooth;
+  if (lowerText.includes('shopping') || lowerText.includes('cart') || lowerText.includes('buy')) return PhosphorIcons.ShoppingCartSimple;
+  if (lowerText.includes('credit') || lowerText.includes('card') || lowerText.includes('payment')) return PhosphorIcons.CreditCard;
+  if (lowerText.includes('wallet')) return PhosphorIcons.Wallet;
+  if (lowerText.includes('package') || lowerText.includes('box') || lowerText.includes('delivery')) return PhosphorIcons.Package;
+  if (lowerText.includes('truck') || lowerText.includes('shipping')) return PhosphorIcons.Truck;
+  if (lowerText.includes('plane') || lowerText.includes('flight')) return PhosphorIcons.Airplane;
+  if (lowerText.includes('train')) return PhosphorIcons.Train;
+  if (lowerText.includes('bicycle') || lowerText.includes('bike')) return PhosphorIcons.Bicycle;
+  if (lowerText.includes('heart') && lowerText.includes('beat')) return PhosphorIcons.Heartbeat;
+  if (lowerText.includes('medical') || lowerText.includes('medicine') || lowerText.includes('health')) return PhosphorIcons.FirstAidKit;
+  if (lowerText.includes('tree') || lowerText.includes('nature')) return PhosphorIcons.Tree;
+  if (lowerText.includes('leaf') || lowerText.includes('eco') || lowerText.includes('green')) return PhosphorIcons.Leaf;
+  if (lowerText.includes('recycle')) return PhosphorIcons.ArrowsClockwise;
   
-  const defaultIcons = [Sparkles, Target, Zap, TrendingUp, Star, Rocket, Brain, Heart, CheckCircle, Globe];
+  // Default colorful icon rotation
+  const defaultIcons = [
+    PhosphorIcons.Sparkle, PhosphorIcons.Target, PhosphorIcons.Lightning, 
+    PhosphorIcons.TrendUp, PhosphorIcons.Star, PhosphorIcons.Rocket, 
+    PhosphorIcons.Brain, PhosphorIcons.Heart, PhosphorIcons.CheckCircle, 
+    PhosphorIcons.Globe, PhosphorIcons.Fire, PhosphorIcons.Trophy
+  ];
   return defaultIcons[index % defaultIcons.length];
 };
 
@@ -197,7 +248,7 @@ const CardsGridLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ff
                   boxShadow: `0 4px 20px ${accentColor}25`,
                 }}
               >
-                <Icon size={22} style={{ color: accentColor }} strokeWidth={2} />
+                <Icon size={22} color={accentColor} weight="duotone" />
               </div>
               
               <p 
@@ -293,86 +344,110 @@ const TimelineLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd
   );
 };
 
-// Process Steps - Horizontal flow with premium design
-const ProcessStepsLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
-  const displayItems = items.slice(0, 4);
+// Poster Process - Mimics the "How to make an infographic" style 1:1
+const PosterProcessLayout: React.FC<InfographicProps> = ({ items, textColor = '#ffffff', infographicIcons = [] }) => {
+  const displayItems = items.slice(0, 5);
+  const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#a855f7'];
   
   return (
-    <div className="w-full px-2 relative">
-      <GlowOrb color={accentColor} size={200} className="top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+    <div className="w-full h-[600px] relative flex items-center justify-center overflow-visible rounded-[40px] shadow-2xl"
+         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
       
-      <motion.div 
-        className="flex items-start justify-between gap-2 relative z-10"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        {displayItems.map((item, index) => {
-          const Icon = getIconForText(item, index);
-          const isLast = index === displayItems.length - 1;
+      {/* Background patterns */}
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+      
+      {/* Central Hub with Ring */}
+      <div className="relative z-20">
+        {/* Outer Ring */}
+        <div className="w-[220px] h-[220px] rounded-full border-[2px] border-white/10 flex items-center justify-center relative">
+          <motion.div 
+            className="absolute inset-[-15px] rounded-full border border-dashed border-white/20"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          />
           
-          return (
-            <React.Fragment key={index}>
-              <motion.div 
-                className="flex-1 flex flex-col items-center text-center"
-                variants={scaleVariants}
+          {/* Inner Circle with Hub Icon */}
+          <motion.div 
+            className="w-24 h-32 bg-[#ffd700] rounded-2xl flex flex-col items-center justify-center shadow-[0_20px_40px_rgba(255,215,0,0.3)]"
+            initial={{ scale: 0, rotate: -10 }}
+            animate={{ scale: 1, rotate: -5 }}
+            transition={{ type: "spring", damping: 10 }}
+          >
+             <div className="w-10 h-1 bg-black/20 mb-3 rounded-full" />
+             <div className="w-10 h-10 flex items-center justify-center">
+                <BarChart3 size={36} color="#000" strokeWidth={2.5} />
+             </div>
+             <div className="mt-4 space-y-1.5">
+                <div className="w-12 h-1 bg-black/10 rounded-full" />
+                <div className="w-8 h-1 bg-black/10 rounded-full" />
+             </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Steps positioned around the circle */}
+      {displayItems.map((item, index) => {
+        const color = colors[index % colors.length];
+        const iconUrl = infographicIcons[index];
+        // Optimized angles for 5 items to avoid overlapping
+        const angles = [-140, -220, -270, -320, -40];
+        const angle = angles[index];
+        const radius = 260; 
+        const x = Math.cos(angle * (Math.PI / 180)) * radius;
+        const y = Math.sin(angle * (Math.PI / 180)) * radius;
+
+        return (
+          <React.Fragment key={index}>
+            {/* Connecting line */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
+               <motion.path 
+                 d={`M ${x/2 + 540} ${y/2 + 540} L ${x + 540} ${y + 540}`}
+                 stroke="white"
+                 strokeWidth="1.5"
+                 strokeDasharray="6 6"
+                 initial={{ pathLength: 0, opacity: 0 }}
+                 animate={{ pathLength: 1, opacity: 0.2 }}
+                 transition={{ delay: 0.5 + index * 0.1 }}
+               />
+            </svg>
+
+            {/* Content Box */}
+            <motion.div 
+              className="absolute z-30 w-[220px] bg-[#1e293b]/80 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+              style={{ 
+                left: `calc(50% + ${x}px)`,
+                top: `calc(50% + ${y}px)`,
+                transform: `translate(-50%, -50%)`,
+              }}
+              variants={itemVariants}
+            >
+              {/* Colored Step Header */}
+              <div 
+                className="px-4 py-2 flex items-center justify-between"
+                style={{ backgroundColor: color }}
               >
-                {/* Step container */}
-                <div className="relative mb-4">
-                  {/* Outer ring */}
-                  <div 
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center"
-                    style={{ 
-                      background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}70 100%)`,
-                      boxShadow: `0 12px 40px ${accentColor}35, inset 0 -4px 12px rgba(0,0,0,0.2)`,
-                    }}
-                  >
-                    <Icon size={32} color="#000" strokeWidth={2} />
-                  </div>
-                  
-                  {/* Step number */}
-                  <div 
-                    className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-black"
-                    style={{ 
-                      background: '#000',
-                      color: accentColor,
-                      border: `3px solid ${accentColor}`,
-                      boxShadow: `0 4px 12px ${accentColor}40`,
-                    }}
-                  >
-                    {index + 1}
-                  </div>
+                <span className="text-[10px] font-black text-black uppercase tracking-widest">
+                  STEP {index + 1}
+                </span>
+                <div className="w-6 h-6 rounded-full bg-white/40 flex items-center justify-center overflow-hidden">
+                   {iconUrl ? (
+                     <img src={iconUrl} alt="" className="w-full h-full object-cover" />
+                   ) : (
+                     <div className="w-2 h-2 rounded-full bg-white" />
+                   )}
                 </div>
-                
-                {/* Label */}
-                <p 
-                  className="text-xs font-semibold leading-snug max-w-[120px]"
-                  style={{ color: textColor, opacity: 0.9 }}
-                >
-                  {item.length > 50 ? item.slice(0, 50) + '...' : item}
+              </div>
+
+              {/* Text Content */}
+              <div className="p-4 min-h-[80px] flex items-center">
+                <p className="text-[13px] font-bold leading-snug text-white/90">
+                  {item}
                 </p>
-              </motion.div>
-              
-              {/* Arrow connector */}
-              {!isLast && (
-                <div className="flex items-center pt-8 px-1">
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + index * 0.1 }}
-                  >
-                    <ArrowRight 
-                      size={24} 
-                      style={{ color: accentColor }} 
-                      strokeWidth={2.5}
-                    />
-                  </motion.div>
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </motion.div>
+              </div>
+            </motion.div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
@@ -434,10 +509,11 @@ const FeatureListLayout: React.FC<InfographicProps> = ({ items, accentColor = '#
 // Metrics Row - Impactful numbers with visual flair
 const MetricsRowLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
   const displayItems = items.slice(0, 4);
+  const colors = ['#3b82f6', '#a855f7', '#ec4899', '#10b981'];
   
   const metrics = displayItems.map((item, index) => {
     const numberMatch = item.match(/(\d+%?|\d+x|\d+\+|\d+k|\d+K|\d+M)/i);
-    const value = numberMatch ? numberMatch[1].toUpperCase() : ['95%', '10X', '24/7', '500+'][index % 4];
+    const value = numberMatch ? numberMatch[1].toUpperCase() : `${index + 1}`;
     const label = item.replace(/(\d+%?|\d+x|\d+\+|\d+k|\d+K|\d+M)/gi, '').trim() || item;
     return { value, label };
   });
@@ -449,51 +525,56 @@ const MetricsRowLayout: React.FC<InfographicProps> = ({ items, accentColor = '#f
       initial="hidden"
       animate="visible"
     >
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {metrics.map((metric, index) => (
-          <motion.div 
-            key={index}
-            className="relative rounded-2xl p-6 text-center overflow-hidden"
-            style={{ 
-              background: `linear-gradient(135deg, ${accentColor}12 0%, ${accentColor}04 100%)`,
-              border: `1px solid ${accentColor}15`,
-            }}
-            variants={scaleVariants}
-          >
-            {/* Decorative ring */}
-            <div 
-              className="absolute -top-16 -right-16 w-32 h-32 rounded-full"
+      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+        {metrics.map((metric, index) => {
+          const color = colors[index % colors.length];
+          return (
+            <motion.div 
+              key={index}
+              className="relative rounded-3xl p-8 text-center overflow-hidden group"
               style={{ 
-                background: `radial-gradient(circle, ${accentColor}20 0%, transparent 70%)` 
+                background: `linear-gradient(135deg, ${color}20 0%, ${color}05 100%)`,
+                border: `1px solid ${color}30`,
               }}
-            />
-            
-            {/* Value */}
-            <div 
-              className="text-5xl font-black mb-2 relative"
-              style={{ 
-                color: accentColor,
-                textShadow: `0 0 60px ${accentColor}50`,
-              }}
+              variants={scaleVariants}
+              whileHover={{ y: -10, transition: { duration: 0.2 } }}
             >
-              {metric.value}
-            </div>
-            
-            {/* Underline */}
-            <div 
-              className="w-12 h-1 mx-auto mb-3 rounded-full"
-              style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
-            />
-            
-            {/* Label */}
-            <p 
-              className="text-xs font-medium relative"
-              style={{ color: textColor, opacity: 0.7 }}
-            >
-              {metric.label.slice(0, 35)}
-            </p>
-          </motion.div>
-        ))}
+              {/* Decorative background glow */}
+              <div 
+                className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl opacity-20 transition-opacity group-hover:opacity-40"
+                style={{ backgroundColor: color }}
+              />
+              
+              {/* Value */}
+              <div 
+                className="text-6xl font-black mb-4 relative z-10"
+                style={{ 
+                  color: color,
+                  textShadow: `0 0 30px ${color}40`,
+                }}
+              >
+                {metric.value}
+              </div>
+              
+              {/* Animated Divider */}
+              <motion.div 
+                className="w-16 h-1 mx-auto mb-4 rounded-full"
+                style={{ background: color }}
+                initial={{ width: 0 }}
+                animate={{ width: 64 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
+              />
+              
+              {/* Label */}
+              <p 
+                className="text-sm font-bold leading-tight relative z-10 uppercase tracking-wide"
+                style={{ color: textColor, opacity: 0.9 }}
+              >
+                {metric.label.length > 40 ? metric.label.slice(0, 40) + '...' : metric.label}
+              </p>
+            </motion.div>
+          );
+        })}
       </div>
     </motion.div>
   );
@@ -648,93 +729,78 @@ const PyramidLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd7
   );
 };
 
-// Cycle - Circular flow diagram
-const CycleLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
-  const displayItems = items.slice(0, 4);
+// Cycle - Circular hub and spoke diagram (Designer style)
+const CycleLayout: React.FC<InfographicProps> = ({ items, textColor = '#ffffff' }) => {
+  const displayItems = items.slice(0, 5);
+  const colors = ['#3b82f6', '#a855f7', '#ec4899', '#10b981', '#f59e0b'];
   
   return (
-    <motion.div 
-      className="w-full relative"
-      style={{ minHeight: '280px' }}
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      {/* Center element */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <motion.div 
-          className="w-20 h-20 rounded-full flex items-center justify-center"
-          style={{ 
-            background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}05 100%)`,
-            border: `2px solid ${accentColor}30`,
-          }}
-          variants={scaleVariants}
-        >
-          <Sparkles size={32} style={{ color: accentColor }} />
-        </motion.div>
-      </div>
+    <div className="w-full h-[550px] relative flex items-center justify-center overflow-visible">
+      {/* Central Hub */}
+      <motion.div 
+        className="relative z-20 w-32 h-32 rounded-[32px] flex items-center justify-center shadow-2xl"
+        style={{ 
+          background: 'linear-gradient(135deg, #ffd700 0%, #ffb700 100%)',
+          boxShadow: '0 0 80px rgba(255,215,0,0.2)',
+        }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+      >
+        <Sparkles size={48} color="#000" strokeWidth={2.5} />
+      </motion.div>
       
-      {/* Items arranged in corners */}
+      {/* Spoke Items */}
       {displayItems.map((item, index) => {
         const Icon = getIconForText(item, index);
-        const positions = [
-          { top: '0%', left: '10%' },
-          { top: '0%', right: '10%' },
-          { bottom: '0%', right: '10%' },
-          { bottom: '0%', left: '10%' },
-        ];
-        const pos = positions[index];
+        const color = colors[index % colors.length];
+        
+        // Circular math
+        const angle = (index * (360 / displayItems.length)) - 90;
+        const radius = 220;
+        const x = Math.cos(angle * (Math.PI / 180)) * radius;
+        const y = Math.sin(angle * (Math.PI / 180)) * radius;
         
         return (
-          <motion.div 
-            key={index}
-            className="absolute w-[40%] p-3 rounded-xl"
-            style={{ 
-              ...pos,
-              background: `linear-gradient(135deg, ${accentColor}12 0%, transparent 100%)`,
-              border: `1px solid ${accentColor}15`,
-            }}
-            variants={itemVariants}
-          >
-            <div className="flex items-start gap-3">
+          <React.Fragment key={index}>
+            {/* Connecting line */}
+            <motion.div 
+              className="absolute left-1/2 top-1/2 h-px origin-left z-10"
+              style={{ 
+                width: radius - 40,
+                background: `linear-gradient(90deg, #ffffff20, ${color})`,
+                left: '50%',
+                top: '50%',
+                transform: `rotate(${angle}deg) translateX(40px)`,
+                opacity: 0.4
+              }}
+            />
+            
+            {/* Item Card */}
+            <motion.div 
+              className="absolute z-30 flex flex-col items-center"
+              style={{ 
+                left: `calc(50% + ${x}px)`,
+                top: `calc(50% + ${y}px)`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              variants={itemVariants}
+            >
               <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                style={{ 
-                  background: `linear-gradient(135deg, ${accentColor}30 0%, ${accentColor}10 100%)`,
-                }}
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl mb-3"
+                style={{ background: color }}
               >
-                <Icon size={18} style={{ color: accentColor }} strokeWidth={2} />
+                <Icon size={28} color="#000" strokeWidth={2.5} />
               </div>
-              <p 
-                className="text-xs font-medium leading-snug"
-                style={{ color: textColor, opacity: 0.85 }}
-              >
-                {item.length > 40 ? item.slice(0, 40) + '...' : item}
-              </p>
-            </div>
-          </motion.div>
+              <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-center max-w-[140px]">
+                <p className="text-[12px] font-bold text-white leading-tight">
+                  {item}
+                </p>
+              </div>
+            </motion.div>
+          </React.Fragment>
         );
       })}
-      
-      {/* Connecting arrows */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill={accentColor} opacity="0.4" />
-          </marker>
-        </defs>
-        <circle 
-          cx="50%" 
-          cy="50%" 
-          r="80" 
-          fill="none" 
-          stroke={accentColor} 
-          strokeWidth="1" 
-          strokeDasharray="8 8"
-          opacity="0.2"
-        />
-      </svg>
-    </motion.div>
+    </div>
   );
 };
 
@@ -931,14 +997,26 @@ const QuoteHighlightLayout: React.FC<InfographicProps> = ({ items, accentColor =
 
 // Main export
 export const Infographic: React.FC<InfographicProps> = (props) => {
-  const { layout, items } = props;
+  const { layout, items, accentColor = '#ffd700' } = props;
   
   if (!items || items.length === 0) return null;
+  
+  // Choose colors based on theme or index
+  const themeColors = [
+    accentColor, 
+    '#3b82f6', // blue
+    '#a855f7', // purple
+    '#ec4899', // pink
+    '#10b981', // emerald
+    '#f59e0b'  // amber
+  ];
+  
+  const propsWithColors = { ...props, themeColors };
   
   switch (layout) {
     case 'cards-grid': return <CardsGridLayout {...props} />;
     case 'timeline': return <TimelineLayout {...props} />;
-    case 'process-steps': return <ProcessStepsLayout {...props} />;
+    case 'process-steps': return <PosterProcessLayout {...props} />; // Updated to the new poster style
     case 'feature-list': return <FeatureListLayout {...props} />;
     case 'metrics-row': return <MetricsRowLayout {...props} />;
     case 'icon-cards': return <IconCardsLayout {...props} />;

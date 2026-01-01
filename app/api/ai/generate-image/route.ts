@@ -29,15 +29,13 @@ export async function POST(request: NextRequest) {
       .slice(0, 5)
       .join(' ');
     
-    const imagePrompt = `${themeWords} abstract minimalist ${style} background gradient`;
-
-    // PRIORITY 1: Pollinations.ai - FREE AI image generation (no API key needed!)
-    // Using 'turbo' model for faster generation
+    const imagePrompt = `High-end 3D minimalist infographic element for ${themeWords}, professional digital art, clean studio lighting, isometric view, vibrant colors, white background, high resolution 4k`;
+    
+    // PRIORITY 1: Pollinations.ai - FREE AI image generation
     if (!preferPremium) {
       const encodedPrompt = encodeURIComponent(imagePrompt);
-      // Use turbo model (faster) and add seed for consistency
       const seed = Date.now() % 10000;
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=turbo&seed=${seed}`;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=flux&seed=${seed}`;
       
       return NextResponse.json({ 
         imageUrl: pollinationsUrl,

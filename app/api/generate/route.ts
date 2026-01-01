@@ -53,58 +53,80 @@ Each slide should have:
 - emoji: DO NOT include emoji. Leave this field empty or omit it entirely.
 - chartType: (for chart slides only) "bar", "line", or "pie"
 - chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number).
+  - Example: [{"name": "Q1 Sales", "value": 45000}, {"name": "Q2 Sales", "value": 52000}]
+  - ALWAYS provide actual numeric values, not percentages as strings
 
-If the content involves statistics, data comparisons, or trends, ALWAYS use a "chart" slide type.
+CRITICAL: If the content involves statistics, data comparisons, or numeric trends, ALWAYS use a "chart" slide type with proper chartData.
+Charts will be rendered as professional images using QuickChart.io.
 
 The design style is "Under The Hood", technical but accessible.
 Focus on clarity, high value, and depth. Provide comprehensive explanations.
 `,
 
   visual: `
-Create VISUAL-FIRST slides designed for executives who prefer diagrams over text.
+Create INFOGRAPHIC-STYLE slides that are visually structured and information-dense but easy to scan.
 
 Each slide should have:
-- type: "cover" (only for the first slide), "visual", or "chart"
+- type: "cover" (only for the first slide), "visual", "chart"
 - title: Short, impactful header (max 5 words)
 - subtitle: (for cover only) The main hook
-- icon: Choose ONE icon name that represents the slide concept. Pick from: lightbulb, target, rocket, chart-line, users, shield, zap, brain, puzzle, trophy, clock, check-circle, trending-up, layers, git-branch, search, lock, globe, star, heart, flag, compass, anchor, award, battery, bell, bookmark, briefcase, calendar, camera, cloud, code, coffee, cpu, credit-card, database, download, droplet, edit, eye, file, filter, folder, gift, grid, hash, headphones, home, image, inbox, key, layout, link, list, mail, map, maximize, mic, monitor, moon, music, package, paperclip, pause, percent, phone, play, plus, power, printer, radio, refresh, repeat, scissors, send, server, settings, share, shopping-cart, sidebar, sliders, smartphone, speaker, sun, tag, thermometer, thumbs-up, toggle, tool, trash, truck, tv, umbrella, upload, user, video, voicemail, volume, watch, wifi, wind, x-circle, zoom
-- content: (for visual slides) Keep it SHORT - maximum 3 bullet points, each under 10 words. Use <ul><li> format.
-  - Think "one key insight per slide"
-  - Use <strong>text</strong> ONLY for the most critical word in each point
-  - NO paragraphs, NO lengthy explanations
-- chartType: (for chart slides) "bar", "line", or "pie" 
-- chartData: (for chart slides) Array of objects with "name" and "value"
+- icon: Choose ONE icon name that best represents the slide concept. We now have 7000+ Phosphor icons! Common ones include: lightbulb, target, rocket, users, shield, brain, trophy, clock, star, heart, fire, globe, lightning, chart, book, leaf, gift, sun, moon, camera, phone, calendar, bell, gear, flag, key, lock, cloud, database, cpu, battery, wifi, shopping-cart, credit-card, wallet, package, truck, airplane, train, bicycle, tree, paint-brush, code, music, video, coffee, sparkle, trending-up, check-circle, activity, heartbeat, first-aid, and thousands more
+- content: (for visual slides) Provide 3-5 distinct bullet points using <ul><li> format. DO NOT wrap in <p> tags.
+  - Each bullet should be EXTREMELY SHORT (max 10 words).
+  - Each bullet should be a clear, standalone insight or step.
+  - Do NOT use <strong> or <em> tags in visual slide content - keep it plain text inside <li> tags.
+  - Example: <ul><li>Make SMART Goals</li><li>Set Realistic Targets</li><li>Create an Action Plan</li></ul>
+- infographicLayout: (for visual slides) Suggest the MOST FITTING layout from: "cards-grid", "timeline", "process-steps", "cycle", "icon-cards", "numbered-list", "feature-list", "pyramid", "comparison", "checklist"
+  - Use "process-steps" ONLY for step-by-step how-to content (max 5 steps)
+  - Use "timeline" for chronological/sequential information
+  - Use "cycle" for circular/repeating processes
+  - Use "icon-cards" for tips/hacks/quick points (3-6 items)
+  - Use "cards-grid" for general concepts/ideas
+  - Use "numbered-list" for ordered lists
+  - Use "feature-list" for benefits/features (2 columns)
+  - VARY the layouts across slides - don't use the same layout repeatedly
+- chartType: (for chart slides with data) "bar", "line", or "pie" 
+- chartData: (for chart slides) Array of objects with "name" and "value". Example: [{"name": "Revenue", "value": 50000}]
 
-CRITICAL: Visual slides are NOT text-heavy. Each slide communicates ONE powerful idea with:
-1. A clear icon representing the concept
-2. A punchy title (2-5 words)
-3. 2-3 ultra-short bullet points (keywords/phrases, not sentences)
+IMPORTANT TYPE SELECTION:
+- Use "chart" type for: statistics, comparisons with numbers, data trends, survey results, performance metrics
+- Use "visual" type for: processes, timelines, tips, features, steps, concepts, ideas
 
-Think like a pitch deck designer - executives should grasp each slide in 3 seconds.
+"visual" slides will be rendered as interactive INFOGRAPHICS (timelines, process steps, cycle diagrams).
+"chart" slides will be rendered as professional chart images using QuickChart.io.
+
+CRITICAL FOR VISUAL SLIDES:
+- ALWAYS provide content as a clean <ul> list with <li> items
+- Each <li> should contain 5-10 words maximum
+- Do NOT use nested <p> tags
+- Example format:
+  <ul><li>Make SMART Goals</li><li>Set Realistic Targets</li><li>Create an Action Plan</li><li>Establish a Support System</li><li>Review and Adjust Regularly</li></ul>
 `,
 
   mixed: `
-Create a MIX of visual and text-heavy slides for variety.
+Create a MIX of visual infographics and text-heavy slides for variety.
 
 Each slide should have:
-- type: "cover" (first slide only), "visual" (icon-focused), "content" (text-focused), or "chart"
+- type: "cover" (first slide only), "visual" (infographic), "content" (text-focused), or "chart"
 - title: Short, punchy header (plain text)
 - subtitle: (for cover only) The main hook
-- icon: (for "visual" type only) Choose ONE icon from: lightbulb, target, rocket, chart-line, users, shield, zap, brain, puzzle, trophy, clock, check-circle, trending-up, layers, git-branch, search, lock, globe, star, heart, flag, compass, anchor, award, briefcase, calendar, cloud, code, cpu, database, download, edit, eye, file, folder, gift, grid, key, layout, link, list, mail, map, maximize, monitor, package, play, plus, power, refresh, settings, share, sliders, sun, tag, thumbs-up, tool, upload, user, video, wifi
-- content: HTML string
-  - For "visual" type: Maximum 3 SHORT bullet points (under 10 words each) using <ul><li>
+- icon: (for "visual" type) Choose ONE Phosphor icon
+- content: 
+  - For "visual" type: Clean <ul><li> list with 3-5 short items (5-10 words each)
   - For "content" type: Detailed paragraphs using <p>, <ul>, <li> with <em> and <strong> for emphasis
+- infographicLayout: (for visual slides) VARY the layouts - use different styles for each visual slide
 - chartType/chartData: For chart slides with statistics
 
-SLIDE PATTERN: Alternate between visual and content slides:
+SLIDE PATTERN - Alternate types for variety:
 - Slide 1: Cover
-- Slide 2: Visual (icon + bullets)
-- Slide 3: Content (detailed explanation)
-- Slide 4: Visual or Chart
-- Slide 5: Content
-- ... continue alternating
+- Slide 2: Visual (infographic - use cards-grid or icon-cards)
+- Slide 3: Content (detailed text)
+- Slide 4: Visual (infographic - use timeline or process-steps)
+- Slide 5: Content or Chart (if data available)
+- Slide 6: Visual (infographic - use cycle or feature-list)
+- Continue alternating with DIFFERENT infographic layouts each time
 
-This creates rhythm - quick visual slides for key points, detailed content slides for depth.
+CRITICAL: Never use the same infographicLayout twice in a row. Ensure visual variety!
 `
 };
 
@@ -244,11 +266,11 @@ ${combinedText}`,
               messages,
               model: provider.model,
               temperature: 0.3,
-      max_tokens: 4096,
-      top_p: 1,
-      stream: false,
-      response_format: { type: 'json_object' },
-    });
+              max_tokens: 4096,
+              top_p: 1,
+              stream: false,
+              response_format: { type: 'json_object' },
+            });
           });
         }
         
@@ -284,6 +306,20 @@ ${combinedText}`,
     
     // Clean markdown from all text fields
     const slidesWithIds = trimmedSlides.map((slide: any, index: number) => {
+      // Generate individual 3D icons for infographic items if it's a visual slide
+      let infographicIcons: string[] = [];
+      if (slideStyle === 'visual' || (slideStyle === 'mixed' && slide.type === 'visual')) {
+        // We'll extract items from the content for the icons
+        const items = slide.content ? 
+          slide.content.match(/<li[^>]*>([^<]+)<\/li>/gi)?.map((li: string) => li.replace(/<\/?[^>]+>/g, '').trim()) || [] 
+          : [];
+          
+        infographicIcons = items.map((item: string) => {
+          const prompt = `3D isometric icon for ${item}, high quality, clean white background, vibrant colors, minimalist design`;
+          return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=256&height=256&nologo=true&model=flux`;
+        });
+      }
+
       // For visual slideStyle, ensure non-cover slides have type 'visual' and an icon
       let slideType = slide.type;
       let slideIcon = slide.icon;
@@ -305,6 +341,7 @@ ${combinedText}`,
         ...slide,
         type: slideType,
         icon: slideIcon,
+        infographicIcons,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         title: stripMarkdown(slide.title || ''),
         subtitle: stripMarkdown(slide.subtitle || ''),

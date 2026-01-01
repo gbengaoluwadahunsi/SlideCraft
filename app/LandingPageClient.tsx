@@ -202,7 +202,7 @@ export default function LandingPageClient() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
         >
-          Create scroll-stopping carousels for LinkedIn, Instagram, X, pitch decks, newsletters—anywhere you publish. No design skills needed—just paste your content, customize, and export.
+          Social media posts, pitch decks, presentations, newsletters, product launches, educational content—if it needs visual storytelling, Carouslk creates it. No design skills, no hassle, just results.
         </motion.p>
         
         <motion.div 
@@ -486,8 +486,8 @@ export default function LandingPageClient() {
            transition={{ duration: 0.6 }}
          >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-[#ffd700]"></div>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to go viral?</h2>
-            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators using Carouslk to stand out on LinkedIn, Instagram, X, and every other platform.</p>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to stand out?</h2>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators, entrepreneurs, and professionals using Carouslk to captivate audiences everywhere—from social feeds to boardrooms.</p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <button
                 onClick={handleStartCreating}

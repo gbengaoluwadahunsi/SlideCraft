@@ -39,6 +39,7 @@
     "openai": "^6.15.0",
     "pdf-lib": "^1.17.1",
     "pg": "^8.16.3",
+    "phosphor-react": "^1.4.1",
     "pptxgenjs": "^4.0.1",
     "puppeteer": "^24.31.0",
     "puppeteer-core": "^24.31.0",

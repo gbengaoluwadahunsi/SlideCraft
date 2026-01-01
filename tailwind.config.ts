@@ -13,6 +13,9 @@ const config: Config = {
         sans: ["var(--font-inter)", "sans-serif"],
         "permanent-marker": ["var(--font-permanent-marker)", "cursive"],
       },
+      animation: {
+        "spin-slow": "spin 8s linear infinite",
+      },
     },
   },
   plugins: [],

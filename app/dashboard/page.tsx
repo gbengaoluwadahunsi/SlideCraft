@@ -1432,7 +1432,16 @@ function DashboardContent() {
         const data = await response.json();
         
         if (data.slides && Array.isArray(data.slides)) {
-          const normalized = normalizeSlides((data.slides || []).slice(0, aiSlideCount));
+          // Reapply current brand/theme colors to AI-generated slides
+          const themedSlides = (data.slides as SlideData[]).map((s, idx) => ({
+            ...s,
+            backgroundColor: s.backgroundColor || brandSettings.backgroundColor,
+            textColor: s.textColor || brandSettings.textColor,
+            accentColor: s.accentColor || brandSettings.accentColor,
+            fontFamily: s.fontFamily || brandSettings.fontFamily,
+          }));
+          // Normalize slide IDs, element order etc.
+          const normalized = normalizeSlides(themedSlides.slice(0, aiSlideCount));
           
           // For Visual style: create programmatic infographics (Gamma-style)
           if (aiSlideStyle === 'visual' || aiSlideStyle === 'mixed') {
@@ -1767,7 +1776,12 @@ function DashboardContent() {
       if (page === 1) {
         setUnsplashResults(data.photos || []);
       } else {
-        setUnsplashResults(prev => [...prev, ...(data.photos || [])]);
+        // Deduplicate by photo.id when appending paginated results
+        setUnsplashResults(prev => {
+          const existingIds = new Set(prev.map((p: any) => p.id));
+          const newPhotos = (data.photos || []).filter((p: any) => !existingIds.has(p.id));
+          return [...prev, ...newPhotos];
+        });
       }
       setUnsplashTotal(data.total || 0);
       setUnsplashPage(page);
@@ -4870,6 +4884,19 @@ function DashboardContent() {
                                             }));
                                             setSlides(newSlides as SlideData[]);
                                             setActiveSlideId(newSlides[0].id);
+                                            // Update brand settings to match template colors/fonts
+                                            const first = newSlides[0] as SlideData;
+                                            const newBrand = {
+                                              ...brandSettings,
+                                              backgroundColor: first.backgroundColor,
+                                              textColor: first.textColor,
+                                              accentColor: first.accentColor,
+                                              fontFamily: first.fontFamily,
+                                            };
+                                            setBrandSettings(newBrand);
+                                            if (typeof window !== 'undefined' && status !== 'authenticated') {
+                                              localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
+                                            }
                                             toast.success(`Applied "${theme.name}" template!`);
                                             addToHistory();
                                         } else {

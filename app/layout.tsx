@@ -73,8 +73,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Carouslk – AI Carousel Generator",
-    description: "Stop wasting hours on design. Create stunning carousels for any platform—social media, presentations, newsletters—in seconds with AI.",
+    title: "Carouslk – AI Carousel Generator for Social & Slide Platforms",
+    description: "Create stunning carousels for LinkedIn, Instagram, X/Twitter, presentations and more. AI-powered writing, beautiful templates, one-click export.",
     images: ["/og-image.png"],
     creator: "@carouslk", // Update if you have a handle
   },
@@ -86,6 +86,8 @@ export const metadata: Metadata = {
       { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
+      { url: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
     shortcut: "/favicon.ico",

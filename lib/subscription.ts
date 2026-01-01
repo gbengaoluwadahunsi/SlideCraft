@@ -1,20 +1,57 @@
 import { getPool } from './db';
 
+// Retry helper for database operations
+async function retryDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 100
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      const isConnectionError = 
+        lastError.message.includes('Connection terminated') ||
+        lastError.message.includes('Client has encountered a connection error') ||
+        lastError.message.includes('Connection closed unexpectedly') ||
+        lastError.message.includes('ECONNREFUSED') ||
+        lastError.message.includes('ETIMEDOUT');
+      
+      // Only retry on connection errors
+      if (isConnectionError && attempt < maxRetries - 1) {
+        console.warn(`Database connection error on attempt ${attempt + 1}, retrying...`, lastError.message);
+        await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  
+  throw lastError || new Error('Operation failed');
+}
+
 // Check if an email is in the admin list (unlimited free access)
 export async function isAdminEmail(email: string): Promise<boolean> {
-  const db = getPool();
-  const result = await db.query(
-    'SELECT id FROM admin_emails WHERE LOWER(email) = LOWER($1)',
-    [email]
-  );
-  return result.rows.length > 0;
+  return retryDatabaseOperation(async () => {
+    const db = getPool();
+    const result = await db.query(
+      'SELECT id FROM admin_emails WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    return result.rows.length > 0;
+  });
 }
 
 // Get user email by ID
 export async function getUserEmail(userId: string): Promise<string | null> {
-  const db = getPool();
-  const result = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
-  return result.rows[0]?.email || null;
+  return retryDatabaseOperation(async () => {
+    const db = getPool();
+    const result = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+    return result.rows[0]?.email || null;
+  });
 }
 
 export type Plan = 'free' | 'starter' | 'pro' | 'enterprise';
@@ -91,51 +128,53 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 
 // Get user's current plan
 export async function getUserPlan(userId: string): Promise<UserPlan> {
-  const db = getPool();
-  const result = await db.query(
-    `SELECT email, plan, subscription_status, subscription_start_date, subscription_end_date, 
-            trial_end_date, stripe_customer_id, stripe_subscription_id
-     FROM users WHERE id = $1`,
-    [userId]
-  );
+  return retryDatabaseOperation(async () => {
+    const db = getPool();
+    const result = await db.query(
+      `SELECT email, plan, subscription_status, subscription_start_date, subscription_end_date, 
+              trial_end_date, stripe_customer_id, stripe_subscription_id
+       FROM users WHERE id = $1`,
+      [userId]
+    );
 
-  if (result.rows.length === 0) {
+    if (result.rows.length === 0) {
+      return {
+        plan: 'free',
+        status: 'active',
+        startDate: null,
+        endDate: null,
+        trialEndDate: null,
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+      };
+    }
+
+    const row = result.rows[0];
+    
+    // Check if user is an admin (unlimited free access)
+    const isAdmin = await isAdminEmail(row.email);
+    if (isAdmin) {
+      return {
+        plan: 'enterprise',
+        status: 'active',
+        startDate: null,
+        endDate: null,
+        trialEndDate: null,
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+      };
+    }
+
     return {
-      plan: 'free',
-      status: 'active',
-      startDate: null,
-      endDate: null,
-      trialEndDate: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
+      plan: (row.plan || 'free') as Plan,
+      status: (row.subscription_status || 'active') as SubscriptionStatus,
+      startDate: row.subscription_start_date,
+      endDate: row.subscription_end_date,
+      trialEndDate: row.trial_end_date,
+      stripeCustomerId: row.stripe_customer_id,
+      stripeSubscriptionId: row.stripe_subscription_id,
     };
-  }
-
-  const row = result.rows[0];
-  
-  // Check if user is an admin (unlimited free access)
-  const isAdmin = await isAdminEmail(row.email);
-  if (isAdmin) {
-    return {
-      plan: 'enterprise',
-      status: 'active',
-      startDate: null,
-      endDate: null,
-      trialEndDate: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-    };
-  }
-
-  return {
-    plan: (row.plan || 'free') as Plan,
-    status: (row.subscription_status || 'active') as SubscriptionStatus,
-    startDate: row.subscription_start_date,
-    endDate: row.subscription_end_date,
-    trialEndDate: row.trial_end_date,
-    stripeCustomerId: row.stripe_customer_id,
-    stripeSubscriptionId: row.stripe_subscription_id,
-  };
+  });
 }
 
 // Check if user's subscription is active
@@ -222,57 +261,59 @@ export async function trackUsage(
   usageType: 'export' | 'ai_generation' | 'project_creation',
   increment: number = 1
 ): Promise<{ current: number; limit: number; canUse: boolean }> {
-  const db = getPool();
-  const limits = await getUserPlanLimits(userId);
-  
-  const now = new Date();
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // Start of current month
-  
-  // Get or create usage record
-  let result = await db.query(
-    `SELECT usage_count FROM subscription_usage 
-     WHERE user_id = $1 AND usage_type = $2 AND period_start = $3`,
-    [userId, usageType, periodStart]
-  );
-
-  let currentCount = 0;
-  if (result.rows.length > 0) {
-    currentCount = result.rows[0].usage_count || 0;
-  }
-
-  // Determine limit based on usage type
-  let limit: number;
-  if (usageType === 'export') {
-    limit = limits.maxExports;
-  } else if (usageType === 'ai_generation') {
-    limit = limits.maxAiGenerations;
-  } else {
-    limit = limits.maxProjects;
-  }
-
-  // Check if limit is unlimited (Infinity or not finite)
-  const isUnlimited = !Number.isFinite(limit) || limit === Infinity;
-  const canUse = isUnlimited || currentCount < limit;
-
-  if (canUse && increment > 0) {
-    // Update or insert usage
-    // Use null for unlimited (Infinity) since PostgreSQL can't store Infinity as integer
-    const dbLimit = isUnlimited ? null : limit;
-    await db.query(
-      `INSERT INTO subscription_usage (user_id, usage_type, usage_count, limit_count, period_start, period_end)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id, usage_type, period_start)
-       DO UPDATE SET usage_count = subscription_usage.usage_count + $3, updated_at = NOW()`,
-      [userId, usageType, increment, dbLimit, periodStart, new Date(now.getFullYear(), now.getMonth() + 1, 0)]
+  return retryDatabaseOperation(async () => {
+    const db = getPool();
+    const limits = await getUserPlanLimits(userId);
+    
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // Start of current month
+    
+    // Get or create usage record
+    let result = await db.query(
+      `SELECT usage_count FROM subscription_usage 
+       WHERE user_id = $1 AND usage_type = $2 AND period_start = $3`,
+      [userId, usageType, periodStart]
     );
-    currentCount += increment;
-  }
 
-  return {
-    current: currentCount,
-    limit: isUnlimited ? Infinity : limit,
-    canUse: isUnlimited || currentCount < limit,
-  };
+    let currentCount = 0;
+    if (result.rows.length > 0) {
+      currentCount = result.rows[0].usage_count || 0;
+    }
+
+    // Determine limit based on usage type
+    let limit: number;
+    if (usageType === 'export') {
+      limit = limits.maxExports;
+    } else if (usageType === 'ai_generation') {
+      limit = limits.maxAiGenerations;
+    } else {
+      limit = limits.maxProjects;
+    }
+
+    // Check if limit is unlimited (Infinity or not finite)
+    const isUnlimited = !Number.isFinite(limit) || limit === Infinity;
+    const canUse = isUnlimited || currentCount < limit;
+
+    if (canUse && increment > 0) {
+      // Update or insert usage
+      // Use null for unlimited (Infinity) since PostgreSQL can't store Infinity as integer
+      const dbLimit = isUnlimited ? null : limit;
+      await db.query(
+        `INSERT INTO subscription_usage (user_id, usage_type, usage_count, limit_count, period_start, period_end)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (user_id, usage_type, period_start)
+         DO UPDATE SET usage_count = subscription_usage.usage_count + $3, updated_at = NOW()`,
+        [userId, usageType, increment, dbLimit, periodStart, new Date(now.getFullYear(), now.getMonth() + 1, 0)]
+      );
+      currentCount += increment;
+    }
+
+    return {
+      current: currentCount,
+      limit: isUnlimited ? Infinity : limit,
+      canUse: isUnlimited || currentCount < limit,
+    };
+  });
 }
 
 // Get current usage

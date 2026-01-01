@@ -1713,19 +1713,27 @@ function DashboardContent() {
     setUnsplashLoading(true);
     try {
       const response = await fetch(`/api/unsplash/search?query=${encodeURIComponent(query)}&page=${page}&per_page=20`);
-      if (!response.ok) throw new Error('Search failed');
       
       const data = await response.json();
-      if (page === 1) {
-        setUnsplashResults(data.photos);
-      } else {
-        setUnsplashResults(prev => [...prev, ...data.photos]);
+      
+      // Check if there's an error message from the API
+      if (data.error) {
+        toast.error(data.message || 'Image search temporarily unavailable');
+        setUnsplashResults([]);
+        setUnsplashTotal(0);
+        return;
       }
-      setUnsplashTotal(data.total);
+      
+      if (page === 1) {
+        setUnsplashResults(data.photos || []);
+      } else {
+        setUnsplashResults(prev => [...prev, ...(data.photos || [])]);
+      }
+      setUnsplashTotal(data.total || 0);
       setUnsplashPage(page);
     } catch (error) {
       console.error('Unsplash search error:', error);
-      toast.error('Failed to search photos');
+      toast.error('Failed to search photos. Please try adding images via URL or upload.');
     } finally {
       setUnsplashLoading(false);
     }

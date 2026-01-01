@@ -19,9 +19,17 @@ export async function GET(request: NextRequest) {
     const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
     
     if (!unsplashAccessKey) {
+      console.warn('UNSPLASH_ACCESS_KEY environment variable is not set');
       return NextResponse.json(
-        { error: 'Unsplash API not configured' },
-        { status: 503 }
+        { 
+          error: 'Image search temporarily unavailable',
+          message: 'Please add images via URL or upload instead',
+          photos: [],
+          total: 0,
+          totalPages: 0,
+          page: 1
+        },
+        { status: 200 } // Return 200 instead of 503 to prevent error logs
       );
     }
 
@@ -34,7 +42,18 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      throw new Error(`Unsplash API error: ${response.status}`);
+      console.error(`Unsplash API returned status: ${response.status}`);
+      return NextResponse.json(
+        { 
+          error: 'Image search temporarily unavailable',
+          message: 'Please add images via URL or upload instead',
+          photos: [],
+          total: 0,
+          totalPages: 0,
+          page: 1
+        },
+        { status: 200 }
+      );
     }
 
     const data = await response.json();
@@ -67,8 +86,15 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Unsplash search error:', error);
     return NextResponse.json(
-      { error: 'Failed to search photos' },
-      { status: 500 }
+      { 
+        error: 'Image search failed',
+        message: 'Please try again or add images via URL or upload',
+        photos: [],
+        total: 0,
+        totalPages: 0,
+        page: 1
+      },
+      { status: 200 } // Return 200 to prevent error cascade
     );
   }
 }
@@ -101,5 +127,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true }); // Don't fail the user action
   }
 }
+
 
 

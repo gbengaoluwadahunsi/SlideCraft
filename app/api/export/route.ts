@@ -673,8 +673,6 @@ export async function POST(request: NextRequest) {
 
     await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 60000 });
 
-    let buffer: Buffer;
-
     if (format === 'ppt') {
       const pptxgen = (await import('pptxgenjs')).default;
       const pptx = new pptxgen();

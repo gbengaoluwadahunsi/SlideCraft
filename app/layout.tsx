@@ -24,7 +24,11 @@ const permanentMarker = Permanent_Marker({
   subsets: ["latin"],
 });
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = Inter({ 
+  subsets: ["latin"], 
+  variable: "--font-inter",
+  display: "swap"
+});
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
 const oswald = Oswald({ subsets: ["latin"], variable: "--font-oswald" });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mono" });

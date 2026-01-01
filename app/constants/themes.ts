@@ -1,13 +1,15 @@
 export interface Theme {
   id: string;
   name: string;
-  category: 'Professional' | 'Bold' | 'Minimalist' | 'Dark Mode';
+  category: 'Professional' | 'Bold' | 'Minimalist' | 'Dark Mode' | 'Educational Templates' | 'Premium';
   backgroundColor: string;
   textColor: string;
   accentColor: string;
   fontFamily: string;
   previewColors: string[];
   defaultCategory?: string;
+  isFullTemplate?: boolean;
+  templateSlides?: any[];
 }
 
 export const THEMES: Theme[] = [
@@ -33,16 +35,6 @@ export const THEMES: Theme[] = [
     previewColors: ['#064e3b', '#34d399']
   },
   {
-    id: 'consult-grey',
-    name: 'Consultant Grey',
-    category: 'Professional',
-    backgroundColor: '#374151',
-    textColor: '#ffffff',
-    accentColor: '#9ca3af',
-    fontFamily: 'var(--font-playfair)',
-    previewColors: ['#374151', '#9ca3af']
-  },
-  {
     id: 'tech-indigo',
     name: 'Tech Indigo',
     category: 'Professional',
@@ -61,6 +53,16 @@ export const THEMES: Theme[] = [
     accentColor: '#2563eb',
     fontFamily: 'var(--font-inter)',
     previewColors: ['#ffffff', '#2563eb']
+  },
+  {
+    id: 'startup-orange',
+    name: 'Startup Energy',
+    category: 'Professional',
+    backgroundColor: '#ea580c',
+    textColor: '#ffffff',
+    accentColor: '#fef08a',
+    fontFamily: 'var(--font-inter)',
+    previewColors: ['#ea580c', '#fef08a']
   },
 
   // --- BOLD ---
@@ -115,15 +117,14 @@ export const THEMES: Theme[] = [
     previewColors: ['#fef08a', '#be123c']
   },
   {
-    id: 'tech-under-hood',
-    name: 'Tech (Under Hood)',
+    id: 'miami-vice',
+    name: 'Miami Vice',
     category: 'Bold',
-    backgroundColor: '#0B0F19',
+    backgroundColor: '#ec4899',
     textColor: '#ffffff',
-    accentColor: '#ffd700',
-    fontFamily: 'var(--font-inter)',
-    previewColors: ['#0B0F19', '#ffd700'],
-    defaultCategory: 'UNDER THE HOOD'
+    accentColor: '#06b6d4',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#ec4899', '#06b6d4']
   },
 
   // --- MINIMALIST ---
@@ -168,14 +169,14 @@ export const THEMES: Theme[] = [
     previewColors: ['#fffbeb', '#d97706']
   },
   {
-    id: 'slate-soft',
-    name: 'Slate Soft',
+    id: 'nordic-frost',
+    name: 'Nordic Frost',
     category: 'Minimalist',
-    backgroundColor: '#f8fafc',
-    textColor: '#334155',
-    accentColor: '#64748b',
+    backgroundColor: '#f1f5f9',
+    textColor: '#1e293b',
+    accentColor: '#3b82f6',
     fontFamily: 'var(--font-inter)',
-    previewColors: ['#f8fafc', '#64748b']
+    previewColors: ['#f1f5f9', '#3b82f6']
   },
 
   // --- DARK MODE ---
@@ -201,16 +202,6 @@ export const THEMES: Theme[] = [
     previewColors: ['#0c0c0c', '#22c55e']
   },
   {
-    id: 'luxe-black',
-    name: 'Luxe Black',
-    category: 'Dark Mode',
-    backgroundColor: '#000000',
-    textColor: '#ffffff',
-    accentColor: '#eab308',
-    fontFamily: 'var(--font-playfair)',
-    previewColors: ['#000000', '#eab308']
-  },
-  {
     id: 'deep-ocean',
     name: 'Deep Ocean',
     category: 'Dark Mode',
@@ -229,5 +220,181 @@ export const THEMES: Theme[] = [
     accentColor: '#c084fc',
     fontFamily: 'var(--font-inter)',
     previewColors: ['#2e1065', '#c084fc']
+  },
+  {
+    id: 'carbon-fiber',
+    name: 'Carbon Fiber',
+    category: 'Dark Mode',
+    backgroundColor: '#18181b',
+    textColor: '#fafafa',
+    accentColor: '#f97316',
+    fontFamily: 'var(--font-inter)',
+    previewColors: ['#18181b', '#f97316']
+  },
+
+  // --- PREMIUM ---
+  {
+    id: 'rose-gold-luxury',
+    name: 'Rose Gold Luxury',
+    category: 'Premium',
+    backgroundColor: '#1a1a1a',
+    textColor: '#ffffff',
+    accentColor: '#e0a899',
+    fontFamily: 'var(--font-playfair)',
+    previewColors: ['#1a1a1a', '#e0a899']
+  },
+  {
+    id: 'champagne-elite',
+    name: 'Champagne Elite',
+    category: 'Premium',
+    backgroundColor: '#f5f2e9',
+    textColor: '#2c2416',
+    accentColor: '#c4a962',
+    fontFamily: 'var(--font-playfair)',
+    previewColors: ['#f5f2e9', '#c4a962']
+  },
+  {
+    id: 'royal-emerald',
+    name: 'Royal Emerald',
+    category: 'Premium',
+    backgroundColor: '#0f3d3e',
+    textColor: '#e8f5e9',
+    accentColor: '#4ade80',
+    fontFamily: 'var(--font-playfair)',
+    previewColors: ['#0f3d3e', '#4ade80']
+  },
+  {
+    id: 'platinum-edge',
+    name: 'Platinum Edge',
+    category: 'Premium',
+    backgroundColor: '#e5e7eb',
+    textColor: '#111827',
+    accentColor: '#6366f1',
+    fontFamily: 'var(--font-inter)',
+    previewColors: ['#e5e7eb', '#6366f1']
+  },
+  {
+    id: 'navy-executive',
+    name: 'Navy Executive',
+    category: 'Premium',
+    backgroundColor: '#1e293b',
+    textColor: '#f1f5f9',
+    accentColor: '#fbbf24',
+    fontFamily: 'var(--font-playfair)',
+    previewColors: ['#1e293b', '#fbbf24']
+  },
+
+  // --- PREMIUM DESIGN TEMPLATES ---
+  {
+    id: 'apple-keynote-minimal-template',
+    name: '🍎 Apple Keynote',
+    category: 'Educational Templates',
+    backgroundColor: '#FFFFFF',
+    textColor: '#000000',
+    accentColor: '#000000',
+    fontFamily: 'var(--font-inter)',
+    previewColors: ['#FFFFFF', '#000000'],
+    isFullTemplate: true
+  },
+  {
+    id: 'brutalist-raw-template',
+    name: '⬛ Brutalist',
+    category: 'Educational Templates',
+    backgroundColor: '#000000',
+    textColor: '#FFFFFF',
+    accentColor: '#FFFF00',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#000000', '#FFFF00'],
+    isFullTemplate: true
+  },
+  {
+    id: 'vogue-editorial-template',
+    name: '📰 Editorial',
+    category: 'Educational Templates',
+    backgroundColor: '#FFFFFF',
+    textColor: '#000000',
+    accentColor: '#DC143C',
+    fontFamily: 'var(--font-playfair)',
+    previewColors: ['#FFFFFF', '#DC143C'],
+    isFullTemplate: true
+  },
+  {
+    id: 'neon-cyberpunk-template',
+    name: '🌃 Neon Tokyo',
+    category: 'Educational Templates',
+    backgroundColor: '#0A0E27',
+    textColor: '#00FFFF',
+    accentColor: '#FF00FF',
+    fontFamily: 'var(--font-roboto-mono)',
+    previewColors: ['#0A0E27', '#FF00FF'],
+    isFullTemplate: true
+  },
+  {
+    id: 'startup-pitch-template',
+    name: '🚀 Startup Pitch',
+    category: 'Educational Templates',
+    backgroundColor: '#FFFFFF',
+    textColor: '#000000',
+    accentColor: '#FF6154',
+    fontFamily: 'var(--font-inter)',
+    previewColors: ['#FFFFFF', '#FF6154'],
+    isFullTemplate: true
+  },
+
+  // --- EDUCATIONAL TEMPLATES ---
+  {
+    id: 'bold-light-education-template',
+    name: '📊 Bold Educational (Light)',
+    category: 'Educational Templates',
+    backgroundColor: '#E8E8E8',
+    textColor: '#000000',
+    accentColor: '#FFA500',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#E8E8E8', '#FFA500'],
+    isFullTemplate: true
+  },
+  {
+    id: 'marketing-psychology-template',
+    name: '🧠 Marketing Psychology',
+    category: 'Educational Templates',
+    backgroundColor: '#FFFFFF',
+    textColor: '#000000',
+    accentColor: '#00D4FF',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#FFFFFF', '#00D4FF'],
+    isFullTemplate: true
+  },
+  {
+    id: 'productivity-hacks-template',
+    name: '⚡ Productivity Hacks',
+    category: 'Educational Templates',
+    backgroundColor: '#FFF9F5',
+    textColor: '#000000',
+    accentColor: '#FF3B30',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#FFF9F5', '#FF3B30'],
+    isFullTemplate: true
+  },
+  {
+    id: 'social-media-growth-template',
+    name: '📱 Social Media Growth',
+    category: 'Educational Templates',
+    backgroundColor: '#F0FFF4',
+    textColor: '#000000',
+    accentColor: '#34C759',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#F0FFF4', '#34C759'],
+    isFullTemplate: true
+  },
+  {
+    id: 'personal-branding-template',
+    name: '⭐ Personal Branding',
+    category: 'Educational Templates',
+    backgroundColor: '#FFF5F7',
+    textColor: '#000000',
+    accentColor: '#FF2D55',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#FFF5F7', '#FF2D55'],
+    isFullTemplate: true
   }
 ];

@@ -63,6 +63,7 @@ import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import { BOLD_TEMPLATES } from '@/lib/templates';
 
 // Types matching Slide.tsx
 interface CustomBlock {
@@ -324,12 +325,51 @@ function DashboardContent() {
   const logoUploadInputRef = useRef<HTMLInputElement>(null);
 
   // Load brand settings from API
+  // Also load from localStorage for unauthenticated users
   const loadBrandSettings = useCallback(async () => {
-    if (status !== 'authenticated') return;
-    
     try {
       setIsLoadingBrandSettings(true);
-      const response = await fetch('/api/user/brand-settings');
+      let loaded = false;
+      if (status === 'authenticated') {
+        const response = await fetch('/api/user/brand-settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.settings) {
+            setBrandSettings(data.settings);
+            // Apply to all existing slides
+            setSlides(prevSlides => prevSlides.map(slide => ({
+              ...slide,
+              handle: data.settings.handle,
+              category: data.settings.category,
+              fontFamily: data.settings.fontFamily,
+              backgroundColor: data.settings.backgroundColor,
+              textColor: data.settings.textColor,
+              accentColor: data.settings.accentColor
+            })));
+            loaded = true;
+          }
+        }
+      }
+      if (!loaded && typeof window !== 'undefined') {
+        const stored = localStorage.getItem('carouslk_brand_settings');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setBrandSettings(parsed);
+            setSlides(prevSlides => prevSlides.map(slide => ({
+              ...slide,
+              handle: parsed.handle,
+              category: parsed.category,
+              fontFamily: parsed.fontFamily,
+              backgroundColor: parsed.backgroundColor,
+              textColor: parsed.textColor,
+              accentColor: parsed.accentColor
+            })));
+          } catch (e) {
+            console.error('Failed to parse stored brand settings', e);
+          }
+        }
+      }
       if (response.ok) {
         const data = await response.json();
         if (data.settings) {
@@ -4805,54 +4845,103 @@ function DashboardContent() {
             </div>
             
             <div className="p-6 overflow-y-auto space-y-10">
-                {['Professional', 'Bold', 'Minimalist', 'Dark Mode'].map((category) => (
+                {['Professional', 'Bold', 'Minimalist', 'Dark Mode', 'Premium', 'Educational Templates'].map((category) => (
                     <div key={category}>
                         <h4 className="text-white font-bold text-xl mb-4 flex items-center gap-2">
                             <span className="w-1 h-6 bg-[#ffd700] rounded-full"></span>
                             {category}
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {THEMES.filter(t => t.category === category).map((theme) => (
+                            {THEMES.filter(t => t.category === category).map((theme) => {
+                                // Find matching template from BOLD_TEMPLATES if it's a full template
+                                const fullTemplate = theme.isFullTemplate 
+                                  ? BOLD_TEMPLATES.find(t => t.id === theme.id.replace('-template', ''))
+                                  : null;
+
+                                return (
                                 <div 
                                     key={theme.id}
-                                    onClick={() => {
-                                        // Apply theme to all slides
-                                        setSlides(slides.map(s => {
-                                            const updatedSlide = {
-                                                ...s,
+                                    onClick={async () => {
+                                        if (theme.isFullTemplate && fullTemplate) {
+                                            // Apply full template with all slides
+                                            const newSlides = fullTemplate.slides.map((slide, idx) => ({
+                                                ...slide,
+                                                id: String(Date.now() + idx),
+                                            }));
+                                            setSlides(newSlides as SlideData[]);
+                                            setActiveSlideId(newSlides[0].id);
+                                            toast.success(`Applied "${theme.name}" template!`);
+                                            addToHistory();
+                                        } else {
+                                            // Apply theme colors/fonts to existing slides
+                                            // Update slides
+                                            setSlides(slides.map(s => {
+                                                const updatedSlide = {
+                                                    ...s,
+                                                    backgroundColor: theme.backgroundColor,
+                                                    textColor: theme.textColor,
+                                                    accentColor: theme.accentColor,
+                                                    fontFamily: theme.fontFamily
+                                                };
+                                                
+                                                // Only update category if the theme specifically defines one
+                                                if (theme.defaultCategory) {
+                                                    updatedSlide.category = theme.defaultCategory;
+                                                }
+                                                
+                                                return updatedSlide;
+                                            }));
+                                            // Update brand settings state and persist for non-auth users
+                                            const newBrand = {
+                                                ...brandSettings,
                                                 backgroundColor: theme.backgroundColor,
                                                 textColor: theme.textColor,
                                                 accentColor: theme.accentColor,
                                                 fontFamily: theme.fontFamily
                                             };
-                                            
-                                            // Only update category if the theme specifically defines one
-                                            if (theme.defaultCategory) {
-                                                updatedSlide.category = theme.defaultCategory;
+                                            setBrandSettings(newBrand);
+                                            if (typeof window !== 'undefined' && status !== 'authenticated') {
+                                                localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
                                             }
-                                            
-                                            return updatedSlide;
-                                        }));
+                                            toast.success(`Applied "${theme.name}" theme!`);
+                                        }
                                         setIsTemplatesOpen(false);
                                     }}
                                     className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
                                 >
                                     <div className="aspect-[4/3] p-4 flex flex-col justify-center items-center gap-2" style={{ backgroundColor: theme.backgroundColor }}>
                                         <div className="text-center space-y-1">
-                                            <div className="text-xl font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                                Title
-                                            </div>
-                                            <div className="text-xs opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                                Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
-                                            </div>
+                                            {theme.isFullTemplate ? (
+                                                <>
+                                                    <div className="text-3xl mb-2">{theme.name.split(' ')[0]}</div>
+                                                    <div className="text-sm font-bold px-2" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                                        {fullTemplate?.slides[0]?.title || 'Template'}
+                                                    </div>
+                                                    <div className="text-xs opacity-70 px-3" style={{ color: theme.textColor }}>
+                                                        {fullTemplate?.slides.length} slides
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-xl font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                                        Title
+                                                    </div>
+                                                    <div className="text-xs opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                                        Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="p-3 bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
                                         <span className="text-sm font-medium text-gray-300">{theme.name}</span>
-                                        <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">Apply</span>
+                                        <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">
+                                            {theme.isFullTemplate ? 'Use Template' : 'Apply'}
+                                        </span>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 ))}

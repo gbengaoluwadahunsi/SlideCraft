@@ -261,6 +261,21 @@ export async function initDB() {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_admin_emails_email ON admin_emails(email);
     `);
+
+    // Short URLs table for video links in exported PDFs
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS short_urls (
+        id VARCHAR(10) PRIMARY KEY,
+        original_url TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        clicks INTEGER DEFAULT 0
+      );
+    `);
+
+    // Index for short URLs
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_short_urls_created_at ON short_urls(created_at);
+    `);
   } catch (err) {
     console.error('Failed to init database schema:', err);
     throw err;

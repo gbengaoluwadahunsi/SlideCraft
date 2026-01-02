@@ -2,7 +2,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { getPool } from '@/lib/db';
+
+// Generate a short URL for video links
+async function generateShortUrl(originalUrl: string): Promise<string> {
+  try {
+    const db = getPool();
+    
+    // Check if URL already has a short link
+    const existing = await db.query(
+      'SELECT id FROM short_urls WHERE original_url = $1',
+      [originalUrl]
+    );
+    
+    if (existing.rows.length > 0) {
+      const shortId = existing.rows[0].id;
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://carouslk.com';
+      return `${baseUrl}/v/${shortId}`;
+    }
+    
+    // Generate new short ID
+    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    let shortId = '';
+    for (let i = 0; i < 6; i++) {
+      shortId += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    // Insert with collision handling
+    let attempts = 0;
+    while (attempts < 5) {
+      try {
+        await db.query(
+          'INSERT INTO short_urls (id, original_url) VALUES ($1, $2)',
+          [shortId, originalUrl]
+        );
+        break;
+      } catch (err: any) {
+        if (err.code === '23505') {
+          shortId = '';
+          for (let i = 0; i < 6; i++) {
+            shortId += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          attempts++;
+        } else {
+          throw err;
+        }
+      }
+    }
+    
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://carouslk.com';
+    return `${baseUrl}/v/${shortId}`;
+  } catch (error) {
+    console.error('Failed to generate short URL:', error);
+    return originalUrl; // Fallback to original URL
+  }
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +87,30 @@ function resolveVideoEmbedUrl(url?: string) {
   } catch {
     return url;
   }
+}
+
+// Check if URL is a YouTube/embeddable video vs a direct video file
+function isEmbeddableVideo(url?: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.includes('youtube.com') || 
+           parsed.hostname.includes('youtu.be') ||
+           parsed.hostname.includes('vimeo.com');
+  } catch {
+    return false;
+  }
+}
+
+// Get video thumbnail URL for Cloudinary videos
+function getVideoThumbnailUrl(videoUrl?: string, posterUrl?: string): string {
+  if (posterUrl) return posterUrl;
+  if (!videoUrl) return '';
+  // Cloudinary: replace video extension with .jpg for auto-generated thumbnail
+  if (videoUrl.includes('cloudinary.com')) {
+    return videoUrl.replace(/\.[^/.]+$/, '.jpg');
+  }
+  return '';
 }
 
 async function launchBrowser() {
@@ -106,6 +185,13 @@ export async function POST(request: NextRequest) {
         options = parsedData.options;
         format = parsedData.format;
         mode = parsedData.mode || 'puppeteer';
+        
+        // Debug: Log slide data for video URL troubleshooting
+        console.log('=== EXPORT DEBUG ===');
+        slides.forEach((s: any, i: number) => {
+            console.log(`Slide ${i}: type=${s.type}, mediaType=${s.mediaType}, mediaUrl=${s.mediaUrl?.substring(0, 80) || 'none'}`);
+        });
+        console.log('===================');
 
         // Extract attached video and image files
         for (const [key, val] of formData.entries()) {
@@ -186,58 +272,127 @@ export async function POST(request: NextRequest) {
             } catch (e) {}
             pptx.layout = layoutName;
 
-            slides.forEach((slide: any, index: number) => {
+            for (let index = 0; index < slides.length; index++) {
+                const slide = slides[index];
                 const slidePage = pptx.addSlide();
                 const imageKey = slide._attachedImageKey;
 
                 // 1. Add Background Image (the captured slide)
                 if (imageAttachments[imageKey]) {
-                    const b64 = imageAttachments[imageKey].toString('base64');
-                    // Detect MIME type based on buffer signature or default to JPEG
-                    // JPEG signature: FF D8 FF
-                    // PNG signature: 89 50 4E 47
-                    const isPng = imageAttachments[imageKey][0] === 0x89;
-                    const mime = isPng ? 'image/png' : 'image/jpeg';
-                    
-                    slidePage.addImage({
-                        data: `data:${mime};base64,${b64}`,
-                        x: 0, y: 0, w: 11.25, h: 11.25
-                    });
+                    try {
+                        const b64 = imageAttachments[imageKey].toString('base64');
+                        // Detect MIME type based on buffer signature or default to JPEG
+                        // JPEG signature: FF D8 FF
+                        // PNG signature: 89 50 4E 47
+                        const isPng = imageAttachments[imageKey][0] === 0x89;
+                        const mime = isPng ? 'image/png' : 'image/jpeg';
+                        
+                        slidePage.addImage({
+                            data: `data:${mime};base64,${b64}`,
+                            x: 0, y: 0, w: 11.25, h: 11.25
+                        });
+                    } catch (imgError) {
+                        console.error(`Failed to add image for slide ${index} in PPT:`, imgError);
+                        // Continue without the image - slide will be blank but won't break export
+                    }
+                } else {
+                    console.warn(`No image attachment found for slide ${index}`);
                 }
 
                 // 2. Overlay Video if exists
-                if ((slide as any)._hasAttachedVideo) {
-                     const videoKey = `video_${index}`;
-                     if (videoAttachments[videoKey]) {
-                         const videoB64 = videoAttachments[videoKey].toString('base64');
+                console.log(`PPT Slide ${index}: _hasAttachedVideo=${(slide as any)._hasAttachedVideo}, mediaType=${slide.mediaType}, mediaUrl=${slide.mediaUrl?.substring(0, 50)}`);
+                try {
+                    if ((slide as any)._hasAttachedVideo) {
+                         const videoKey = `video_${index}`;
+                         if (videoAttachments[videoKey]) {
+                             const videoB64 = videoAttachments[videoKey].toString('base64');
+                             const ratio = slide.mediaAspectRatio || (16/9);
+                             const vW = 10; 
+                             const vH = vW / ratio;
+                             const vX = (11.25 - vW) / 2;
+                             const vY = (11.25 - vH) / 2;
+
+                             slidePage.addMedia({ 
+                                 type: 'video',
+                                 data: `data:video/mp4;base64,${videoB64}`,
+                                 x: vX, y: vY, w: vW, h: vH,
+                             });
+                             
+                             // Add clickable URL text below the video (if permanent URL exists)
+                             if (slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
+                                 console.log(`PPT: Generating short URL for attached video slide ${index}`);
+                                 const shortUrl = await generateShortUrl(slide.mediaUrl);
+                                 console.log(`PPT: Generated short URL: ${shortUrl}`);
+                                 const urlY = vY + vH + 0.2;
+                                 slidePage.addText([{
+                                     text: 'Watch Video: ',
+                                     options: { fontSize: 11, bold: true }
+                                 }, {
+                                     text: shortUrl,
+                                     options: {
+                                         fontSize: 11,
+                                         color: '60A5FA',
+                                         underline: { style: 'sng' },
+                                         hyperlink: { url: shortUrl }
+                                     }
+                                 }], {
+                                     x: vX,
+                                     y: urlY,
+                                     w: vW,
+                                     h: 0.4,
+                                     align: 'center',
+                                     valign: 'top'
+                                 });
+                             }
+                         }
+                    } 
+                    // Handle YouTube/Online video overlay (Cloudinary URLs go here)
+                    else if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
+                        console.log(`PPT: Online video detected for slide ${index}, URL: ${slide.mediaUrl.substring(0, 60)}`);
                          const ratio = slide.mediaAspectRatio || (16/9);
                          const vW = 10; 
                          const vH = vW / ratio;
                          const vX = (11.25 - vW) / 2;
                          const vY = (11.25 - vH) / 2;
-
-                         slidePage.addMedia({ 
-                             type: 'video',
-                             data: `data:video/mp4;base64,${videoB64}`,
-                             x: vX, y: vY, w: vW, h: vH,
+                         
+                         slidePage.addMedia({
+                             type: 'online',
+                             link: slide.mediaUrl,
+                             x: vX, y: vY, w: vW, h: vH
                          });
-                     }
-                } 
-                // Handle YouTube/Online video overlay
-                else if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
-                     const ratio = slide.mediaAspectRatio || (16/9);
-                     const vW = 10; 
-                     const vH = vW / ratio;
-                     const vX = (11.25 - vW) / 2;
-                     const vY = (11.25 - vH) / 2;
-                     
-                     slidePage.addMedia({
-                         type: 'online',
-                         link: slide.mediaUrl,
-                         x: vX, y: vY, w: vW, h: vH
-                     });
+                         
+                         // Generate short URL for cleaner display
+                         console.log(`PPT: Generating short URL for online video...`);
+                         const shortUrl = await generateShortUrl(slide.mediaUrl);
+                         console.log(`PPT: Generated short URL: ${shortUrl}`);
+                         
+                         // Add clickable URL text below the video
+                         const urlY = vY + vH + 0.2;
+                         slidePage.addText([{
+                             text: 'Watch Video: ',
+                             options: { fontSize: 11, bold: true }
+                         }, {
+                             text: shortUrl,
+                             options: {
+                                 fontSize: 11,
+                                 color: '60A5FA',
+                                 underline: { style: 'sng' },
+                                 hyperlink: { url: shortUrl }
+                             }
+                         }], {
+                             x: vX,
+                             y: urlY,
+                             w: vW,
+                             h: 0.4,
+                             align: 'center',
+                             valign: 'top'
+                         });
+                    }
+                } catch (videoError) {
+                    console.error(`Failed to add video for slide ${index} in PPT:`, videoError);
+                    // Continue without video - the slide background image will still be there
                 }
-            });
+            }
             buffer = await pptx.write('nodebuffer') as Buffer;
         } else {
             // PDF Mode for Client Images - Use pdf-lib for MUCH faster generation
@@ -249,49 +404,84 @@ export async function POST(request: NextRequest) {
             const pageWidth = 1080;
             const pageHeight = 1080;
             
+            // Embed font for URL text
+            const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            
             for (let index = 0; index < slides.length; index++) {
                 const slide = slides[index];
                 const imageKey = slide._attachedImageKey;
                 const imageBuffer = imageAttachments[imageKey];
                 
-                if (!imageBuffer) continue;
-                
-                // Create a new page
-                const page = pdfDoc.addPage([pageWidth, pageHeight]);
-                
-                // Detect image type and embed accordingly
-                const isPng = imageBuffer[0] === 0x89;
-                
-                let image;
-                if (isPng) {
-                    image = await pdfDoc.embedPng(imageBuffer);
-                } else {
-                    image = await pdfDoc.embedJpg(imageBuffer);
+                if (!imageBuffer) {
+                    console.warn(`Missing image buffer for slide ${index}, skipping...`);
+                    continue;
                 }
                 
-                // Draw the image to fill the entire page
-                page.drawImage(image, {
-                    x: 0,
-                    y: 0,
-                    width: pageWidth,
-                    height: pageHeight,
-                });
+                let page;
+                try {
+                    // Create a new page
+                    page = pdfDoc.addPage([pageWidth, pageHeight]);
+                    
+                    // Detect image type and embed accordingly
+                    const isPng = imageBuffer[0] === 0x89;
+                    
+                    let image;
+                    if (isPng) {
+                        image = await pdfDoc.embedPng(imageBuffer);
+                    } else {
+                        image = await pdfDoc.embedJpg(imageBuffer);
+                    }
+                    
+                    // Draw the image to fill the entire page
+                    page.drawImage(image, {
+                        x: 0,
+                        y: 0,
+                        width: pageWidth,
+                        height: pageHeight,
+                    });
+                } catch (imageError) {
+                    console.error(`Failed to embed image for slide ${index}:`, imageError);
+                    // Add a blank page as placeholder
+                    page = pdfDoc.addPage([pageWidth, pageHeight]);
+                }
                 
-                // Add clickable video link if exists (as annotation)
-                if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:')) {
-                    page.node.set(pdfDoc.context.obj({
-                        Type: 'Page',
-                        Annots: [pdfDoc.context.obj({
-                            Type: 'Annot',
-                            Subtype: 'Link',
-                            Rect: [0, 0, pageWidth, pageHeight],
-                            A: {
-                                Type: 'Action',
-                                S: 'URI',
-                                URI: slide.mediaUrl,
-                            },
-                        })],
-                    }));
+                // Add visible video URL link at bottom of slide
+                console.log(`Slide ${index} - mediaType: ${slide.mediaType}, mediaUrl: ${slide.mediaUrl?.substring(0, 50)}...`);
+                if (slide.mediaType === 'video' && slide.mediaUrl && !slide.mediaUrl.startsWith('blob:') && page) {
+                    console.log(`Adding video URL to PDF for slide ${index}: ${slide.mediaUrl}`);
+                    try {
+                        // Generate short URL for cleaner display
+                        const shortUrl = await generateShortUrl(slide.mediaUrl);
+                        console.log(`Generated short URL: ${shortUrl}`);
+                        
+                        const fontSize = 16;
+                        const padding = 20;
+                        const linkHeight = 55;
+                        
+                        // Draw a dark background bar at the bottom for the URL
+                        page.drawRectangle({
+                            x: 0,
+                            y: 0,
+                            width: pageWidth,
+                            height: linkHeight,
+                            color: rgb(0.08, 0.08, 0.12),
+                        });
+                        
+                        // Draw play icon hint and URL text
+                        const urlText = `Watch Video: ${shortUrl}`;
+                        
+                        page.drawText(urlText, {
+                            x: padding,
+                            y: linkHeight / 2 - fontSize / 2 + 2,
+                            size: fontSize,
+                            font: font,
+                            color: rgb(0.376, 0.647, 0.98), // #60A5FA blue
+                        });
+                        
+                        console.log(`Successfully added short video URL to slide ${index}: ${shortUrl}`);
+                    } catch (urlError) {
+                        console.error(`Failed to add video URL to slide ${index}:`, urlError);
+                    }
                 }
             }
             
@@ -446,31 +636,66 @@ export async function POST(request: NextRequest) {
            `;
         }
         if (slide.mediaType === 'video' && slide.mediaUrl) {
-          const embedUrl = resolveVideoEmbedUrl(slide.mediaUrl);
           const videoLink = slide.mediaUrl; // Original URL for linking
+          const isEmbeddable = isEmbeddableVideo(slide.mediaUrl);
           
-          if (!embedUrl) return '';
-          
-          // PDF Export: Wrap in anchor tag to make it clickable
-          // Note: This relies on the PDF renderer preserving links. Puppeteer generally does.
-          return `
-            <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
-              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem; position: relative;">
-                <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
-                    <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
-                        <!-- Thumbnail/iframe overlay for visual -->
-                        <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none;" tabindex="-1"></iframe>
-                        <!-- Play button overlay to indicate clickability -->
-                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); z-index: 10;">
-                            <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                                <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
-                            </div>
-                        </div>
-                    </div>
-                </a>
+          if (isEmbeddable) {
+            // YouTube/Vimeo: Use iframe embed with URL displayed below
+            const embedUrl = resolveVideoEmbedUrl(slide.mediaUrl);
+            if (!embedUrl) return '';
+            
+            return `
+              <div style="margin-top: 2rem; width: 100%; display: flex; flex-direction: column; align-items: ${mediaJustify === 'flex-start' ? 'flex-start' : mediaJustify === 'flex-end' ? 'flex-end' : 'center'};">
+                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); position: relative;">
+                  <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
+                      <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
+                          <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none;" tabindex="-1"></iframe>
+                          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); z-index: 10;">
+                              <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                                  <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
+                              </div>
+                          </div>
+                      </div>
+                  </a>
+                  <!-- Video URL link displayed below -->
+                  <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);">
+                      <a href="${videoLink}" target="_blank" style="color: #60a5fa; font-size: 0.9rem; word-break: break-all; text-decoration: underline; display: flex; align-items: center; gap: 0.5rem;">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          <span>${videoLink}</span>
+                      </a>
+                  </div>
+                </div>
               </div>
-            </div>
-          `;
+            `;
+          } else {
+            // Direct video file (Cloudinary, etc.): Show thumbnail with clickable URL
+            const thumbnailUrl = getVideoThumbnailUrl(slide.mediaUrl, slide.mediaPosterUrl);
+            
+            return `
+              <div style="margin-top: 2rem; width: 100%; display: flex; flex-direction: column; align-items: ${mediaJustify === 'flex-start' ? 'flex-start' : mediaJustify === 'flex-end' ? 'flex-end' : 'center'};">
+                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); position: relative;">
+                  <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
+                      <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0; background: #1a1a2e;">
+                          ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;" />` : ''}
+                          <!-- Play button overlay -->
+                          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); z-index: 10;">
+                              <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                                  <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
+                              </div>
+                          </div>
+                      </div>
+                  </a>
+                  <!-- Video URL link displayed below thumbnail -->
+                  <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);">
+                      <a href="${videoLink}" target="_blank" style="color: #60a5fa; font-size: 0.9rem; word-break: break-all; text-decoration: underline; display: flex; align-items: center; gap: 0.5rem;">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          <span>${videoLink}</span>
+                      </a>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
         }
         if (slide.mediaType === 'embed' && slide.embedHtml) {
           return `
@@ -724,38 +949,89 @@ export async function POST(request: NextRequest) {
         // Check if the slide data at this index had a video attachment marker
         const slideData = slides[index];
         if (slideData) {
-             // Handle uploaded video attachment
-             if ((slideData as any)._hasAttachedVideo) {
-                 const videoKey = `video_${index}`;
-                 if (videoAttachments[videoKey]) {
-                     const videoB64 = videoAttachments[videoKey].toString('base64');
-                     const ratio = slideData.mediaAspectRatio || (16/9);
-                     const vW = 10; 
-                     const vH = vW / ratio;
-                     const vX = (11.25 - vW) / 2;
-                     const vY = (11.25 - vH) / 2;
+             try {
+                 // Handle uploaded video attachment
+                 if ((slideData as any)._hasAttachedVideo) {
+                     const videoKey = `video_${index}`;
+                     if (videoAttachments[videoKey]) {
+                         const videoB64 = videoAttachments[videoKey].toString('base64');
+                         const ratio = slideData.mediaAspectRatio || (16/9);
+                         const vW = 10; 
+                         const vH = vW / ratio;
+                         const vX = (11.25 - vW) / 2;
+                         const vY = (11.25 - vH) / 2;
 
-                     slide.addMedia({ 
-                         type: 'video',
-                         data: `data:video/mp4;base64,${videoB64}`,
-                         x: vX, y: vY, w: vW, h: vH,
-                     });
-                 }
-             } 
-             // Handle YouTube/Online video
-             else if (slideData.mediaType === 'video' && slideData.mediaUrl) {
-                 const ratio = slideData.mediaAspectRatio || (16/9);
-                 const vW = 10; 
-                 const vH = vW / ratio;
-                 const vX = (11.25 - vW) / 2;
-                 const vY = (11.25 - vH) / 2;
-                 
-                 // pptxgenjs supports 'online' type for YouTube
-                 slide.addMedia({
-                     type: 'online',
-                     link: slideData.mediaUrl,
-                     x: vX, y: vY, w: vW, h: vH
-                 });
+                        slide.addMedia({ 
+                            type: 'video',
+                            data: `data:video/mp4;base64,${videoB64}`,
+                            x: vX, y: vY, w: vW, h: vH,
+                        });
+                        
+                        // Add clickable URL text below the video (if URL exists)
+                        if (slideData.mediaUrl && !slideData.mediaUrl.startsWith('blob:')) {
+                            const urlY = vY + vH + 0.2;
+                            slide.addText([{
+                                text: '🔗 ',
+                                options: { fontSize: 10 }
+                            }, {
+                                text: slideData.mediaUrl,
+                                options: {
+                                    fontSize: 10,
+                                    color: '60A5FA',
+                                    underline: { style: 'sng' },
+                                    hyperlink: { url: slideData.mediaUrl }
+                                }
+                            }], {
+                                x: vX,
+                                y: urlY,
+                                w: vW,
+                                h: 0.4,
+                                align: 'center',
+                                valign: 'top'
+                            });
+                        }
+                    }
+                } 
+                // Handle YouTube/Online video
+                else if (slideData.mediaType === 'video' && slideData.mediaUrl) {
+                    const ratio = slideData.mediaAspectRatio || (16/9);
+                    const vW = 10; 
+                    const vH = vW / ratio;
+                    const vX = (11.25 - vW) / 2;
+                    const vY = (11.25 - vH) / 2;
+                    
+                    // pptxgenjs supports 'online' type for YouTube
+                    slide.addMedia({
+                        type: 'online',
+                        link: slideData.mediaUrl,
+                        x: vX, y: vY, w: vW, h: vH
+                    });
+                    
+                    // Add clickable URL text below the video
+                    const urlY = vY + vH + 0.2;
+                    slide.addText([{
+                        text: '🔗 ',
+                        options: { fontSize: 10 }
+                    }, {
+                        text: slideData.mediaUrl,
+                        options: {
+                            fontSize: 10,
+                            color: '60A5FA',
+                            underline: { style: 'sng' },
+                            hyperlink: { url: slideData.mediaUrl }
+                        }
+                    }], {
+                        x: vX,
+                        y: urlY,
+                        w: vW,
+                        h: 0.4,
+                        align: 'center',
+                        valign: 'top'
+                    });
+                }
+             } catch (videoError) {
+                 console.error(`Failed to add video for slide ${index} in Puppeteer PPT mode:`, videoError);
+                 // Continue without video
              }
         }
       });

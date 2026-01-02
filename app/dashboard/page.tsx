@@ -243,6 +243,7 @@ function DashboardContent() {
   const sidebarSlideRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isScrollSyncingRef = useRef(false);
   const activeSlideIdRef = useRef(activeSlideId);
+  const slidesRef = useRef<SlideData[]>([]); // Ref to always have latest slides for export
   const [slideDownloadData, setSlideDownloadData] = useState<SlideData | null>(null);
   const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
   const [copyingSlideId, setCopyingSlideId] = useState<string | null>(null);
@@ -731,6 +732,11 @@ function DashboardContent() {
   useEffect(() => {
     activeSlideIdRef.current = activeSlideId;
   }, [activeSlideId]);
+
+  // Keep slidesRef updated for export to always have fresh data
+  useEffect(() => {
+    slidesRef.current = slides;
+  }, [slides]);
 
   useEffect(() => {
     if (!activeSlideId) return;
@@ -2473,8 +2479,20 @@ function DashboardContent() {
   };
 
   const handleExport = async (format: 'pdf' | 'ppt') => {
+    // Use ref for fresh slides data (avoids stale closure issue)
+    const currentSlides = slidesRef.current;
+    
+    // Check for pending video uploads (blob URLs mean upload not complete)
+    const pendingVideos = currentSlides.filter(s => s.mediaType === 'video' && s.mediaUrl?.startsWith('blob:'));
+    if (pendingVideos.length > 0) {
+      toast.warning(`${pendingVideos.length} video(s) still uploading. Wait for upload to complete for video URLs to appear in export.`);
+    }
+    
+    // Debug: Log what we're sending
+    console.log('Export - Current slides mediaUrls:', currentSlides.map(s => ({ type: s.type, mediaType: s.mediaType, mediaUrl: s.mediaUrl?.substring(0, 50) })));
+    
     setIsExporting(format);
-    setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
+    setExportProgress({ current: 0, total: currentSlides.length, status: 'Preparing slides...' });
     
     try {
       // Step 1: Client-side Capture - optimized for speed
@@ -2482,10 +2500,10 @@ function DashboardContent() {
       await new Promise(r => setTimeout(r, 100));
 
       const capturedSlides = [];
-      const totalSlides = slides.length;
+      const totalSlides = currentSlides.length;
       
       for (let index = 0; index < totalSlides; index++) {
-          const slide = slides[index];
+          const slide = currentSlides[index];
           
           // Update progress
           setExportProgress({ 
@@ -2497,32 +2515,54 @@ function DashboardContent() {
           // Set slide data for rendering
           setSlideDownloadData({ ...slide, _isDownloading: true } as any);
           
-          // Reduced delay: only need time for React to update the DOM
-          // First slide needs slightly more time for fonts/images to load
-          await new Promise(r => setTimeout(r, index === 0 ? 200 : 50));
+          // Increased delay for media-heavy slides to ensure proper loading
+          const hasMedia = slide.mediaType === 'image' || slide.mediaType === 'video' || slide.mediaType === 'embed';
+          const delay = index === 0 ? 500 : (hasMedia ? 300 : 100);
+          await new Promise(r => setTimeout(r, delay));
           
           if (slideDownloadRef.current) {
-              try {
-                 // Use JPEG with quality 0.85 for faster export and smaller payload
-                 const dataUrl = await toJpeg(slideDownloadRef.current, {
-                    cacheBust: true,
-                    width: 1080,
-                    height: 1080,
-                    pixelRatio: 1.5,
-                    skipAutoScale: true,
-                    quality: 0.85
-                 });
-                 capturedSlides.push({ id: slide.id, dataUrl, index });
-              } catch (err) {
-                  console.warn(`Failed to capture slide ${index}`, err);
-                  // Single retry with shorter delay
+              let captured = false;
+              let attempts = 0;
+              const maxAttempts = 3;
+              
+              while (!captured && attempts < maxAttempts) {
+                  attempts++;
                   try {
-                      await new Promise(r => setTimeout(r, 150));
-                      const retryDataUrl = await toJpeg(slideDownloadRef.current, { width: 1080, height: 1080, quality: 0.85, cacheBust: true });
-                      capturedSlides.push({ id: slide.id, dataUrl: retryDataUrl, index });
-                  } catch (retryErr) {
-                      // skip if fails twice
+                     // Use JPEG with quality 0.85 for faster export and smaller payload
+                     // Add timeout wrapper to prevent hanging
+                     const capturePromise = toJpeg(slideDownloadRef.current, {
+                        cacheBust: true,
+                        width: 1080,
+                        height: 1080,
+                        pixelRatio: 1.5,
+                        skipAutoScale: true,
+                        quality: 0.85,
+                        backgroundColor: slide.backgroundColor || '#0B0F19',
+                        // Skip fonts to avoid CORS issues
+                        skipFonts: false,
+                        // Add pixel ratio for better quality
+                        pixelRatio: attempts > 1 ? 1 : 1.5,
+                     });
+                     
+                     // Add 10 second timeout per slide
+                     const timeoutPromise = new Promise<string>((_, reject) => 
+                         setTimeout(() => reject(new Error('Capture timeout')), 10000)
+                     );
+                     
+                     const dataUrl = await Promise.race([capturePromise, timeoutPromise]);
+                     capturedSlides.push({ id: slide.id, dataUrl, index });
+                     captured = true;
+                  } catch (err) {
+                      console.warn(`Failed to capture slide ${index} (attempt ${attempts}/${maxAttempts})`, err);
+                      if (attempts < maxAttempts) {
+                          // Wait longer between retries
+                          await new Promise(r => setTimeout(r, 300 * attempts));
+                      }
                   }
+              }
+              
+              if (!captured) {
+                  toast.error(`Failed to capture slide ${index + 1}. Export may be incomplete.`);
               }
           }
       }
@@ -2530,6 +2570,20 @@ function DashboardContent() {
       setExportProgress({ current: totalSlides, total: totalSlides, status: 'Processing images...' });
       
       const validCaptures = capturedSlides;
+      
+      // Check if we have any valid captures
+      if (validCaptures.length === 0) {
+          toast.error('Failed to capture any slides. Please try again or contact support.');
+          setIsExporting(null);
+          setSlideDownloadData(null);
+          setExportProgress({ current: 0, total: 0, status: '' });
+          return;
+      }
+      
+      // Warn if some slides failed
+      if (validCaptures.length < totalSlides) {
+          toast.warning(`Only ${validCaptures.length} of ${totalSlides} slides captured. Export will continue with available slides.`);
+      }
 
       // Prepare FormData
       const formData = new FormData();
@@ -2551,7 +2605,7 @@ function DashboardContent() {
       // Attach videos if PPT export
       if (format === 'ppt') {
           setExportProgress({ current: totalSlides, total: totalSlides, status: 'Attaching videos...' });
-          await Promise.all(slides.map(async (slide, index) => {
+          await Promise.all(currentSlides.map(async (slide, index) => {
               if (slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
                   try {
                       const blobRes = await fetch(slide.mediaUrl);
@@ -2564,18 +2618,22 @@ function DashboardContent() {
           }));
       }
 
-      // Construct simplified payload
-      const payloadSlides = slides.map((slide, index) => ({
+      // Construct simplified payload - use currentSlides for fresh data
+      const payloadSlides = currentSlides.map((slide, index) => ({
           ...slide,
           _useAttachedImage: true,
           _attachedImageKey: `slide_image_${index}`,
           _hasAttachedVideo: slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:'),
           _videoAttachmentIndex: index,
           backgroundImage: undefined,
-          mediaUrl: slide.mediaType === 'video' ? slide.mediaUrl : undefined
+          // Preserve mediaUrl for videos (will be Cloudinary URL after upload completes)
+          mediaUrl: slide.mediaType === 'video' ? slide.mediaUrl : undefined,
+          // Preserve mediaType and mediaPosterUrl for PDF link generation
+          mediaType: slide.mediaType,
+          mediaPosterUrl: slide.mediaPosterUrl
       }));
 
-      // Strip blob URLs from payload
+      // Strip blob URLs from payload (Cloudinary URLs are preserved)
       const safePayload = payloadSlides.map(s => {
           if (s.mediaUrl?.startsWith('blob:')) return { ...s, mediaUrl: '' };
           return s;
@@ -2584,7 +2642,7 @@ function DashboardContent() {
       formData.append('data', JSON.stringify({
           slides: safePayload,
           format,
-          options: { title: slides[0]?.title },
+          options: { title: currentSlides[0]?.title },
           mode: 'client-side-images'
       }));
 
@@ -2620,6 +2678,8 @@ function DashboardContent() {
 
     } catch (error) {
       console.error('Export failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Export failed: ${errorMessage}. Try removing media or using simpler slides.`);
     } finally {
       setIsExporting(null);
       setSlideDownloadData(null);

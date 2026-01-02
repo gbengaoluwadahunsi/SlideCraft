@@ -446,15 +446,8 @@ export const Slide: React.FC<SlideProps> = ({
                                 {mediaType === 'video' ? <div className="w-20 h-20 rounded-full bg-red-600 flex items-center justify-center text-white"><div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-white border-b-[12px] border-b-transparent ml-1"></div></div> : <code className="text-xl">Embed Content</code>}
                                 <span className="font-medium text-lg uppercase tracking-widest">{mediaType === 'video' ? 'Video' : 'Interactive Embed'}</span>
                             </div>
-                            {/* Try to show actual thumbnail if possible (e.g. YouTube) */}
-                            {mediaType === 'video' && mediaUrl && (mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be')) && (
-                                <img 
-                                    src={`https://img.youtube.com/vi/${getYouTubeId(mediaUrl)}/maxresdefault.jpg`} 
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                    alt="Video Thumbnail"
-                                    crossOrigin="anonymous" // Essential for capture
-                                />
-                            )}
+                            {/* YouTube thumbnail removed during download to avoid CORS issues */}
+                            {/* The play button overlay provides sufficient visual indication */}
                             {/* Play button overlay on top of thumbnail */}
                             {mediaType === 'video' && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">

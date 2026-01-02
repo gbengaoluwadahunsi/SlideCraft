@@ -10,6 +10,8 @@ cloudinary.config({
 });
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120; // 2 minutes for large video uploads
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,6 +59,13 @@ export async function POST(request: NextRequest) {
               folder: 'carousel-generator',
               // Chunk size helps with larger videos
               chunk_size: 6_000_000, // ~6MB
+              // Timeout for upload (2 minutes for large files)
+              timeout: 120000,
+              // Use eager transformation for videos to generate thumbnails
+              ...(resourceType === 'video' && {
+                eager: [{ format: 'jpg', transformation: [{ quality: 'auto' }] }],
+                eager_async: true,
+              }),
             };
 
             const callback = (error: any, result: any) => {
@@ -69,12 +78,17 @@ export async function POST(request: NextRequest) {
                 }
             };
 
-            const uploadStream =
-              resource_type_is_video(options.resource_type)
-                ? cloudinary.uploader.upload_large_stream(options, callback)
-                : cloudinary.uploader.upload_stream(options, callback);
+            // IMPORTANT: Use upload_stream for all files
+            // - upload_large_stream is not compatible with Turbopack bundling
+            // - upload_stream handles large files automatically with chunking
+            // - Works for both images and videos up to 100MB
+            const uploadStream = cloudinary.uploader.upload_stream(options, callback);
 
-            uploadStream.on('error', reject);
+            uploadStream.on('error', (err) => {
+                console.error('Upload stream error:', err);
+                reject(err);
+            });
+            
             uploadStream.end(buffer);
         });
 
@@ -91,16 +105,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Please send file as multipart/form-data' }, { status: 400 });
 
   } catch (error) {
-    console.error('Upload failed:', error);
+    console.error('Upload API error:', error);
+    
     // Cloudinary errors often come as plain objects, not Error instances
     const message =
       (error as any)?.message ||
       (error as any)?.error?.message ||
       (error instanceof Error ? error.message : 'Unknown error');
-    return NextResponse.json({ error: `Upload failed: ${message}` }, { status: 500 });
+    
+    // Log full error for debugging
+    if (error && typeof error === 'object') {
+      console.error('Full error details:', JSON.stringify(error, null, 2));
+    }
+    
+    return NextResponse.json({ 
+      error: `Upload failed: ${message}`,
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    }, { status: 500 });
   }
-}
-
-function resource_type_is_video(rt: string | undefined) {
-  return rt === 'video';
 }

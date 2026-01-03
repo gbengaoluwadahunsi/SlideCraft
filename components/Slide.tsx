@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { EditableText } from './EditableText';
 import { motion } from 'framer-motion';
 import {
@@ -349,16 +349,16 @@ export const Slide: React.FC<SlideProps> = ({
 
   const currentOrder = getOrder();
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     // Cancel drag if it originated from a contenteditable element
     const activeElement = document.activeElement as HTMLElement;
     if (activeElement?.closest('[contenteditable="true"]') || activeElement?.isContentEditable) {
       return;
     }
     setActiveDragId(event.active.id as string);
-  };
+  }, []);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragId(null);
     if (active.id !== over?.id && over) {
@@ -367,25 +367,25 @@ export const Slide: React.FC<SlideProps> = ({
         const newOrder = arrayMove(currentOrder, oldIndex, newIndex);
         onUpdate?.('elementOrder', newOrder);
     }
-  };
+  }, [currentOrder, onUpdate]);
 
-  const handleDragCancel = () => {
+  const handleDragCancel = useCallback(() => {
     setActiveDragId(null);
-  };
+  }, []);
 
-  const handleCustomBlockChange = (blockId: string, updates: Partial<CustomBlock>) => {
+  const handleCustomBlockChange = useCallback((blockId: string, updates: Partial<CustomBlock>) => {
     if (!onUpdate) return;
     const updatedBlocks = customBlocks.map((block) =>
       block.id === blockId ? { ...block, ...updates } : block
     );
     onUpdate('customBlocks', updatedBlocks);
-  };
+  }, [customBlocks, onUpdate]);
 
-  const handleRemoveCustomBlock = (blockId: string) => {
+  const handleRemoveCustomBlock = useCallback((blockId: string) => {
     if (!onUpdate) return;
     const updatedBlocks = customBlocks.filter((block) => block.id !== blockId);
     onUpdate('customBlocks', updatedBlocks);
-  };
+  }, [customBlocks, onUpdate]);
 
   // Check if we are in download mode (via props or hidden flag)
   const isDownloading = (props as any)._isDownloading;

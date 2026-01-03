@@ -96,3 +96,42 @@ body {
 .animate-float-delayed {
   animation: float-delayed 7s ease-in-out infinite;
 }
+
+/* Hide Vercel toolbar in production */
+[data-vercel-toolbar],
+[data-vercel-toolbar] *,
+#vercel-toolbar,
+#__vercel-toolbar__,
+.vercel-toolbar,
+vercel-toolbar,
+[class*="vercel-toolbar"],
+[id*="vercel-toolbar"],
+[data-testid="vercel-toolbar"],
+[data-vercel],
+[data-vercel] *,
+#__next-build-indicator,
+[class*="__vercel"],
+[id*="__vercel"],
+vercel-live-feedback,
+[data-nextjs-toast],
+#__next-build-watcher,
+[class*="vercel-feedback"],
+[id*="vercel-feedback"],
+/* Target fixed positioned elements from Vercel at screen edges */
+body > div[style*="position: fixed"][style*="right: 0"],
+body > div[style*="position: fixed"][style*="bottom: 0"]:not([class]),
+body > aside[style*="position: fixed"],
+/* Shadow host elements */
+:host([data-vercel]),
+:host([data-vercel-toolbar]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  left: -9999px !important;
+  z-index: -9999 !important;
+}

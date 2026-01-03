@@ -112,6 +112,40 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${permanentMarker.variable} ${inter.variable} ${playfair.variable} ${oswald.variable} ${robotoMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        {/* Remove Vercel toolbar in production */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                function removeVercelToolbar() {
+                  var selectors = [
+                    '[data-vercel-toolbar]',
+                    '[data-vercel]',
+                    '#vercel-toolbar',
+                    '#__vercel-toolbar__',
+                    'vercel-toolbar',
+                    'vercel-live-feedback',
+                    '[class*="vercel-toolbar"]',
+                    '[id*="vercel-toolbar"]'
+                  ];
+                  selectors.forEach(function(sel) {
+                    try {
+                      document.querySelectorAll(sel).forEach(function(el) {
+                        el.remove();
+                      });
+                    } catch(e) {}
+                  });
+                }
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', removeVercelToolbar);
+                } else {
+                  removeVercelToolbar();
+                }
+                setInterval(removeVercelToolbar, 1000);
+              })();
+            `
+          }}
+        />
         {/* Organization Schema */}
         <script
           type="application/ld+json"

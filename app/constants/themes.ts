@@ -192,6 +192,17 @@ export const THEMES: Theme[] = [
     defaultCategory: 'UNDER THE HOOD',
   },
   {
+    id: 'under-the-hood-capsule',
+    name: 'Under The Hood Capsule',
+    category: 'Dark Mode',
+    backgroundColor: '#1a1a2e',
+    textColor: '#eaeaea',
+    accentColor: '#e94560',
+    fontFamily: 'var(--font-oswald)',
+    previewColors: ['#1a1a2e', '#e94560'],
+    defaultCategory: 'UNDER THE HOOD',
+  },
+  {
     id: 'hacker-terminal',
     name: 'Hacker Terminal',
     category: 'Dark Mode',

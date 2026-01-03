@@ -627,8 +627,87 @@ export const Slide: React.FC<SlideProps> = ({
 
   const COLORS = [activeAccentColor, '#ff9f40', '#ff6384', '#4bc0c0', '#9966ff'];
 
+  // Static HTML/CSS chart rendering for download mode (html-to-image has issues with Recharts SVG)
+  const renderStaticChart = () => {
+    if (!chartData || chartData.length === 0) return null;
+    const maxVal = Math.max(...chartData.map(d => d.value));
+
+    if (chartType === 'bar') {
+      return (
+        <div className="w-full h-[400px] mt-6 bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: '100%', width: '100%', paddingBottom: '2rem', boxSizing: 'border-box' }}>
+            {chartData.map((d, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', height: '100%', justifyContent: 'flex-end', width: `${100 / chartData.length}%` }}>
+                <div style={{ fontSize: `${1.25 * fontScale}rem`, fontWeight: 'bold', color: activeTextColor }}>{d.value}</div>
+                <div style={{ width: '60%', backgroundColor: activeAccentColor, borderRadius: '8px 8px 0 0', height: `${(d.value / maxVal) * 80}%`, minHeight: '10px' }}></div>
+                <div style={{ fontSize: `${1.25 * fontScale}rem`, color: activeTextColor, textAlign: 'center' }}>{d.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (chartType === 'line') {
+      const width = 700;
+      const height = 280;
+      const points = chartData.map((d, i) => {
+        const x = (i / Math.max(chartData.length - 1, 1)) * width;
+        const y = height - ((d.value / maxVal) * height);
+        return `${x},${y}`;
+      }).join(' ');
+
+      return (
+        <div className="w-full h-[400px] mt-6 bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+            <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height + 60}`} style={{ overflow: 'visible' }}>
+              <line x1="0" y1="0" x2={width} y2="0" stroke="rgba(255,255,255,0.2)" strokeDasharray="5,5" />
+              <line x1="0" y1={height/2} x2={width} y2={height/2} stroke="rgba(255,255,255,0.2)" strokeDasharray="5,5" />
+              <line x1="0" y1={height} x2={width} y2={height} stroke="rgba(255,255,255,0.3)" />
+              <polyline points={points} fill="none" stroke={activeAccentColor} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              {chartData.map((d, i) => {
+                const x = (i / Math.max(chartData.length - 1, 1)) * width;
+                const y = height - ((d.value / maxVal) * height);
+                return (
+                  <g key={i}>
+                    <circle cx={x} cy={y} r="8" fill={activeAccentColor} />
+                    <text x={x} y={height + 35} fill={activeTextColor} fontSize={20 * fontScale} textAnchor="middle">{d.name}</text>
+                    <text x={x} y={y - 15} fill={activeTextColor} fontSize={18 * fontScale} textAnchor="middle" fontWeight="bold">{d.value}</text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      );
+    }
+
+    if (chartType === 'pie') {
+      const total = chartData.reduce((sum, d) => sum + d.value, 0);
+      return (
+        <div className="w-full h-[400px] mt-6 bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+            {chartData.map((d, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '1rem', minWidth: '140px', borderLeft: `4px solid ${COLORS[i % COLORS.length]}` }}>
+                <div style={{ fontSize: `${2.5 * fontScale}rem`, fontWeight: 'bold', color: COLORS[i % COLORS.length] }}>{Math.round((d.value / total) * 100)}%</div>
+                <div style={{ fontSize: `${1.1 * fontScale}rem`, color: activeTextColor, textAlign: 'center' }}>{d.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   const renderChart = () => {
     if (!chartData || chartData.length === 0) return null;
+
+    // Use static HTML/CSS charts for download mode (Recharts SVG doesn't capture well with html-to-image)
+    if (isDownloading) {
+      return renderStaticChart();
+    }
 
     const chartContent = (() => {
         switch (chartType) {
@@ -648,7 +727,10 @@ export const Slide: React.FC<SlideProps> = ({
                 tickLine={{ stroke: activeTextColor }}
                 />
                 <Tooltip 
-                contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
+                contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '20px' }}
+                itemStyle={{ color: '#ffffff' }}
+                labelStyle={{ color: '#ffffff', fontWeight: 'bold', marginBottom: '4px' }}
+                cursor={{ fill: 'rgba(255,255,255,0.1)' }}
                 />
                 <Bar dataKey="value" fill={activeAccentColor} radius={[8, 8, 0, 0]} />
             </BarChart>
@@ -669,7 +751,10 @@ export const Slide: React.FC<SlideProps> = ({
                 tickLine={{ stroke: activeTextColor }}
                 />
                 <Tooltip 
-                    contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
+                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '20px' }}
+                    itemStyle={{ color: '#ffffff' }}
+                    labelStyle={{ color: '#ffffff', fontWeight: 'bold', marginBottom: '4px' }}
+                    cursor={{ stroke: 'rgba(255,255,255,0.3)' }}
                 />
                 <Line 
                 type="monotone" 
@@ -699,7 +784,9 @@ export const Slide: React.FC<SlideProps> = ({
                 ))}
                 </Pie>
                 <Tooltip 
-                    contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '24px' }}
+                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '20px' }}
+                    itemStyle={{ color: '#ffffff' }}
+                    labelStyle={{ color: '#ffffff', fontWeight: 'bold', marginBottom: '4px' }}
                 />
             </PieChart>
             );

@@ -630,7 +630,7 @@ export const Slide: React.FC<SlideProps> = ({
   // Static HTML/CSS chart rendering for download mode (html-to-image has issues with Recharts SVG)
   const renderStaticChart = () => {
     if (!chartData || chartData.length === 0) return null;
-    const maxVal = Math.max(...chartData.map(d => d.value));
+    const maxVal = Math.max(...chartData.map(d => d.value)) || 1; // Prevent division by zero
 
     if (chartType === 'bar') {
       return (
@@ -683,7 +683,7 @@ export const Slide: React.FC<SlideProps> = ({
     }
 
     if (chartType === 'pie') {
-      const total = chartData.reduce((sum, d) => sum + d.value, 0);
+      const total = chartData.reduce((sum, d) => sum + d.value, 0) || 1; // Prevent division by zero
       return (
         <div className="w-full h-[400px] mt-6 bg-black/20 rounded-3xl p-8 border border-white/10 shadow-inner">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', justifyContent: 'center', alignItems: 'center', height: '100%' }}>

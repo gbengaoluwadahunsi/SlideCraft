@@ -150,7 +150,7 @@ export default function LandingPageClient() {
             >
             <Link 
               href="/pricing" 
-              className="w-full flex justify-between items-center px-4 py-3 text-gray-300 hover:text-white rounded-xl transition"
+              className="w-full flex justify-between items-center px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-xl transition"
               onClick={() => setMobileMenuOpen(false)}
             >
               Pricing
@@ -166,7 +166,7 @@ export default function LandingPageClient() {
             </button>
             <a 
               href="#how-it-works" 
-              className="block px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-200 hover:bg-gray-200 dark:bg-gray-800"
+              className="block px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 transition"
               onClick={() => setMobileMenuOpen(false)}
             >
               See How It Works
@@ -200,7 +200,7 @@ export default function LandingPageClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
+          className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
         >
           Social media posts, pitch decks, presentations, newsletters, product launches, educational content—if it needs visual storytelling, Carouslk creates it. No design skills, no hassle, just results.
         </motion.p>
@@ -221,7 +221,7 @@ export default function LandingPageClient() {
           </motion.div>
           <motion.a 
             href="#how-it-works" 
-            className="px-6 py-3 text-sm bg-gray-200 dark:bg-gray-800 hover:bg-gray-700 text-white sm:text-base font-medium rounded-xl border border-gray-300 dark:border-gray-700 transition sm:px-8 sm:py-4"
+            className="px-6 py-3 text-sm bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-800 dark:text-white sm:text-base font-medium rounded-xl border border-gray-300 dark:border-gray-700 transition sm:px-8 sm:py-4"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -505,7 +505,7 @@ export default function LandingPageClient() {
           <div className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center">
             <span className="text-black font-bold text-xl">C</span>
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">Carouslk</span>
+          <span className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Carouslk</span>
         </div>
         
         <motion.div 

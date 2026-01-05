@@ -25,7 +25,8 @@ export function useProjects() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/projects');
+      // Use no-store to prevent caching and ensure fresh data
+      const response = await fetch('/api/projects', { cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to load projects');
       
       const data = await response.json();
@@ -50,13 +51,21 @@ export function useProjects() {
       if (!response.ok) throw new Error('Failed to create project');
       
       const data = await response.json();
-      await loadProjects();
+      // Add to local state immediately instead of reloading all projects
+      const newProject: ProjectListItem = {
+        id: data.project.id,
+        name: data.project.name,
+        createdAt: data.project.created_at || new Date().toISOString(),
+        updatedAt: data.project.updated_at || new Date().toISOString(),
+        isShared: false
+      };
+      setProjects(prev => [newProject, ...prev]);
       return data.project;
     } catch (error) {
       console.error('Create project error:', error);
       throw error;
     }
-  }, [session, loadProjects]);
+  }, [session]);
 
   const deleteProject = useCallback(async (id: string) => {
     if (!session?.user?.id) return;
@@ -68,12 +77,13 @@ export function useProjects() {
 
       if (!response.ok) throw new Error('Failed to delete project');
       
-      await loadProjects();
+      // Remove from local state immediately instead of reloading all projects
+      setProjects(prev => prev.filter(p => p.id !== id));
     } catch (error) {
       console.error('Delete project error:', error);
       throw error;
     }
-  }, [session, loadProjects]);
+  }, [session]);
 
   useEffect(() => {
     if (status === 'authenticated') {

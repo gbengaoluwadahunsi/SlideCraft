@@ -33,7 +33,13 @@ export async function GET(request: NextRequest) {
       isShared: row.is_shared
     }));
 
-    return NextResponse.json({ projects });
+    // Prevent caching to ensure users always see their own fresh data
+    return NextResponse.json({ projects }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   } catch (error) {
     console.error('Get projects error:', error);
     return NextResponse.json(

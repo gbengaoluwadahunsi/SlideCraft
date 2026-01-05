@@ -80,6 +80,13 @@ interface InfographicData {
   layout?: 'icon-grid' | 'process-flow' | 'comparison' | 'stats' | 'radial';
 }
 
+interface ElementPosition {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
+
 interface SlideData {
   id: string;
   type: 'cover' | 'content' | 'chart' | 'visual';
@@ -112,6 +119,15 @@ interface SlideData {
   elementOrder?: string[];
   customBlocks?: CustomBlock[];
   logoUrl?: string | null;
+  // Free positioning for main elements
+  elementPositions?: {
+    title?: ElementPosition;
+    subtitle?: ElementPosition;
+    content?: ElementPosition;
+    emoji?: ElementPosition;
+    media?: ElementPosition;
+  };
+  freePositioning?: boolean;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -681,6 +697,59 @@ function DashboardContent() {
       }
   ]);
 
+  // --- Undo/Redo history helpers ---
+  const lastHistorySnapshotRef = useRef<string>('');
+  const historyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextHistoryRef = useRef(false);
+
+  const commitSlidesSkipHistory = useCallback((nextSlides: SlideData[]) => {
+    if (historyDebounceRef.current) {
+      clearTimeout(historyDebounceRef.current);
+      historyDebounceRef.current = null;
+    }
+    skipNextHistoryRef.current = true;
+    lastHistorySnapshotRef.current = JSON.stringify(nextSlides);
+    setSlides(nextSlides);
+  }, []);
+
+  const commitSlidesImmediateHistory = useCallback((nextSlides: SlideData[]) => {
+    if (historyDebounceRef.current) {
+      clearTimeout(historyDebounceRef.current);
+      historyDebounceRef.current = null;
+    }
+    setSlides(nextSlides);
+    addToHistory(nextSlides);
+    lastHistorySnapshotRef.current = JSON.stringify(nextSlides);
+  }, [addToHistory]);
+
+  // Debounced history capture for all slide changes (covers "delete inside a slide" too).
+  useEffect(() => {
+    if (!slides || slides.length === 0) return;
+
+    const serialized = JSON.stringify(slides);
+    if (serialized === lastHistorySnapshotRef.current) return;
+
+    if (skipNextHistoryRef.current) {
+      skipNextHistoryRef.current = false;
+      lastHistorySnapshotRef.current = serialized;
+      return;
+    }
+
+    if (historyDebounceRef.current) clearTimeout(historyDebounceRef.current);
+    historyDebounceRef.current = setTimeout(() => {
+      addToHistory(slides);
+      lastHistorySnapshotRef.current = JSON.stringify(slides);
+      historyDebounceRef.current = null;
+    }, 250);
+
+    return () => {
+      if (historyDebounceRef.current) {
+        clearTimeout(historyDebounceRef.current);
+        historyDebounceRef.current = null;
+      }
+    };
+  }, [slides, addToHistory]);
+
   const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
 
@@ -806,7 +875,7 @@ function DashboardContent() {
 
   const addNewSlide = () => {
     const newId = Date.now().toString();
-    setSlides([...slides, {
+    setSlides(prevSlides => [...prevSlides, {
       id: newId,
       type: 'content',
       title: 'New Slide',
@@ -845,13 +914,18 @@ function DashboardContent() {
     return `${fallback}-${suffix}`;
   };
 
-  // Load project when it's available - also apply brand settings
+  // Load project when it's available - only run on initial project load
+  // NOT when brandSettings changes (that would overwrite theme changes)
+  const loadedProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (loadedProject && !projectLoading) {
-      // Apply brand settings to loaded project slides
+    if (loadedProject && !projectLoading && loadedProject.id !== loadedProjectIdRef.current) {
+      // Mark this project as loaded to prevent re-running
+      loadedProjectIdRef.current = loadedProject.id;
+      
+      // Apply brand settings to loaded project slides (only for fields the slide doesn't have)
       const slidesWithBrandSettings = loadedProject.slides.map(slide => ({
         ...slide,
-        // Apply brand settings if they differ from slide defaults
+        // Apply brand settings only if slide doesn't have its own values
         handle: slide.handle || brandSettings.handle,
         category: slide.category || brandSettings.category,
         fontFamily: slide.fontFamily || brandSettings.fontFamily,
@@ -933,17 +1007,17 @@ function DashboardContent() {
   const handleUndo = useCallback(() => {
     const previousSlides = undoProject();
     if (previousSlides) {
-      setSlides(previousSlides);
+      commitSlidesSkipHistory(previousSlides);
     }
-  }, [undoProject]);
+  }, [undoProject, commitSlidesSkipHistory]);
 
   // Redo handler
   const handleRedo = useCallback(() => {
     const nextSlides = redoProject();
     if (nextSlides) {
-      setSlides(nextSlides);
+      commitSlidesSkipHistory(nextSlides);
     }
-  }, [redoProject]);
+  }, [redoProject, commitSlidesSkipHistory]);
 
   // Manual save handler for keyboard shortcut
   const saveProject = useCallback(async () => {
@@ -961,9 +1035,8 @@ function DashboardContent() {
 
   // Update slides with history tracking
   const updateSlides = useCallback((newSlides: SlideData[]) => {
-    setSlides(newSlides);
-    addToHistory(newSlides);
-  }, [addToHistory]);
+    commitSlidesImmediateHistory(newSlides);
+  }, [commitSlidesImmediateHistory]);
 
   // Delete a slide
   const handleDeleteSlide = useCallback((id: string) => {
@@ -974,15 +1047,14 @@ function DashboardContent() {
 
     const targetIndex = slides.findIndex(s => s.id === id);
     const updatedSlides = slides.filter(s => s.id !== id);
-    setSlides(updatedSlides);
-    addToHistory(updatedSlides);
+    commitSlidesImmediateHistory(updatedSlides);
 
     if (activeSlideId === id && updatedSlides.length > 0) {
       const fallbackIndex = Math.min(targetIndex, updatedSlides.length - 1);
       setActiveSlideId(updatedSlides[fallbackIndex].id);
     }
     toast.success('Slide deleted');
-  }, [slides, activeSlideId, addToHistory]);
+  }, [slides, activeSlideId, commitSlidesImmediateHistory]);
 
   // Duplicate a slide
   const handleDuplicateSlide = useCallback((id: string) => {
@@ -1003,11 +1075,10 @@ function DashboardContent() {
     // Insert after the original slide
     const newSlides = [...slides];
     newSlides.splice(slideIndex + 1, 0, duplicatedSlide);
-    setSlides(newSlides);
-    addToHistory(newSlides);
+    commitSlidesImmediateHistory(newSlides);
     setActiveSlideId(newId);
     toast.success('Slide duplicated');
-  }, [slides, addToHistory]);
+  }, [slides, commitSlidesImmediateHistory]);
 
   // Move slide up/down in order
   const handleMoveSlide = useCallback((id: string, direction: 'up' | 'down') => {
@@ -1019,9 +1090,8 @@ function DashboardContent() {
     
     const newSlides = [...slides];
     [newSlides[currentIndex], newSlides[newIndex]] = [newSlides[newIndex], newSlides[currentIndex]];
-    setSlides(newSlides);
-    addToHistory(newSlides);
-  }, [slides, addToHistory]);
+    commitSlidesImmediateHistory(newSlides);
+  }, [slides, commitSlidesImmediateHistory]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1032,9 +1102,19 @@ function DashboardContent() {
         return;
       }
       
-      // Don't trigger shortcuts when typing in inputs/textareas
+      // Don't trigger destructive/editor-wide shortcuts when typing in inputs/textareas/contenteditable
       const target = e.target as HTMLElement;
       const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Allow browser-native undo/redo while editing text.
+      if (isEditing) {
+        // Still allow Save while typing (common behavior)
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          saveProject();
+        }
+        return;
+      }
       
       // Undo: Ctrl+Z
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -1049,9 +1129,6 @@ function DashboardContent() {
         if (canRedo) handleRedo();
         return;
       }
-      
-      // Don't process other shortcuts if editing
-      if (isEditing) return;
       
       // Save: Ctrl+S
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1285,7 +1362,7 @@ function DashboardContent() {
     if (!activeSlide) return;
     const current = activeSlide.fontScale ?? 1;
     const next = Math.min(1.5, Math.max(0.7, parseFloat((current + delta).toFixed(2))));
-    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, fontScale: next } : s));
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: next } : s));
   };
 
   // Fetch version history
@@ -1750,7 +1827,7 @@ function DashboardContent() {
     } else if (tool === 'text') {
         if (!activeSlide) return;
         const newBlock = createCustomBlock();
-        setSlides(slides.map(s => s.id === activeSlide.id ? { 
+        setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { 
           ...s, 
           customBlocks: [...(s.customBlocks || []), newBlock], 
         } : s));
@@ -1811,10 +1888,11 @@ function DashboardContent() {
     }
 
     if (imagePickerMode === 'all') {
-      setSlides(slides.map(s => ({ ...s, backgroundImage: imageUrl })));
+      // Reset overlay opacity to 0 when adding new background image (no color tint by default)
+      setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImage: imageUrl, backgroundOverlayOpacity: 0 })));
       toast.success('Background applied to all slides');
     } else {
-      setSlides(slides.map(s => s.id === activeSlideId ? { ...s, backgroundImage: imageUrl } : s));
+      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? { ...s, backgroundImage: imageUrl, backgroundOverlayOpacity: 0 } : s));
       toast.success('Background applied to slide');
     }
     
@@ -1826,7 +1904,7 @@ function DashboardContent() {
   const handleBackgroundColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const color = e.target.value;
     // Apply to all slides
-    setSlides(slides.map(s => ({ ...s, backgroundColor: color })));
+    setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundColor: color })));
   };
 
   const handleMediaImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1836,7 +1914,7 @@ function DashboardContent() {
     const reader = new FileReader();
     reader.onload = (event) => {
         const result = event.target?.result as string;
-        setSlides(slides.map(s => s.id === activeSlide.id ? { 
+        setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { 
             ...s, 
             mediaType: 'image', 
             mediaUrl: result 
@@ -1852,11 +1930,11 @@ function DashboardContent() {
         reader.onload = (event) => {
             const result = event.target?.result as string;
             if (activeTool === 'image-all') {
-                 // Apply to ALL slides
-                 setSlides(slides.map(s => ({ ...s, backgroundImage: result })));
+                 // Apply to ALL slides - reset overlay to 0 (no tint)
+                 setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImage: result, backgroundOverlayOpacity: 0 })));
             } else {
-                 // Apply to CURRENT slide only (whether tool is 'image' or 'select')
-                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result } : s));
+                 // Apply to CURRENT slide only - reset overlay to 0 (no tint)
+                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result, backgroundOverlayOpacity: 0 } : s));
             }
             // Reset tool after applying
             setActiveTool('select');
@@ -1995,9 +2073,9 @@ function DashboardContent() {
         if (data.imageUrl) {
           // Set the image URL directly - Pollinations generates on-demand when URL is accessed
           // The image will appear once it's generated (may take 5-30 seconds on first load)
-          setSlides(slides.map(s => 
+          setSlides(prevSlides => prevSlides.map(s => 
             s.id === slideId 
-              ? { ...s, backgroundImage: data.imageUrl, mediaType: 'image', mediaUrl: data.imageUrl }
+              ? { ...s, backgroundImage: data.imageUrl, mediaType: 'image', mediaUrl: data.imageUrl, backgroundOverlayOpacity: 0 }
               : s
           ));
           
@@ -2080,7 +2158,7 @@ function DashboardContent() {
         const data = await response.json();
         if (data.batchMode && data.enhancedSlides) {
           // Apply enhanced content to all slides
-          setSlides(slides.map((slide, index) => {
+          setSlides(prevSlides => prevSlides.map((slide, index) => {
             const enhanced = data.enhancedSlides[index];
             if (enhanced) {
               return {
@@ -2296,7 +2374,7 @@ function DashboardContent() {
     }
 
     // Set temporary state
-    setSlides(slides.map(s => s.id === activeSlide.id ? { 
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { 
         ...s, 
         mediaUrl: localUrl,
         mediaPosterUrl: posterUrl 
@@ -2704,7 +2782,7 @@ function DashboardContent() {
             value={activeSlide.title || ''}
             onChange={(e) => {
               const newTitle = e.target.value;
-              setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
+              setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
             }}
             className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
           />
@@ -2722,7 +2800,7 @@ function DashboardContent() {
               value={activeSlide.fontScale ?? 1}
               onChange={(e) => {
                 const newScale = parseFloat(e.target.value);
-                setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
+                setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
               }}
               className="flex-1"
               style={{ accentColor: '#ffd700' }}
@@ -3233,7 +3311,7 @@ function DashboardContent() {
                           <ImageIcon size={14} />
                       </button>
                       <button 
-                          onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined } : s))}
+                          onClick={() => setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined, backgroundOverlayOpacity: 0 } : s))}
                           className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
                           title="Remove Image"
                       >
@@ -3256,51 +3334,69 @@ function DashboardContent() {
           
           {activeSlide.backgroundImage && (
              <div className="space-y-4">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center gap-2">
                     <span className="text-[10px] text-gray-500 font-medium">SETTINGS</span>
-                    <button 
-                        onClick={() => {
-                            const currentOpacity = activeSlide.backgroundOverlayOpacity;
-                            const currentFilter = activeSlide.backgroundImageFilter;
-                            
-                            setSlides(slides.map(s => ({
-                                ...s,
-                                backgroundOverlayOpacity: currentOpacity,
-                                backgroundImageFilter: currentFilter
-                            })));
-                            
-                            // Visual feedback
-                            const btn = document.getElementById('apply-all-settings-btn');
-                            if (btn) {
-                                const originalText = btn.innerHTML;
-                                btn.innerHTML = '<span class="text-green-400">Applied!</span>';
-                                setTimeout(() => {
-                                    btn.innerHTML = originalText;
-                                }, 1500);
-                            }
-                        }}
-                        id="apply-all-settings-btn"
-                        className="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded border border-gray-700 transition"
-                        title="Apply these image settings (opacity, filters) to ALL slides"
-                    >
-                        Apply to All Slides
-                    </button>
+                    <div className="flex gap-1">
+                        <button 
+                            onClick={() => {
+                                // Reset all image settings to defaults
+                                setSlides(prevSlides => prevSlides.map(s => 
+                                    s.id === activeSlide.id 
+                                        ? { ...s, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined }
+                                        : s
+                                ));
+                                toast.success('Image settings reset');
+                            }}
+                            className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/50 transition"
+                            title="Reset color tint and filters to defaults"
+                        >
+                            Reset
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const currentOpacity = activeSlide.backgroundOverlayOpacity;
+                                const currentFilter = activeSlide.backgroundImageFilter;
+                                
+                                setSlides(prevSlides => prevSlides.map(s => ({
+                                    ...s,
+                                    backgroundOverlayOpacity: currentOpacity,
+                                    backgroundImageFilter: currentFilter
+                                })));
+                                
+                                // Visual feedback
+                                const btn = document.getElementById('apply-all-settings-btn');
+                                if (btn) {
+                                    const originalText = btn.innerHTML;
+                                    btn.innerHTML = '<span class="text-green-400">Applied!</span>';
+                                    setTimeout(() => {
+                                        btn.innerHTML = originalText;
+                                    }, 1500);
+                                }
+                            }}
+                            id="apply-all-settings-btn"
+                            className="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded border border-gray-700 transition"
+                            title="Apply these image settings (opacity, filters) to ALL slides"
+                        >
+                            Apply to All
+                        </button>
+                    </div>
                 </div>
              
                 <div className="space-y-1">
                    <div className="flex justify-between text-xs text-gray-500">
-                       <span>Overlay Opacity</span>
-                       <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0.5) * 100)}%</span>
+                       <span>Color Tint</span>
+                       <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0) * 100)}%</span>
                    </div>
+                   <p className="text-[9px] text-gray-600 mb-1">Add theme color overlay on image</p>
                    <input
                        type="range"
                        min={0}
                        max={0.9}
                        step={0.1}
-                       value={activeSlide.backgroundOverlayOpacity ?? 0.5}
+                       value={activeSlide.backgroundOverlayOpacity ?? 0}
                        onChange={(e) => {
                            const val = parseFloat(e.target.value);
-                           setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                           setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
                        }}
                        className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                    />
@@ -3328,7 +3424,7 @@ function DashboardContent() {
                                  } else {
                                      newFilter = `${newFilter} brightness(${val})`.trim();
                                  }
-                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3352,7 +3448,7 @@ function DashboardContent() {
                                  } else {
                                      newFilter = `${newFilter} contrast(${val})`.trim();
                                  }
-                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3376,7 +3472,7 @@ function DashboardContent() {
                                  } else {
                                      newFilter = `${newFilter} blur(${val}px)`.trim();
                                  }
-                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3400,7 +3496,7 @@ function DashboardContent() {
                                  } else {
                                      newFilter = `${newFilter} grayscale(${val})`.trim();
                                  }
-                                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
+                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3485,6 +3581,31 @@ function DashboardContent() {
               title="Chart Slide"
             >
               <BarChart3 size={14} /> Chart
+            </button>
+          </div>
+        </div>
+
+        {/* Free Positioning Toggle */}
+        <div className="pt-4 border-t border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <span className="text-xs text-gray-400">Free Positioning</span>
+              <p className="text-[10px] text-gray-500 mt-0.5">Drag elements anywhere on slide</p>
+            </div>
+            <button
+              onClick={() => setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? {
+                ...s,
+                freePositioning: !s.freePositioning
+              } : s))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                activeSlide.freePositioning ? 'bg-[#ffd700]' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  activeSlide.freePositioning ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
             </button>
           </div>
         </div>
@@ -3941,7 +4062,7 @@ function DashboardContent() {
             <div className="flex-1 overflow-hidden px-0 lg:px-4 pb-0 lg:pb-8">
                 <div
                     ref={slidesScrollRef}
-                    className="relative z-10 h-full overflow-y-auto lg:snap-y lg:snap-proximity space-y-4 lg:space-y-16 pt-4 lg:pt-28 pb-24 lg:pb-32 no-scrollbar"
+                    className="relative z-10 h-full overflow-y-auto lg:snap-y lg:snap-proximity space-y-4 lg:space-y-16 pt-4 lg:pt-28 pb-24 lg:pb-32 no-scrollbar touch-pan-y"
                 >
                     {slides.map((slide) => (
                         <div
@@ -3975,11 +4096,24 @@ function DashboardContent() {
                                             isEditable={slide.id === activeSlideId}
                                             scale={currentScale}
                                             onUpdate={(field, value) => {
-                                                setSlides((prev) =>
-                                                    prev.map((s) =>
-                                                        s.id === slide.id ? { ...s, [field]: value } : s
-                                                    )
+                                                const current = slides.find((s) => s.id === slide.id);
+                                                const isDeletion =
+                                                  (field === 'customBlocks' &&
+                                                    Array.isArray(value) &&
+                                                    ((current?.customBlocks?.length ?? 0) > value.length)) ||
+                                                  (field === 'chartData' &&
+                                                    Array.isArray(value) &&
+                                                    ((current?.chartData?.length ?? 0) > value.length));
+
+                                                const nextSlides = slides.map((s) =>
+                                                  s.id === slide.id ? { ...s, [field]: value } : s
                                                 );
+
+                                                if (isDeletion) {
+                                                  commitSlidesImmediateHistory(nextSlides);
+                                                } else {
+                                                  setSlides(nextSlides);
+                                                }
                                             }}
                                             onImagePreview={(url) => setPreviewImageUrl(url)}
                                         />
@@ -4937,32 +5071,41 @@ function DashboardContent() {
                                     key={theme.id}
                                     onClick={async () => {
                                         if (theme.isFullTemplate && fullTemplate) {
-                                            // Apply full template with all slides
-                                            const newSlides = fullTemplate.slides.map((slide, idx) => ({
-                                                ...slide,
-                                                id: String(Date.now() + idx),
+                                            // Apply template STYLING to existing slides (preserve user content)
+                                            const templateFirst = fullTemplate.slides[0];
+                                            // Use functional update to get current state (not stale closure)
+                                            setSlides(prevSlides => prevSlides.map((s, idx) => {
+                                                // Get matching template slide for styling (cycle if fewer template slides)
+                                                const templateSlide = fullTemplate.slides[idx % fullTemplate.slides.length];
+                                                return {
+                                                    ...s,
+                                                    // Apply template styling
+                                                    backgroundColor: templateSlide.backgroundColor,
+                                                    textColor: templateSlide.textColor,
+                                                    accentColor: templateSlide.accentColor,
+                                                    fontFamily: templateSlide.fontFamily,
+                                                    fontScale: templateSlide.fontScale,
+                                                    // Keep user's content: title, subtitle, content, media, customBlocks, etc.
+                                                };
                                             }));
-                                            setSlides(newSlides as SlideData[]);
-                                            setActiveSlideId(newSlides[0].id);
                                             // Update brand settings to match template colors/fonts
-                                            const first = newSlides[0] as SlideData;
                                             const newBrand = {
                                               ...brandSettings,
-                                              backgroundColor: first.backgroundColor,
-                                              textColor: first.textColor,
-                                              accentColor: first.accentColor,
-                                              fontFamily: first.fontFamily,
+                                              backgroundColor: templateFirst.backgroundColor,
+                                              textColor: templateFirst.textColor,
+                                              accentColor: templateFirst.accentColor,
+                                              fontFamily: templateFirst.fontFamily,
                                             };
                                             setBrandSettings(newBrand);
                                             if (typeof window !== 'undefined' && status !== 'authenticated') {
                                               localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
                                             }
-                                            toast.success(`Applied "${theme.name}" template!`);
+                                            toast.success(`Applied "${theme.name}" styling to your slides!`);
                                             addToHistory();
                                         } else {
                                             // Apply theme colors/fonts to existing slides
-                                            // Update slides
-                                            setSlides(slides.map(s => {
+                                            // Use functional update to get current state (not stale closure)
+                                            setSlides(prevSlides => prevSlides.map(s => {
                                                 const updatedSlide = {
                                                     ...s,
                                                     backgroundColor: theme.backgroundColor,

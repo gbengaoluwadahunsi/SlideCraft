@@ -155,11 +155,11 @@ export function ProjectManager({
         const response = await fetch(`/api/projects/${currentProjectId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: projectName, slides, options, saveHistory: true })
+          body: JSON.stringify({ name: projectName, slides, options })
         });
 
         if (!response.ok) throw new Error('Failed to save');
-        await loadProjects();
+        // Don't reload all projects - just show success immediately
         toast.success('Project saved');
       } catch (error) {
         toast.error('Failed to save project');
@@ -171,7 +171,8 @@ export function ProjectManager({
 
   const handleLoad = async (projectId: string) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}`);
+      // Use no-store to prevent caching and ensure fresh user-specific data
+      const response = await fetch(`/api/projects/${projectId}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to load project');
       
       const data = await response.json();

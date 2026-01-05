@@ -10,11 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-  defaultDropAnimationSideEffects,
-  DropAnimation
+  DragEndEvent
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -42,19 +38,6 @@ import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Ro
 import { Rnd } from 'react-rnd';
 import { Infographic } from './Infographic';
 
-// Fast, clean drop animation
-const dropAnimation: DropAnimation = {
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: '1',
-      },
-    },
-  }),
-  duration: 150,
-  easing: 'ease-out',
-};
-
 type CustomBlock = {
   id: string;
   html: string;
@@ -63,6 +46,13 @@ type CustomBlock = {
   width: number;
   height: number;
 };
+
+interface ElementPosition {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
 
 interface SlideProps {
   type: 'cover' | 'content' | 'chart' | 'visual';
@@ -106,6 +96,15 @@ interface SlideProps {
     layout?: 'cards-grid' | 'timeline' | 'process-steps' | 'feature-list' | 'metrics-row' | 'icon-cards' | 'numbered-list' | 'pyramid' | 'cycle' | 'comparison' | 'checklist' | 'quote-highlight';
   };
   onImagePreview?: (imageUrl: string) => void;
+  // Free positioning for main elements
+  elementPositions?: {
+    title?: ElementPosition;
+    subtitle?: ElementPosition;
+    content?: ElementPosition;
+    emoji?: ElementPosition;
+    media?: ElementPosition;
+  };
+  freePositioning?: boolean;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -142,14 +141,13 @@ function SortableItem({ id, children, isEditable, className = '' }: { id: string
   } = useSortable({ id, disabled: !isEditable });
 
   // Use only translate transform for smoother movement
-  // Only apply transition when NOT dragging (for return animation)
-  // During drag, no transition = instant response = smooth dragging
+  // Element moves with cursor during drag, no overlay
   const style = {
     transform: CSS.Translate.toString(transform),
     transition: isDragging ? 'none' : (transition || 'transform 200ms ease-out'),
-    opacity: isDragging ? 0 : 1, // Hide original when dragging (overlay shows the moving element)
     position: 'relative' as const,
     willChange: isDragging ? 'transform' : 'auto',
+    zIndex: isDragging ? 50 : 'auto',
   };
 
   // IMPORTANT: listeners are ONLY on the drag handle, not the container
@@ -158,7 +156,7 @@ function SortableItem({ id, children, isEditable, className = '' }: { id: string
     <div 
       ref={setNodeRef} 
       style={style} 
-      className={`group/item relative ${className} ${isDragging ? 'z-0' : ''}`}
+      className={`group/item relative ${className} ${isDragging ? 'cursor-grabbing' : ''}`}
     >
       {isEditable && (
         <div 
@@ -204,7 +202,7 @@ export const Slide: React.FC<SlideProps> = ({
   coverTextColor,
   coverAccentColor,
   backgroundImage,
-  backgroundOverlayOpacity = 0.5,
+  backgroundOverlayOpacity = 0, // Default to no color tint on images
   backgroundImageFilter = '',
   isEditable = false,
   onUpdate,
@@ -223,12 +221,12 @@ export const Slide: React.FC<SlideProps> = ({
   onImagePreview,
   logoUrl = null,
   infographicData,
+  elementPositions,
+  freePositioning = false,
   ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
-  // Track which item is being dragged for the DragOverlay
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   
   useEffect(() => {
     setIsMounted(true);
@@ -349,18 +347,8 @@ export const Slide: React.FC<SlideProps> = ({
 
   const currentOrder = getOrder();
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    // Cancel drag if it originated from a contenteditable element
-    const activeElement = document.activeElement as HTMLElement;
-    if (activeElement?.closest('[contenteditable="true"]') || activeElement?.isContentEditable) {
-      return;
-    }
-    setActiveDragId(event.active.id as string);
-  }, []);
-
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveDragId(null);
     if (active.id !== over?.id && over) {
         const oldIndex = currentOrder.indexOf(active.id as string);
         const newIndex = currentOrder.indexOf(over.id as string);
@@ -369,9 +357,29 @@ export const Slide: React.FC<SlideProps> = ({
     }
   }, [currentOrder, onUpdate]);
 
-  const handleDragCancel = useCallback(() => {
-    setActiveDragId(null);
-  }, []);
+  // Handler for updating element position in free positioning mode
+  const handleElementPositionChange = useCallback((elementId: string, position: { x: number; y: number; width?: number; height?: number }) => {
+    const newPositions = {
+      ...(elementPositions || {}),
+      [elementId]: position
+    };
+    onUpdate?.('elementPositions', newPositions);
+  }, [elementPositions, onUpdate]);
+
+  // Get default positions for elements if not set
+  const getDefaultPosition = (elementId: string): ElementPosition => {
+    const defaults: Record<string, ElementPosition> = {
+      emoji: { x: 64, y: 160, width: 100, height: 80 },
+      title: { x: 64, y: 260, width: 952, height: 120 },
+      subtitle: { x: 64, y: 400, width: 952, height: 80 },
+      content: { x: 64, y: 500, width: 952, height: 300 },
+      media: { x: 64, y: 700, width: 600, height: 300 },
+      chart: { x: 64, y: 500, width: 900, height: 400 },
+      icon: { x: 64, y: 160, width: 100, height: 100 },
+      infographic: { x: 64, y: 400, width: 952, height: 500 },
+    };
+    return elementPositions?.[elementId as keyof typeof elementPositions] || defaults[elementId] || { x: 64, y: 200, width: 400, height: 100 };
+  };
 
   const handleCustomBlockChange = useCallback((blockId: string, updates: Partial<CustomBlock>) => {
     if (!onUpdate) return;
@@ -829,7 +837,8 @@ export const Slide: React.FC<SlideProps> = ({
             minWidth={160}
             minHeight={40}
             className="pointer-events-auto group/block"
-            style={{ zIndex: 40 }}
+            style={{ zIndex: 40, touchAction: 'none' }}
+            cancel=".editable-text"
             enableResizing={{
               top: false,
               right: true,
@@ -855,10 +864,10 @@ export const Slide: React.FC<SlideProps> = ({
               >
                 <Trash2 size={12} />
               </button>
-              <div className="w-full h-full text-left overflow-visible cursor-text p-2">
+              <div className="w-full h-full text-left overflow-visible cursor-text p-2 editable-text">
                 <EditableText
                   tagName="div"
-                  className="leading-relaxed w-full h-full overflow-visible"
+                  className="leading-relaxed w-full h-full overflow-visible editable-text"
                   style={{
                     color: activeTextColor,
                     overflow: 'visible',
@@ -1114,7 +1123,8 @@ export const Slide: React.FC<SlideProps> = ({
     <motion.div 
       className={`w-[1080px] h-[1080px] flex flex-col relative overflow-hidden shrink-0 ${scopeClass}`}
       style={{
-        backgroundColor: activeBgColor, 
+        // If there's a background image, use a fallback dark color; otherwise use the selected color
+        backgroundColor: backgroundImage ? '#0a0a0a' : activeBgColor, 
         color: activeTextColor,
         fontFamily: fontFamily,
         userSelect: isEditable ? 'text' : 'none',
@@ -1126,7 +1136,7 @@ export const Slide: React.FC<SlideProps> = ({
     >
       <style>{styles}</style>
       
-      {/* Background Image Layer */}
+      {/* Background Image Layer - fully covers when present */}
       {backgroundImage && (
         <div 
             className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0"
@@ -1137,8 +1147,9 @@ export const Slide: React.FC<SlideProps> = ({
         />
       )}
 
-      {/* Background Overlay */}
-      {backgroundImage && (
+      {/* Optional Color Overlay on top of background image - only if user has enabled it */}
+      {/* Default opacity is 0 (no tint), user can increase to add color tint */}
+      {backgroundImage && backgroundOverlayOpacity > 0 && (
         <div 
           className="absolute inset-0 pointer-events-none z-0"
           style={{ backgroundColor: activeBgColor, opacity: backgroundOverlayOpacity }}
@@ -1206,61 +1217,108 @@ export const Slide: React.FC<SlideProps> = ({
         </motion.div>
       )}
 
-      {/* Custom Blocks Layer */}
-      {customBlocks && customBlocks.length > 0 ? (
+      {/* Custom Blocks Layer - only render container when there are blocks */}
+      {customBlocks && customBlocks.length > 0 && (
         <div 
-          className={`absolute z-30 ${isEditable ? 'pointer-events-none' : ''}`}
+          className="absolute z-30 pointer-events-none"
           style={{
-            position: 'absolute',
-            top: '0px',
-            left: '0px',
+            top: 0,
+            left: 0,
             width: '1080px',
             height: '1080px',
           }}
         >
           {renderCustomBlocks()}
         </div>
-      ) : null}
+      )}
 
       {/* Main Content Area */}
-      <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full`}>
-        {isEditable && isMounted ? (
-            <DndContext 
-                sensors={sensors} 
-                collisionDetection={closestCenter} 
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDragCancel={handleDragCancel}
-            >
-                <SortableContext 
-                    items={currentOrder} 
-                    strategy={verticalListSortingStrategy}
-                >
-                    {currentOrder.map((itemId) => (
-                        <SortableItem key={itemId} id={itemId} isEditable={isEditable} className={itemId === 'content' ? 'flex-1' : ''}>
-                            {renderElement(itemId)}
-                        </SortableItem>
-                    ))}
-                </SortableContext>
-                {/* Simple drag overlay - no background effects */}
-                <DragOverlay dropAnimation={dropAnimation}>
-                    {activeDragId ? (
-                        <div className="pointer-events-none">
-                            {renderElement(activeDragId)}
-                        </div>
-                    ) : null}
-                </DragOverlay>
-            </DndContext>
-        ) : (
-            <>
-                {currentOrder.map((itemId) => (
-                    <div key={itemId} className={`relative ${itemId === 'content' ? 'flex-1' : ''}`}>
-                        {renderElement(itemId)}
-                    </div>
-                ))}
-            </>
-        )}
-      </div>
+      {freePositioning && isEditable && isMounted ? (
+        /* Free Positioning Mode - elements can be dragged anywhere */
+        <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', height: '1080px' }}>
+          {currentOrder.map((itemId) => {
+            const pos = getDefaultPosition(itemId);
+            const element = renderElement(itemId);
+            if (!element) return null;
+            return (
+              <Rnd
+                key={itemId}
+                bounds="parent"
+                scale={scale}
+                size={{ width: pos.width || 400, height: pos.height || 100 }}
+                position={{ x: pos.x, y: pos.y }}
+                onDragStop={(_, data) => handleElementPositionChange(itemId, { ...pos, x: data.x, y: data.y })}
+                onResizeStop={(_, __, ref, ___, position) =>
+                  handleElementPositionChange(itemId, {
+                    x: position.x,
+                    y: position.y,
+                    width: parseFloat(ref.style.width),
+                    height: parseFloat(ref.style.height),
+                  })
+                }
+                dragHandleClassName="free-drag-handle"
+                minWidth={100}
+                minHeight={40}
+                className="pointer-events-auto group/element"
+                style={{ zIndex: 20, touchAction: 'none' }}
+                enableResizing={{
+                  top: false,
+                  right: true,
+                  bottom: true,
+                  left: false,
+                  topRight: false,
+                  bottomRight: true,
+                  bottomLeft: false,
+                  topLeft: false,
+                }}
+              >
+                <div className="w-full h-full relative group">
+                  <div
+                    className="free-drag-handle absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#ffd700] rounded-full flex items-center justify-center cursor-move shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50"
+                    title="Drag to move anywhere"
+                  >
+                    <GripVertical size={14} className="text-black" />
+                    <span className="text-xs font-bold text-black ml-1">Move</span>
+                  </div>
+                  <div className="w-full h-full overflow-hidden">
+                    {element}
+                  </div>
+                </div>
+              </Rnd>
+            );
+          })}
+        </div>
+      ) : (
+        /* Flow Layout Mode - elements stack vertically and can be reordered */
+        <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full`}>
+          {isEditable && isMounted ? (
+              <DndContext 
+                  sensors={sensors} 
+                  collisionDetection={closestCenter} 
+                  onDragEnd={handleDragEnd}
+              >
+                  <SortableContext 
+                      items={currentOrder} 
+                      strategy={verticalListSortingStrategy}
+                  >
+                      {currentOrder.map((itemId) => (
+                          <SortableItem key={itemId} id={itemId} isEditable={isEditable} className={itemId === 'content' ? 'flex-1' : ''}>
+                              {renderElement(itemId)}
+                          </SortableItem>
+                      ))}
+                  </SortableContext>
+              </DndContext>
+          ) : (
+              <>
+                  {currentOrder.map((itemId) => (
+                      <div key={itemId} className={`relative ${itemId === 'content' ? 'flex-1' : ''}`}>
+                          {renderElement(itemId)}
+                      </div>
+                  ))}
+              </>
+          )}
+        </div>
+      )}
 
       {/* Footer / Handle */}
       <motion.div 

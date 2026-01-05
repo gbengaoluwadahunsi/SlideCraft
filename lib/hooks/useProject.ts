@@ -11,8 +11,21 @@ export function useProject(projectId?: string) {
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<SlideData[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyRef = useRef<SlideData[][]>([]);
+  const historyIndexRef = useRef(-1);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedRef = useRef<string>('');
+
+  const cloneSlides = useCallback((slides: SlideData[]): SlideData[] => {
+    // Ensure history snapshots can't be mutated by later edits.
+    // `structuredClone` is available in modern browsers; fallback to JSON for safety.
+    try {
+      // eslint-disable-next-line no-undef
+      return structuredClone(slides) as SlideData[];
+    } catch {
+      return JSON.parse(JSON.stringify(slides)) as SlideData[];
+    }
+  }, []);
 
   // Note: Authentication check and redirect should be handled at the page level
   // to prevent flash of content before redirect
@@ -28,7 +41,10 @@ export function useProject(projectId?: string) {
       
       const data = await response.json();
       setProject(data.project);
-      setHistory([data.project.slides]);
+      const initialSlides = cloneSlides(data.project.slides);
+      historyRef.current = [initialSlides];
+      historyIndexRef.current = 0;
+      setHistory([initialSlides]);
       setHistoryIndex(0);
       lastSavedRef.current = JSON.stringify(data.project.slides);
     } catch (error) {
@@ -36,7 +52,7 @@ export function useProject(projectId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, cloneSlides]);
 
   // Auto-save
   const autoSave = useCallback(async (slides: SlideData[], options: any = {}) => {
@@ -92,35 +108,43 @@ export function useProject(projectId?: string) {
 
   // Add to history for undo/redo
   const addToHistory = useCallback((slides: SlideData[]) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(slides);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    
+    const snapshot = cloneSlides(slides);
+    const base = historyRef.current.slice(0, historyIndexRef.current + 1);
+    base.push(snapshot);
+
     // Limit history to 50 entries
-    if (newHistory.length > 50) {
-      setHistory(newHistory.slice(-50));
-      setHistoryIndex(49);
-    }
-  }, [history, historyIndex]);
+    const nextHistory = base.length > 50 ? base.slice(-50) : base;
+    const nextIndex = nextHistory.length - 1;
+
+    historyRef.current = nextHistory;
+    historyIndexRef.current = nextIndex;
+    setHistory(nextHistory);
+    setHistoryIndex(nextIndex);
+  }, [cloneSlides]);
 
   // Undo
   const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      return history[historyIndex - 1];
+    const idx = historyIndexRef.current;
+    if (idx > 0) {
+      const nextIdx = idx - 1;
+      historyIndexRef.current = nextIdx;
+      setHistoryIndex(nextIdx);
+      return cloneSlides(historyRef.current[nextIdx]);
     }
     return null;
-  }, [history, historyIndex]);
+  }, [cloneSlides]);
 
   // Redo
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      return history[historyIndex + 1];
+    const idx = historyIndexRef.current;
+    if (idx < historyRef.current.length - 1) {
+      const nextIdx = idx + 1;
+      historyIndexRef.current = nextIdx;
+      setHistoryIndex(nextIdx);
+      return cloneSlides(historyRef.current[nextIdx]);
     }
     return null;
-  }, [history, historyIndex]);
+  }, [cloneSlides]);
 
   // Load project on mount if projectId provided
   useEffect(() => {

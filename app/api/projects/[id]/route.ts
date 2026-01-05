@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPool, initDB } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
 
 // GET - Load a specific project
 export async function GET(
@@ -18,10 +17,12 @@ export async function GET(
     await initDB();
     const db = getPool();
 
+    // Only allow the project owner to access their project
+    // Shared projects should be accessed via the /share/[token] route
     const result = await db.query(
-      `SELECT id, name, slides, options, created_at, updated_at, is_shared, share_token
+      `SELECT id, user_id, name, slides, options, created_at, updated_at, is_shared, share_token
        FROM projects 
-       WHERE id = $1 AND (user_id = $2 OR is_shared = TRUE)`,
+       WHERE id = $1 AND user_id = $2`,
       [id, session.user.id]
     );
 
@@ -30,11 +31,17 @@ export async function GET(
     }
 
     const project = result.rows[0];
+    // Prevent caching to ensure users always see their own fresh data
     return NextResponse.json({
       project: {
         ...project,
         slides: typeof project.slides === 'string' ? JSON.parse(project.slides) : project.slides,
         options: typeof project.options === 'string' ? JSON.parse(project.options) : project.options
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   } catch (error) {
@@ -61,38 +68,9 @@ export async function PUT(
     await initDB();
     const db = getPool();
 
-    // Verify ownership
-    const ownershipCheck = await db.query(
-      'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
-      [id, session.user.id]
-    );
+    const { name, slides, options } = await request.json();
 
-    if (ownershipCheck.rows.length === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    const { name, slides, options, saveHistory = false } = await request.json();
-
-    // Save to history if requested (for undo/redo)
-    if (saveHistory) {
-      const currentProject = await db.query(
-        'SELECT slides, options FROM projects WHERE id = $1',
-        [id]
-      );
-      
-      if (currentProject.rows.length > 0) {
-        await db.query(
-          `INSERT INTO project_history (project_id, slides, options)
-           VALUES ($1, $2, $3)`,
-          [
-            id,
-            currentProject.rows[0].slides,
-            currentProject.rows[0].options
-          ]
-        );
-      }
-    }
-
+    // Single optimized query: update and verify ownership in one operation
     const updateFields: string[] = [];
     const updateValues: any[] = [];
     let paramIndex = 1;
@@ -112,22 +90,31 @@ export async function PUT(
       updateValues.push(JSON.stringify(options));
     }
 
-    updateFields.push(`updated_at = NOW()`);
-    updateValues.push(id);
+    if (updateFields.length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
 
+    updateFields.push(`updated_at = NOW()`);
+    
+    // Combine ownership check with update in single query
     const result = await db.query(
       `UPDATE projects 
        SET ${updateFields.join(', ')}
-       WHERE id = $${paramIndex}
-       RETURNING id, name, slides, options, updated_at`,
-      updateValues
+       WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
+       RETURNING id, name, updated_at`,
+      [...updateValues, id, session.user.id]
     );
 
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Return minimal data for faster response (client already has the slides)
     return NextResponse.json({
       project: {
-        ...result.rows[0],
-        slides: typeof result.rows[0].slides === 'string' ? JSON.parse(result.rows[0].slides) : result.rows[0].slides,
-        options: typeof result.rows[0].options === 'string' ? JSON.parse(result.rows[0].options) : result.rows[0].options
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        updatedAt: result.rows[0].updated_at
       }
     });
   } catch (error) {

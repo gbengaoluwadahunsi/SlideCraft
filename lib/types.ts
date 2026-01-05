@@ -1,5 +1,12 @@
 // Shared types for carousel/slide data
 
+export interface ElementPosition {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
+
 export interface CustomBlock {
   id: string;
   html: string;
@@ -46,6 +53,15 @@ export interface SlideData {
   elementOrder?: string[];
   customBlocks?: CustomBlock[];
   logoUrl?: string | null;
+  // Free positioning for main elements (optional - uses flow layout if not set)
+  elementPositions?: {
+    title?: ElementPosition;
+    subtitle?: ElementPosition;
+    content?: ElementPosition;
+    emoji?: ElementPosition;
+    media?: ElementPosition;
+  };
+  freePositioning?: boolean; // Enable free positioning mode for this slide
 }
 
 export interface Project {

@@ -6,8 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 export const TextToolbar = () => {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState<{ top: number; left: number; transform: string } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -34,45 +32,6 @@ export const TextToolbar = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Adjust position to stay within viewport
-  const adjustPositionToViewport = useCallback(() => {
-    if (!position || !toolbarRef.current) return;
-    
-    const toolbar = toolbarRef.current;
-    const toolbarWidth = toolbar.offsetWidth;
-    const viewportWidth = window.innerWidth;
-    const padding = 8; // Minimum padding from edges
-    
-    let adjustedLeft = position.left;
-    let transform = 'translateX(-50%)';
-    
-    // Calculate the actual left position after centering
-    const actualLeft = position.left - toolbarWidth / 2;
-    const actualRight = position.left + toolbarWidth / 2;
-    
-    if (actualLeft < padding) {
-      // Toolbar would overflow on the left
-      adjustedLeft = padding;
-      transform = 'translateX(0)';
-    } else if (actualRight > viewportWidth - padding) {
-      // Toolbar would overflow on the right
-      adjustedLeft = viewportWidth - padding;
-      transform = 'translateX(-100%)';
-    }
-    
-    setAdjustedPosition({
-      top: position.top,
-      left: adjustedLeft,
-      transform
-    });
-  }, [position]);
-
-  useEffect(() => {
-    if (position && toolbarRef.current) {
-      // Delay to ensure toolbar is rendered before measuring
-      requestAnimationFrame(adjustPositionToViewport);
-    }
-  }, [position, adjustPositionToViewport]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -156,8 +115,6 @@ export const TextToolbar = () => {
         : range.commonAncestorContainer as HTMLElement;
       savedElementRef.current = element?.closest('[contenteditable="true"]') as HTMLElement | null;
 
-      const rect = range.getBoundingClientRect();
-      
       // Small delay before showing toolbar to ensure selection is stable
       // This prevents the toolbar from triggering re-renders during selection
       if (showTimeoutId) clearTimeout(showTimeoutId);
@@ -165,10 +122,6 @@ export const TextToolbar = () => {
         // Re-check selection is still valid
         const currentSelection = window.getSelection();
         if (currentSelection && currentSelection.rangeCount > 0 && !currentSelection.isCollapsed) {
-          setPosition({
-            top: rect.top - 50,
-            left: rect.left + rect.width / 2
-          });
           setIsVisible(true);
         }
       }, 50);
@@ -284,10 +237,10 @@ export const TextToolbar = () => {
     { name: 'Marker', value: 'var(--font-permanent-marker)', style: { fontFamily: 'var(--font-permanent-marker)' } },
   ];
 
-  if (!isVisible || !position) return null;
+  if (!isVisible) return null;
 
-  // On mobile: position at bottom of screen to avoid conflict with native selection menu
-  // On desktop: position above the selected text
+  // Always center the toolbar horizontally on the page
+  // On mobile: position at bottom, on desktop: position at top
   const toolbarStyle = isMobile
     ? {
         bottom: 16,
@@ -295,21 +248,15 @@ export const TextToolbar = () => {
         transform: 'translateX(-50%)',
         top: 'auto'
       }
-    : adjustedPosition 
-      ? { 
-          top: adjustedPosition.top, 
-          left: adjustedPosition.left,
-          transform: adjustedPosition.transform
-        }
-      : { 
-          top: position.top, 
-          left: position.left,
-          transform: 'translateX(-50%)'
-        };
+    : { 
+        top: 80,
+        left: '50%',
+        transform: 'translateX(-50%)'
+      };
 
   return (
     <AnimatePresence>
-      {isVisible && position && (
+      {isVisible && (
         <motion.div 
           ref={toolbarRef}
           className={`fixed z-[100] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1.5 ${
@@ -472,7 +419,7 @@ export const TextToolbar = () => {
         <AnimatePresence>
           {showColorPicker && (
             <motion.div 
-              className={`absolute bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 grid grid-cols-5 gap-1 w-40 ${
+              className={`absolute bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-3 w-56 ${
                 isMobile ? 'bottom-full mb-2 right-0' : 'top-full mt-2 left-1/2 -translate-x-1/2'
               }`}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -480,18 +427,63 @@ export const TextToolbar = () => {
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
             >
-                {['#ffffff', '#000000', '#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff', '#f97316', '#8b5cf6', '#ec4899'].map(color => (
-                    <button
-                        key={color}
-                        onMouseDown={(e) => {
-                            e.preventDefault();
-                            execCommand('foreColor', color);
-                            setShowColorPicker(false);
-                        }}
-                        className="w-6 h-6 rounded-full border border-gray-700 hover:scale-110 transition"
-                        style={{ backgroundColor: color }}
-                    />
-                ))}
+                {/* Full Color Picker - Click to open system color picker */}
+                <div className="mb-3">
+                  <label className="text-xs text-gray-400 mb-2 block">Pick Any Color</label>
+                  <input
+                    type="color"
+                    defaultValue="#ffd700"
+                    className="w-full h-12 rounded-lg cursor-pointer border-2 border-gray-600 hover:border-[#ffd700] transition-colors [&::-webkit-color-swatch-wrapper]:p-1 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0"
+                    onInput={(e) => {
+                      const color = (e.target as HTMLInputElement).value;
+                      execCommand('foreColor', color);
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+                
+                {/* Hex input */}
+                <div className="mb-3">
+                  <label className="text-xs text-gray-400 mb-1 block">Or enter hex code</label>
+                  <input
+                    type="text"
+                    placeholder="#FF5733"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#ffd700] transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const color = (e.target as HTMLInputElement).value;
+                        if (/^#[0-9A-Fa-f]{6}$/.test(color) || /^#[0-9A-Fa-f]{3}$/.test(color)) {
+                          execCommand('foreColor', color);
+                          setShowColorPicker(false);
+                        }
+                      }
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                {/* Quick preset colors */}
+                <div className="border-t border-gray-700 pt-3">
+                  <label className="text-xs text-gray-400 mb-2 block">Quick Colors</label>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {[
+                      '#ffffff', '#000000', '#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff', '#f97316',
+                      '#ef4444', '#f59e0b', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+                    ].map(color => (
+                      <button
+                          key={color}
+                          onMouseDown={(e) => {
+                              e.preventDefault();
+                              execCommand('foreColor', color);
+                              setShowColorPicker(false);
+                          }}
+                          className="w-5 h-5 rounded border border-gray-600 hover:scale-125 hover:border-white transition-all"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
             </motion.div>
           )}
         </AnimatePresence>

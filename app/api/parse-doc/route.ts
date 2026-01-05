@@ -5,6 +5,12 @@ import matter from 'gray-matter';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// pdf-parse doesn't have proper ESM exports, use dynamic import
+const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
+  const pdf = (await import('pdf-parse')).default;
+  return pdf(buffer);
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -24,6 +30,9 @@ export async function POST(request: NextRequest) {
     if (fileName.endsWith('.docx')) {
       const result = await mammoth.extractRawText({ buffer });
       parsedText = result.value;
+    } else if (fileName.endsWith('.pdf')) {
+      const data = await pdfParse(buffer);
+      parsedText = data.text;
     } else if (fileName.endsWith('.md') || fileName.endsWith('.txt')) {
       const fileContent = buffer.toString('utf-8');
       // Use gray-matter to strip frontmatter if present, otherwise just use content
@@ -31,7 +40,7 @@ export async function POST(request: NextRequest) {
       parsedText = content;
     } else {
       return NextResponse.json(
-        { error: 'Unsupported file type. Please upload .docx, .md, or .txt' },
+        { error: 'Unsupported file type. Please upload .docx, .md, .txt, or .pdf' },
         { status: 400 }
       );
     }

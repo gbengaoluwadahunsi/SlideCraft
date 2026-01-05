@@ -5293,7 +5293,7 @@ function DashboardContent() {
                   <input
                     ref={docUploadInputRef}
                     type="file"
-                    accept=".md,.markdown,.docx,.txt"
+                    accept=".md,.markdown,.docx,.txt,.pdf"
                     className="hidden"
                     onChange={handleDocUpload}
                   />
@@ -5347,7 +5347,7 @@ function DashboardContent() {
                       ) : (
                         <>
                           <Paperclip size={16} />
-                          Upload .docx / .md / .txt
+                          Upload .docx / .pdf / .md / .txt
                         </>
                       )}
                     </button>

@@ -5,7 +5,13 @@ import mammoth from 'mammoth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SUPPORTED_EXTENSIONS = ['.md', '.markdown', '.docx', '.txt'];
+const SUPPORTED_EXTENSIONS = ['.md', '.markdown', '.docx', '.txt', '.pdf'];
+
+// pdf-parse doesn't have proper ESM exports, use dynamic require
+const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
+  const pdf = (await import('pdf-parse')).default;
+  return pdf(buffer);
+};
 const MAX_CHAR_COUNT = 20000;
 
 function normalizeText(text: string) {
@@ -49,6 +55,11 @@ async function extractDocx(buffer: Buffer) {
   return result.value || '';
 }
 
+async function extractPdf(buffer: Buffer) {
+  const data = await pdfParse(buffer);
+  return data.text || '';
+}
+
 async function extractPlain(buffer: Buffer) {
   return buffer.toString('utf-8');
 }
@@ -78,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     if (!extension) {
       return NextResponse.json(
-        { error: 'Unsupported file type. Please upload .md, .markdown, .docx, or .txt' },
+        { error: 'Unsupported file type. Please upload .md, .markdown, .docx, .txt, or .pdf' },
         { status: 400 },
       );
     }
@@ -91,6 +102,8 @@ export async function POST(request: NextRequest) {
       extracted = await extractMarkdown(buffer);
     } else if (extension === '.docx') {
       extracted = await extractDocx(buffer);
+    } else if (extension === '.pdf') {
+      extracted = await extractPdf(buffer);
     } else {
       extracted = await extractPlain(buffer);
     }

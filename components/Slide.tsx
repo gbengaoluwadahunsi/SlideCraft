@@ -222,7 +222,7 @@ export const Slide: React.FC<SlideProps> = ({
   logoUrl = null,
   infographicData,
   elementPositions,
-  freePositioning = false,
+  freePositioning = true,
   ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
@@ -1234,7 +1234,7 @@ export const Slide: React.FC<SlideProps> = ({
 
       {/* Main Content Area */}
       {freePositioning && isEditable && isMounted ? (
-        /* Free Positioning Mode - elements can be dragged anywhere */
+        /* Free Positioning Mode - elements can be dragged anywhere (editable) */
         <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', height: '1080px' }}>
           {currentOrder.map((itemId) => {
             const pos = getDefaultPosition(itemId);
@@ -1285,6 +1285,30 @@ export const Slide: React.FC<SlideProps> = ({
                   </div>
                 </div>
               </Rnd>
+            );
+          })}
+        </div>
+      ) : freePositioning ? (
+        /* Free Positioning Mode - static render for export/download */
+        <div className="absolute inset-0 z-10" style={{ top: 0, left: 0, width: '1080px', height: '1080px' }}>
+          {currentOrder.map((itemId) => {
+            const pos = getDefaultPosition(itemId);
+            const element = renderElement(itemId);
+            if (!element) return null;
+            return (
+              <div
+                key={itemId}
+                style={{
+                  position: 'absolute',
+                  left: pos.x,
+                  top: pos.y,
+                  width: pos.width || 400,
+                  height: pos.height || 100,
+                  overflow: 'hidden',
+                }}
+              >
+                {element}
+              </div>
             );
           })}
         </div>

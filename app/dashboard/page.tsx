@@ -343,6 +343,8 @@ function DashboardContent() {
 
   // Load brand settings from API
   // Also load from localStorage for unauthenticated users
+  // NOTE: This only updates brandSettings state, does NOT overwrite slide properties
+  // (slide properties are only set when creating new slides or loading a project)
   const loadBrandSettings = useCallback(async () => {
     try {
       setIsLoadingBrandSettings(true);
@@ -353,16 +355,6 @@ function DashboardContent() {
           const data = await response.json();
           if (data.settings) {
             setBrandSettings(data.settings);
-            // Apply to all existing slides
-            setSlides(prevSlides => prevSlides.map(slide => ({
-              ...slide,
-              handle: data.settings.handle,
-              category: data.settings.category,
-              fontFamily: data.settings.fontFamily,
-              backgroundColor: data.settings.backgroundColor,
-              textColor: data.settings.textColor,
-              accentColor: data.settings.accentColor
-            })));
             loaded = true;
           }
         }
@@ -373,34 +365,9 @@ function DashboardContent() {
           try {
             const parsed = JSON.parse(stored);
             setBrandSettings(parsed);
-            setSlides(prevSlides => prevSlides.map(slide => ({
-              ...slide,
-              handle: parsed.handle,
-              category: parsed.category,
-              fontFamily: parsed.fontFamily,
-              backgroundColor: parsed.backgroundColor,
-              textColor: parsed.textColor,
-              accentColor: parsed.accentColor
-            })));
           } catch (e) {
             console.error('Failed to parse stored brand settings', e);
           }
-        }
-      }
-      if (response.ok) {
-        const data = await response.json();
-        if (data.settings) {
-          setBrandSettings(data.settings);
-          // Apply to all existing slides
-          setSlides(prevSlides => prevSlides.map(slide => ({
-            ...slide,
-            handle: data.settings.handle,
-            category: data.settings.category,
-            fontFamily: data.settings.fontFamily,
-            backgroundColor: data.settings.backgroundColor,
-            textColor: data.settings.textColor,
-            accentColor: data.settings.accentColor
-          })));
         }
       }
     } catch (error) {
@@ -3292,7 +3259,7 @@ function DashboardContent() {
         </div>
 
         <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Background Image (Current Slide)</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400">Background Image</label>
           
           {activeSlide.backgroundImage ? (
               <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
@@ -3311,9 +3278,21 @@ function DashboardContent() {
                           <ImageIcon size={14} />
                       </button>
                       <button 
-                          onClick={() => setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined, backgroundOverlayOpacity: 0 } : s))}
+                          onClick={() => {
+                              // Smart remove: if all slides have the same background, remove from all
+                              const currentBg = activeSlide.backgroundImage;
+                              const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                              
+                              if (allSameBackground) {
+                                  setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImage: undefined, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined })));
+                                  toast.success('Background removed from all slides');
+                              } else {
+                                  setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: undefined, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined } : s));
+                                  toast.success('Background removed from slide');
+                              }
+                          }}
                           className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
-                          title="Remove Image"
+                          title="Remove Image (smart: removes from all if same background)"
                       >
                           <Trash2 size={14} />
                       </button>
@@ -3339,45 +3318,26 @@ function DashboardContent() {
                     <div className="flex gap-1">
                         <button 
                             onClick={() => {
-                                // Reset all image settings to defaults
-                                setSlides(prevSlides => prevSlides.map(s => 
-                                    s.id === activeSlide.id 
-                                        ? { ...s, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined }
-                                        : s
-                                ));
-                                toast.success('Image settings reset');
-                            }}
-                            className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/50 transition"
-                            title="Reset color tint and filters to defaults"
-                        >
-                            Reset
-                        </button>
-                        <button 
-                            onClick={() => {
-                                const currentOpacity = activeSlide.backgroundOverlayOpacity;
-                                const currentFilter = activeSlide.backgroundImageFilter;
+                                // Smart reset: if all slides have the same background, reset settings on all
+                                const currentBg = activeSlide.backgroundImage;
+                                const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
                                 
-                                setSlides(prevSlides => prevSlides.map(s => ({
-                                    ...s,
-                                    backgroundOverlayOpacity: currentOpacity,
-                                    backgroundImageFilter: currentFilter
-                                })));
-                                
-                                // Visual feedback
-                                const btn = document.getElementById('apply-all-settings-btn');
-                                if (btn) {
-                                    const originalText = btn.innerHTML;
-                                    btn.innerHTML = '<span class="text-green-400">Applied!</span>';
-                                    setTimeout(() => {
-                                        btn.innerHTML = originalText;
-                                    }, 1500);
+                                if (allSameBackground) {
+                                    setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined })));
+                                    toast.success('Image settings reset on all slides');
+                                } else {
+                                    setSlides(prevSlides => prevSlides.map(s => 
+                                        s.id === activeSlide.id 
+                                            ? { ...s, backgroundOverlayOpacity: 0, backgroundImageFilter: undefined }
+                                            : s
+                                    ));
+                                    toast.success('Image settings reset');
                                 }
                             }}
-                            id="apply-all-settings-btn"
-                            className="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded border border-gray-700 transition"
-                            title="Apply these image settings (opacity, filters) to ALL slides"
+                            className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/50 transition"
+                            title="Reset color tint and filters (smart: resets all if same background)"
                         >
-                            Apply to All
+                            Reset
                         </button>
                     </div>
                 </div>
@@ -3396,7 +3356,14 @@ function DashboardContent() {
                        value={activeSlide.backgroundOverlayOpacity ?? 0}
                        onChange={(e) => {
                            const val = parseFloat(e.target.value);
-                           setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                           // Smart apply: if all slides have same background, apply to all
+                           const currentBg = activeSlide.backgroundImage;
+                           const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                           if (allSameBackground) {
+                               setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundOverlayOpacity: val })));
+                           } else {
+                               setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
+                           }
                        }}
                        className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                    />
@@ -3416,15 +3383,25 @@ function DashboardContent() {
                              defaultValue={1}
                              onChange={(e) => {
                                  const val = e.target.value;
-                                 // Simple regex to replace brightness part or append it
-                                 const currentFilter = activeSlide.backgroundImageFilter || '';
-                                 let newFilter = currentFilter;
-                                 if (newFilter.includes('brightness')) {
-                                     newFilter = newFilter.replace(/brightness\([0-9.]+\)/, `brightness(${val})`);
+                                 // Smart apply: if all slides have same background, apply to all
+                                 const currentBg = activeSlide.backgroundImage;
+                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                                 
+                                 const updateFilter = (existingFilter: string | undefined) => {
+                                     let newFilter = existingFilter || '';
+                                     if (newFilter.includes('brightness')) {
+                                         newFilter = newFilter.replace(/brightness\([0-9.]+\)/, `brightness(${val})`);
+                                     } else {
+                                         newFilter = `${newFilter} brightness(${val})`.trim();
+                                     }
+                                     return newFilter;
+                                 };
+                                 
+                                 if (allSameBackground) {
+                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
                                  } else {
-                                     newFilter = `${newFilter} brightness(${val})`.trim();
+                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
                                  }
-                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3441,14 +3418,25 @@ function DashboardContent() {
                              defaultValue={1}
                              onChange={(e) => {
                                  const val = e.target.value;
-                                 const currentFilter = activeSlide.backgroundImageFilter || '';
-                                 let newFilter = currentFilter;
-                                 if (newFilter.includes('contrast')) {
-                                     newFilter = newFilter.replace(/contrast\([0-9.]+\)/, `contrast(${val})`);
+                                 // Smart apply: if all slides have same background, apply to all
+                                 const currentBg = activeSlide.backgroundImage;
+                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                                 
+                                 const updateFilter = (existingFilter: string | undefined) => {
+                                     let newFilter = existingFilter || '';
+                                     if (newFilter.includes('contrast')) {
+                                         newFilter = newFilter.replace(/contrast\([0-9.]+\)/, `contrast(${val})`);
+                                     } else {
+                                         newFilter = `${newFilter} contrast(${val})`.trim();
+                                     }
+                                     return newFilter;
+                                 };
+                                 
+                                 if (allSameBackground) {
+                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
                                  } else {
-                                     newFilter = `${newFilter} contrast(${val})`.trim();
+                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
                                  }
-                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3465,14 +3453,25 @@ function DashboardContent() {
                              defaultValue={0}
                              onChange={(e) => {
                                  const val = e.target.value;
-                                 const currentFilter = activeSlide.backgroundImageFilter || '';
-                                 let newFilter = currentFilter;
-                                 if (newFilter.includes('blur')) {
-                                     newFilter = newFilter.replace(/blur\([0-9.]+px\)/, `blur(${val}px)`);
+                                 // Smart apply: if all slides have same background, apply to all
+                                 const currentBg = activeSlide.backgroundImage;
+                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                                 
+                                 const updateFilter = (existingFilter: string | undefined) => {
+                                     let newFilter = existingFilter || '';
+                                     if (newFilter.includes('blur')) {
+                                         newFilter = newFilter.replace(/blur\([0-9.]+px\)/, `blur(${val}px)`);
+                                     } else {
+                                         newFilter = `${newFilter} blur(${val}px)`.trim();
+                                     }
+                                     return newFilter;
+                                 };
+                                 
+                                 if (allSameBackground) {
+                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
                                  } else {
-                                     newFilter = `${newFilter} blur(${val}px)`.trim();
+                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
                                  }
-                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3489,14 +3488,25 @@ function DashboardContent() {
                              defaultValue={0}
                              onChange={(e) => {
                                  const val = e.target.value;
-                                 const currentFilter = activeSlide.backgroundImageFilter || '';
-                                 let newFilter = currentFilter;
-                                 if (newFilter.includes('grayscale')) {
-                                     newFilter = newFilter.replace(/grayscale\([0-9.]+\)/, `grayscale(${val})`);
+                                 // Smart apply: if all slides have same background, apply to all
+                                 const currentBg = activeSlide.backgroundImage;
+                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
+                                 
+                                 const updateFilter = (existingFilter: string | undefined) => {
+                                     let newFilter = existingFilter || '';
+                                     if (newFilter.includes('grayscale')) {
+                                         newFilter = newFilter.replace(/grayscale\([0-9.]+\)/, `grayscale(${val})`);
+                                     } else {
+                                         newFilter = `${newFilter} grayscale(${val})`.trim();
+                                     }
+                                     return newFilter;
+                                 };
+                                 
+                                 if (allSameBackground) {
+                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
                                  } else {
-                                     newFilter = `${newFilter} grayscale(${val})`.trim();
+                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
                                  }
-                                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: newFilter } : s));
                              }}
                              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
                           />
@@ -3585,30 +3595,6 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Free Positioning Toggle */}
-        <div className="pt-4 border-t border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <span className="text-xs text-gray-400">Free Positioning</span>
-              <p className="text-[10px] text-gray-500 mt-0.5">Drag elements anywhere on slide</p>
-            </div>
-            <button
-              onClick={() => setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? {
-                ...s,
-                freePositioning: !s.freePositioning
-              } : s))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                activeSlide.freePositioning ? 'bg-[#ffd700]' : 'bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  activeSlide.freePositioning ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
 
         {activeSlide.type === 'chart' && (
           <div className="space-y-4 pt-4 border-t border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">

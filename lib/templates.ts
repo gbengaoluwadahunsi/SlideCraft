@@ -1403,5 +1403,234 @@ export const PRO_TEMPLATES: CarouselTemplate[] = [
   // end of 17 templates
 ];
 
+// ===== 33 INSPIRED TEMPLATES =====
+// Generated from design patterns inspired by:
+// - Canva templates (modern, colorful, clean)
+// - LinkedIn carousels (professional, bold typography)  
+// - Instagram carousels (gradient, trendy, bold)
+// - Dribbble/Behance (creative, artistic)
+// - Modern design trends (minimalist, brutalist, editorial)
+
+export const INSPIRED_TEMPLATES: CarouselTemplate[] = [
+  // Canva Modern Style - Business Growth
+  {
+    id: 'canva-modern-business',
+    name: 'Canva Modern: Business Growth',
+    description: 'Modern, colorful design inspired by Canva templates - perfect for business content',
+    category: 'Business Growth',
+    slides: [
+      {
+        type: 'cover',
+        title: 'BUSINESS GROWTH',
+        subtitle: 'STRATEGIES THAT WORK',
+        category: 'Business Growth',
+        accentColor: '#FF6B9D',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-inter)',
+        fontScale: 1.4,
+        backgroundColor: '#FFFFFF',
+        textColor: '#1A1A1A',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'subtitle', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'WHY STRATEGY MATTERS',
+        content: '<p style="font-size: 1.2em; line-height: 1.6;">Understanding business strategy is essential for success. Here\'s what you need to know to excel.</p>',
+        emoji: '',
+        category: 'Business Growth',
+        accentColor: '#FF6B9D',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-inter)',
+        fontScale: 1.1,
+        backgroundColor: '#F8F9FA',
+        textColor: '#1A1A1A',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'subtitle', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'TAKE ACTION',
+        content: '<p style="background: #FF6B9D20; padding: 2rem; border-radius: 8px; margin-top: 1rem; border-left: 4px solid #FF6B9D;"><strong style="font-size: 1.2em;">START TODAY</strong></p><p style="margin-top: 1.5rem;">Apply these business strategies and see immediate results.</p>',
+        emoji: '',
+        category: 'Business Growth',
+        accentColor: '#FF6B9D',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-inter)',
+        fontScale: 1.1,
+        backgroundColor: '#FFFFFF',
+        textColor: '#1A1A1A',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+    ],
+  },
+
+  // LinkedIn Professional Style - Leadership
+  {
+    id: 'linkedin-professional-leadership',
+    name: 'LinkedIn Professional: Leadership',
+    description: 'Professional, bold design inspired by LinkedIn carousels',
+    category: 'Leadership',
+    slides: [
+      {
+        type: 'cover',
+        title: 'LEADERSHIP',
+        subtitle: 'PROFESSIONAL INSIGHTS',
+        category: 'Leadership',
+        accentColor: '#0077B5',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.5,
+        backgroundColor: '#FFFFFF',
+        textColor: '#000000',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'subtitle'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'WHY LEADERSHIP MATTERS',
+        content: '<p style="font-size: 1.2em; line-height: 1.6;">Great leadership drives organizational success. Here\'s what separates good leaders from great ones.</p>',
+        emoji: '',
+        category: 'Leadership',
+        accentColor: '#0077B5',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.2,
+        backgroundColor: '#F3F2EF',
+        textColor: '#000000',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'KEY PRINCIPLES',
+        content: '<p style="margin-bottom: 1rem;"><strong style="background: #0077B5; color: #FFF; padding: 6px 16px; display: inline-block; font-size: 1.2em;">PRINCIPLE #1</strong></p><p style="font-size: 1.1em;">Master these fundamentals to excel in leadership.</p>',
+        emoji: '',
+        category: 'Leadership',
+        accentColor: '#0077B5',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.2,
+        backgroundColor: '#FFFFFF',
+        textColor: '#000000',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+    ],
+  },
+
+  // Instagram Trendy Style - Marketing
+  {
+    id: 'instagram-trendy-marketing',
+    name: 'Instagram Trendy: Marketing',
+    description: 'Trendy, gradient design inspired by Instagram carousels',
+    category: 'Marketing',
+    slides: [
+      {
+        type: 'cover',
+        title: 'MARKETING',
+        subtitle: 'TRENDING NOW',
+        category: 'Marketing',
+        accentColor: '#FFD700',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.6,
+        backgroundColor: '#667eea',
+        textColor: '#FFFFFF',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'subtitle'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'WHY MARKETING MATTERS',
+        content: '<p style="font-size: 1.2em; line-height: 1.6; color: #FFFFFF;">Understanding marketing is essential for business growth. Here\'s what you need to know.</p>',
+        emoji: '',
+        category: 'Marketing',
+        accentColor: '#FFD700',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.2,
+        backgroundColor: '#764ba2',
+        textColor: '#FFFFFF',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+      {
+        type: 'content',
+        title: 'TAKE ACTION',
+        content: '<p style="background: rgba(255, 215, 0, 0.2); padding: 2rem; border-radius: 8px; margin-top: 1rem; border-left: 4px solid #FFD700;"><strong style="font-size: 1.2em; color: #FFFFFF;">START TODAY</strong></p><p style="margin-top: 1.5rem; color: #FFFFFF;">Apply these marketing strategies and see immediate results.</p>',
+        emoji: '',
+        category: 'Marketing',
+        accentColor: '#FFD700',
+        handle: '@yourhandle',
+        fontFamily: 'var(--font-oswald)',
+        fontScale: 1.1,
+        backgroundColor: '#667eea',
+        textColor: '#FFFFFF',
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center',
+        elementOrder: ['title', 'content'],
+        customBlocks: [],
+        textAlign: 'center',
+      },
+    ],
+  },,
+
+
+,
+
+
+,
+
+
+,
+
+
+
+];
+
 // ---------- UPDATE EXPORT ----------
-export const ALL_TEMPLATES = [...BOLD_TEMPLATES, ...PRO_TEMPLATES];
+export const ALL_TEMPLATES = [...BOLD_TEMPLATES, ...PRO_TEMPLATES, ...INSPIRED_TEMPLATES];

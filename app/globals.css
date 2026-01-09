@@ -38,6 +38,62 @@ body {
   cursor: text !important;
 }
 
+/* Prevent inappropriate word breaks in editable text */
+[contenteditable="true"],
+[contenteditable="true"] * {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+  -ms-hyphens: none !important;
+}
+
+/* Ensure titles and headings never break mid-word */
+h1[contenteditable="true"],
+h2[contenteditable="true"],
+h3[contenteditable="true"],
+[contenteditable="true"] h1,
+[contenteditable="true"] h2,
+[contenteditable="true"] h3 {
+  word-break: keep-all !important;
+  white-space: normal !important;
+}
+
+/* Table styling inside contenteditable - no focus rings on cells */
+[contenteditable="true"] table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+[contenteditable="true"] td,
+[contenteditable="true"] th {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+[contenteditable="true"] td:focus,
+[contenteditable="true"] th:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Table block resize styling */
+.table-block {
+  border: 2px dashed transparent;
+  transition: border-color 0.2s ease;
+}
+
+.table-block:hover {
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+/* Custom resize handle styling for tables */
+.table-block .react-resizable-handle {
+  background: rgba(255, 215, 0, 0.8) !important;
+  border-radius: 2px;
+}
+
 /* Fix for selection on transformed elements */
 [contenteditable="true"], 
 [contenteditable="true"] * {

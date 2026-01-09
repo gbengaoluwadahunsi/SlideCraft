@@ -9,15 +9,27 @@ if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
   console.warn('⚠️  AUTH_SECRET or NEXTAUTH_SECRET is not set. Authentication may not work properly.');
 }
 
+// Check if Google OAuth credentials are configured
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const isGoogleConfigured = googleClientId && googleClientSecret;
+
+if (!isGoogleConfigured) {
+  console.warn('⚠️  Google OAuth is not configured. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in your .env.local file.');
+}
+
 const authConfig: NextAuthConfig = {
   trustHost: true,
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   basePath: '/api/auth',
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    }),
+    // Only add Google provider if credentials are configured
+    ...(isGoogleConfigured ? [
+      GoogleProvider({
+        clientId: googleClientId!,
+        clientSecret: googleClientSecret!,
+      })
+    ] : []),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {

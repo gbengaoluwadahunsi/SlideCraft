@@ -32,10 +32,17 @@ async function generateWithRetry<T>(
 
 const BASE_SYSTEM_PROMPT = `
 You are an expert carousel content strategist for LinkedIn, Instagram, X, newsletters, and pitch decks. 
-Convert the provided text into a visually engaging carousel structure.
+Convert the provided text into a visually engaging carousel structure that will WOW audiences.
 Return ONLY a valid JSON object with a "slides" array. Do not wrap it in markdown code blocks.
 
 IMPORTANT: Do NOT use markdown syntax in your output. No asterisks (**), no hashtags (###), no underscores for formatting.
+
+CRITICAL: Create slides that are visually stunning, engaging, and professional. Think about:
+- Compelling headlines that grab attention
+- Clear, scannable content structure
+- Visual variety and rhythm
+- Professional yet modern design aesthetic
+- High-impact messaging that stands out
 `;
 
 const SLIDE_STYLE_PROMPTS = {
@@ -44,12 +51,24 @@ Each slide should have:
 - type: "cover" (only for the first slide), "content", or "chart"
 - title: Short, punchy header (plain text, no markdown)
 - subtitle: (for cover only) The main hook (plain text, no markdown)
-- content: (for content slides) HTML string with <p>, <ul>, <li> tags. 
-  - Use <em>text</em> for HIGH IMPACT highlights (renders as yellow background).
-  - Use <strong>text</strong> for bold emphasis (renders as yellow text).
-  - Use <pre><code>...</code></pre> for code snippets.
-  - Ensure text is informative and readable.
-  - NEVER use markdown like ** or ### - use HTML tags instead.
+- content: (for content slides) HTML string with rich formatting options:
+  
+  AVAILABLE TEXT FORMATTING (use these HTML tags):
+  - <strong>text</strong> - Bold text (renders in accent color)
+  - <em>text</em> - Highlighted/emphasized text (yellow background)
+  - <u>text</u> - Underlined text
+  - <s>text</s> - Strikethrough text
+  - <sup>text</sup> - Superscript (for footnotes, math like x²)
+  - <sub>text</sub> - Subscript (for chemical formulas like H₂O)
+  - <span style="text-transform: uppercase">TEXT</span> - All caps for impact
+  - <span style="font-size: 24px">text</span> - Larger text for emphasis
+  - <span style="letter-spacing: 0.1em">text</span> - Spaced out text
+  - <span style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5)">text</span> - Shadow effect
+  - <a href="url">link text</a> - Clickable links
+  - <p>, <ul>, <li> - Paragraphs and lists
+  - <pre><code>...</code></pre> - Code snippets
+  
+  NEVER use markdown like ** or ### - use HTML tags instead.
 - emoji: DO NOT include emoji. Leave this field empty or omit it entirely.
 - chartType: (for chart slides only) "bar", "line", or "pie"
 - chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number).
@@ -68,13 +87,15 @@ Create INFOGRAPHIC-STYLE slides that are visually structured and information-den
 
 Each slide should have:
 - type: "cover" (only for the first slide), "visual", "chart"
-- title: Short, impactful header (max 5 words)
+- title: Short, impactful header (max 5 words). Can use text effects:
+  - <span style="text-transform: uppercase">TITLE</span> for impact
+  - <span style="letter-spacing: 0.15em">T I T L E</span> for elegant spacing
 - subtitle: (for cover only) The main hook
-- icon: Choose ONE icon name that best represents the slide concept. We now have 7000+ Phosphor icons! Common ones include: lightbulb, target, rocket, users, shield, brain, trophy, clock, star, heart, fire, globe, lightning, chart, book, leaf, gift, sun, moon, camera, phone, calendar, bell, gear, flag, key, lock, cloud, database, cpu, battery, wifi, shopping-cart, credit-card, wallet, package, truck, airplane, train, bicycle, tree, paint-brush, code, music, video, coffee, sparkle, trending-up, check-circle, activity, heartbeat, first-aid, and thousands more
+- icon: Choose ONE icon name from Phosphor icons: lightbulb, target, rocket, users, shield, brain, trophy, clock, star, heart, fire, globe, lightning, chart, book, leaf, gift, sun, moon, camera, phone, calendar, bell, gear, flag, key, lock, cloud, database, cpu, battery, wifi, shopping-cart, credit-card, wallet, package, truck, airplane, train, bicycle, tree, paint-brush, code, music, video, coffee, sparkle, trending-up, check-circle, activity, heartbeat, first-aid, and more
 - content: (for visual slides) Provide 3-5 distinct bullet points using <ul><li> format. DO NOT wrap in <p> tags.
   - Each bullet should be EXTREMELY SHORT (max 10 words).
   - Each bullet should be a clear, standalone insight or step.
-  - Do NOT use <strong> or <em> tags in visual slide content - keep it plain text inside <li> tags.
+  - Keep content plain text inside <li> tags for visual slides.
   - Example: <ul><li>Make SMART Goals</li><li>Set Realistic Targets</li><li>Create an Action Plan</li></ul>
 - infographicLayout: (for visual slides) Suggest the MOST FITTING layout from: "cards-grid", "timeline", "process-steps", "cycle", "icon-cards", "numbered-list", "feature-list", "pyramid", "comparison", "checklist"
   - Use "process-steps" ONLY for step-by-step how-to content (max 5 steps)
@@ -108,19 +129,30 @@ Create a MIX of visual infographics and text-heavy slides for variety.
 
 Each slide should have:
 - type: "cover" (first slide only), "visual" (infographic), "content" (text-focused), or "chart"
-- title: Short, punchy header (plain text)
+- title: Short, punchy header. For impact, can use:
+  - <span style="text-transform: uppercase">TITLE</span> for bold statements
+  - <span style="letter-spacing: 0.1em">Elegant Title</span> for spaced effect
 - subtitle: (for cover only) The main hook
 - icon: (for "visual" type) Choose ONE Phosphor icon
 - content: 
   - For "visual" type: Clean <ul><li> list with 3-5 short items (5-10 words each)
-  - For "content" type: Detailed paragraphs using <p>, <ul>, <li> with <em> and <strong> for emphasis
+  - For "content" type: Rich formatted text using these HTML options:
+    * <strong>bold</strong> - Bold emphasis (accent color)
+    * <em>highlight</em> - Yellow background highlight
+    * <u>underline</u> - Underlined text
+    * <s>strikethrough</s> - Crossed out text
+    * <sup>superscript</sup> - For x², footnotes
+    * <sub>subscript</sub> - For H₂O, chemical formulas
+    * <span style="font-size: 20px">larger</span> - Size variations
+    * <a href="url">links</a> - Clickable links
+    * <p>, <ul>, <li> - Structure
 - infographicLayout: (for visual slides) VARY the layouts - use different styles for each visual slide
 - chartType/chartData: For chart slides with statistics
 
 SLIDE PATTERN - Alternate types for variety:
 - Slide 1: Cover
 - Slide 2: Visual (infographic - use cards-grid or icon-cards)
-- Slide 3: Content (detailed text)
+- Slide 3: Content (detailed text with rich formatting)
 - Slide 4: Visual (infographic - use timeline or process-steps)
 - Slide 5: Content or Chart (if data available)
 - Slide 6: Visual (infographic - use cycle or feature-list)
@@ -301,21 +333,97 @@ ${combinedText}`,
 
     const trimmedSlides = (jsonResult.slides || []).slice(0, requestedSlideCount);
 
+    // Fetch user's brand settings for enhanced styling
+    let brandSettings: any = null;
+    try {
+      const { initDB, getPool } = await import('@/lib/db');
+      await initDB();
+      const db = getPool();
+      const result = await db.query(
+        'SELECT brand_settings FROM user_settings WHERE user_id = $1',
+        [session.user.id]
+      );
+      if (result.rows.length > 0) {
+        brandSettings = result.rows[0].brand_settings || {};
+      }
+    } catch (err) {
+      console.log('Could not fetch brand settings, using defaults');
+    }
+
+    // Default brand colors if not available
+    const accentColor = brandSettings?.accentColor || '#ffd700';
+    const backgroundColor = brandSettings?.backgroundColor || '#0B0F19';
+    const textColor = brandSettings?.textColor || '#ffffff';
+    const fontFamily = brandSettings?.fontFamily || 'var(--font-inter)';
+
     // Default icons for visual slides based on common topics
     const defaultIcons = ['lightbulb', 'target', 'rocket', 'star', 'zap', 'brain', 'trophy', 'heart', 'check-circle', 'trending-up'];
     
-    // Clean markdown from all text fields
-    const slidesWithIds = trimmedSlides.map((slide: any, index: number) => {
+    // Photo filter presets for background images (professional, modern, engaging)
+    const photoFilters = [
+      'brightness(1.1) contrast(1.15) saturate(1.1)',
+      'brightness(1.05) contrast(1.1) saturate(1.2)',
+      'brightness(1.08) contrast(1.2) saturate(0.95)',
+      'brightness(1.1) contrast(1.05) saturate(1.15)',
+      'brightness(1.12) contrast(1.18) saturate(1.05)',
+    ];
+
+    // Text animation options
+    const textAnimations = ['fadeIn', 'slideUp', 'zoomIn', 'slideRight', 'bounce'];
+    
+    // Box shadow presets for depth and visual appeal
+    const boxShadows = [
+      '0 4px 20px rgba(0, 0, 0, 0.3)',
+      '0 8px 30px rgba(0, 0, 0, 0.4)',
+      '0 6px 25px rgba(0, 0, 0, 0.35)',
+      '0 10px 40px rgba(0, 0, 0, 0.45)',
+      '0 5px 20px rgba(0, 0, 0, 0.3)',
+    ];
+
+    // Helper function to generate background image URL
+    const generateBackgroundImage = async (slideTitle: string, slideContent: string, index: number): Promise<string | null> => {
+      try {
+        // Create a descriptive prompt for the background
+        const contentText = slideContent 
+          ? slideContent.replace(/<[^>]+>/g, ' ').substring(0, 100)
+          : slideTitle;
+        
+        const themeWords = (slideTitle + ' ' + contentText)
+          .replace(/[^\w\s]/g, '')
+          .split(/\s+/)
+          .filter((w: string) => w.length > 3)
+          .slice(0, 5)
+          .join(' ');
+        
+        const imagePrompt = `Professional abstract background for ${themeWords}, modern minimalist design, ${accentColor} accent colors, high quality, 4k, studio lighting`;
+        const encodedPrompt = encodeURIComponent(imagePrompt);
+        const seed = (Date.now() + index) % 10000;
+        
+        return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1080&height=1080&nologo=true&model=flux&seed=${seed}`;
+      } catch (err) {
+        console.log('Background image generation failed:', err);
+        return null;
+      }
+    };
+
+    // Process slides with all enhancements - automatically applying:
+    // - Brand colors and fonts from user settings
+    // - AI-generated background images for visual appeal
+    // - Professional photo filters for depth
+    // - Text animations for engagement
+    // - Box shadows and borders for modern styling
+    // - Text opacity and overlay effects for readability
+    // - Infographic layouts for visual slides
+    const slidesWithIds = await Promise.all(trimmedSlides.map(async (slide: any, index: number) => {
       // Generate individual 3D icons for infographic items if it's a visual slide
       let infographicIcons: string[] = [];
       if (slideStyle === 'visual' || (slideStyle === 'mixed' && slide.type === 'visual')) {
-        // We'll extract items from the content for the icons
         const items = slide.content ? 
           slide.content.match(/<li[^>]*>([^<]+)<\/li>/gi)?.map((li: string) => li.replace(/<\/?[^>]+>/g, '').trim()) || [] 
           : [];
           
         infographicIcons = items.map((item: string) => {
-          const prompt = `3D isometric icon for ${item}, high quality, clean white background, vibrant colors, minimalist design`;
+          const prompt = `3D isometric icon for ${item}, high quality, clean white background, vibrant colors, minimalist design, ${accentColor} accent`;
           return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=256&height=256&nologo=true&model=flux`;
         });
       }
@@ -326,33 +434,118 @@ ${combinedText}`,
       
       if (slideStyle === 'visual' && slide.type !== 'cover' && slide.type !== 'chart') {
         slideType = 'visual';
-        // Assign a default icon if none provided
         if (!slideIcon) {
           slideIcon = defaultIcons[index % defaultIcons.length];
         }
       }
       
-      // For mixed style, ensure visual slides have icons
       if (slideStyle === 'mixed' && slide.type === 'visual' && !slideIcon) {
         slideIcon = defaultIcons[index % defaultIcons.length];
       }
-      
+
+      // Generate background image for visual appeal (skip for chart slides)
+      let backgroundImage: string | null = null;
+      let backgroundImageFilter: string = '';
+      if (slideType !== 'chart' && (slideStyle === 'visual' || slideStyle === 'mixed' || index === 0)) {
+        // Generate background for cover slides and visual slides
+        if (index === 0 || slideType === 'visual' || slideType === 'cover') {
+          backgroundImage = await generateBackgroundImage(
+            slide.title || '',
+            slide.content || '',
+            index
+          );
+          // Apply a professional filter
+          backgroundImageFilter = photoFilters[index % photoFilters.length];
+        }
+      }
+
+      // Determine text animation based on slide type and position
+      const textAnimation = slideType === 'cover' 
+        ? 'zoomIn' 
+        : textAnimations[index % textAnimations.length];
+
+      // Apply box shadow for depth (especially on content slides)
+      const boxShadow = slideType === 'content' || slideType === 'visual'
+        ? boxShadows[index % boxShadows.length]
+        : undefined;
+
+      // Add subtle border radius for modern look
+      const borderRadius = slideType === 'visual' ? 12 : undefined;
+
+      // Set text opacity for layered effects (slightly reduced on background images)
+      const textOpacity = backgroundImage ? 0.95 : 1;
+
+      // Apply brand colors
+      const slideAccentColor = accentColor;
+      const slideBackgroundColor = backgroundColor;
+      const slideTextColor = textColor;
+      const slideFontFamily = fontFamily;
+
+      // Set background overlay opacity for better text readability on images
+      const backgroundOverlayOpacity = backgroundImage ? 0.3 : 0;
+
+      // Extract infographic data for visual slides
+      let infographicData: any = undefined;
+      if (slideType === 'visual' && slide.content) {
+        // Extract items from <li> tags
+        const items = slide.content.match(/<li[^>]*>([^<]+)<\/li>/gi)?.map((li: string) => 
+          li.replace(/<\/?[^>]+>/g, '').trim()
+        ) || [];
+        
+        if (items.length > 0) {
+          // Map infographicLayout from AI response to our supported layouts
+          const layoutMap: Record<string, string> = {
+            'cards-grid': 'cards-grid',
+            'timeline': 'timeline',
+            'process-steps': 'process-steps',
+            'cycle': 'cycle',
+            'icon-cards': 'icon-cards',
+            'numbered-list': 'numbered-list',
+            'feature-list': 'feature-list',
+            'pyramid': 'pyramid',
+            'comparison': 'comparison',
+            'checklist': 'checklist',
+          };
+          
+          const infographicLayout = slide.infographicLayout || 'cards-grid';
+          const mappedLayout = layoutMap[infographicLayout] || 'cards-grid';
+          
+          infographicData = {
+            items,
+            layout: mappedLayout as any,
+          };
+        }
+      }
+
       return {
         ...slide,
         type: slideType,
         icon: slideIcon,
         infographicIcons,
+        infographicData,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         title: stripMarkdown(slide.title || ''),
         subtitle: stripMarkdown(slide.subtitle || ''),
         content: slide.content 
           ? slide.content
-              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert **text** to <strong>
-              .replace(/\*([^*]+)\*/g, '<em>$1</em>') // Convert *text* to <em>
-              .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>') // Convert ### headers to bold
+              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+              .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
           : slide.content,
+        // Apply all enhanced features
+        backgroundImage,
+        backgroundImageFilter,
+        backgroundOverlayOpacity,
+        accentColor: slideAccentColor,
+        backgroundColor: slideBackgroundColor,
+        textColor: slideTextColor,
+        fontFamily: slideFontFamily,
+        textOpacity,
+        boxShadow,
+        borderRadius,
+        textAnimation, // Store animation type for frontend to apply
       };
-    });
+    }));
 
     incrementAndGetMetrics().catch(console.error);
 

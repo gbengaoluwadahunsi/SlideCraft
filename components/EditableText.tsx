@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import { getGlobalHoveredElement, setGlobalHoveredElement, globalHoverListeners } from '@/lib/textHover';
 
 interface EditableTextProps {
   html: string;
@@ -98,22 +99,65 @@ export const EditableText: React.FC<EditableTextProps> = ({
     // Just ensure the element can receive focus
   }, []);
 
-  const Tag = tagName as keyof JSX.IntrinsicElements;
+  // Handle hover to show toolbar
+  const handleMouseEnter = useCallback(() => {
+    if (contentEditableRef.current && !disabled) {
+      const element = contentEditableRef.current;
+      setGlobalHoveredElement(element);
+      // Trigger all listeners synchronously
+      globalHoverListeners.forEach(listener => {
+        try {
+          listener(element);
+        } catch (e) {
+          console.error('Error in hover listener:', e);
+        }
+      });
+    }
+  }, [disabled]);
+
+  const handleMouseLeave = useCallback(() => {
+    // Longer delay to prevent flickering and allow moving between elements
+    setTimeout(() => {
+      // Only clear if still pointing to this element AND no selection exists
+      const selection = window.getSelection();
+      const hasSelection = selection && !selection.isCollapsed;
+      
+      if (getGlobalHoveredElement() === contentEditableRef.current && !hasSelection) {
+        // Check if mouse is now over another contenteditable
+        const hoveredElements = document.querySelectorAll('[contenteditable="true"]:hover');
+        if (hoveredElements.length === 0) {
+          setGlobalHoveredElement(null);
+          globalHoverListeners.forEach(listener => listener(null));
+        }
+      }
+    }, 300);
+  }, []);
 
   // IMPORTANT: We don't use dangerouslySetInnerHTML to avoid React replacing DOM content
   // Instead, we manage innerHTML manually via refs and useEffect
-  return (
-    <Tag
-      ref={contentEditableRef}
-      className={`outline-none focus:ring-2 focus:ring-[#ffd700]/50 rounded px-1 -mx-1 transition-all empty:before:content-[attr(data-placeholder)] empty:before:text-gray-500 cursor-text ${className}`}
-      style={{ ...style, userSelect: 'text', WebkitUserSelect: 'text' }}
-      contentEditable={!disabled}
-      onInput={handleInput}
-      onBlur={handleBlur}
-      onMouseDown={handleMouseDown}
-      data-placeholder={placeholder}
-      suppressContentEditableWarning={true}
-    />
+  return React.createElement(
+    tagName,
+    {
+      ref: contentEditableRef,
+      className: `outline-none focus:ring-2 focus:ring-[#ffd700]/50 rounded px-1 -mx-1 transition-all empty:before:content-[attr(data-placeholder)] empty:before:text-gray-500 cursor-text ${className}`,
+      style: { 
+        ...style, 
+        userSelect: 'text', 
+        WebkitUserSelect: 'text',
+        wordBreak: 'normal',
+        overflowWrap: 'break-word',
+        hyphens: 'none',
+        WebkitHyphens: 'none',
+      },
+      contentEditable: !disabled,
+      onInput: handleInput,
+      onBlur: handleBlur,
+      onMouseDown: handleMouseDown,
+      onMouseEnter: handleMouseEnter,
+      onMouseLeave: handleMouseLeave,
+      'data-placeholder': placeholder,
+      suppressContentEditableWarning: true
+    }
   );
 };
 

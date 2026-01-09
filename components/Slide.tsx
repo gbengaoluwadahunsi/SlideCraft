@@ -3,9 +3,11 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { EditableText } from './EditableText';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   DndContext, 
   closestCenter,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -34,7 +36,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi } from 'lucide-react';
+import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi, Scissors, Loader2 } from 'lucide-react';
 import { Rnd } from 'react-rnd';
 import { Infographic } from './Infographic';
 
@@ -105,6 +107,13 @@ interface SlideProps {
     media?: ElementPosition;
   };
   freePositioning?: boolean;
+  // Styling properties
+  textOpacity?: number;
+  boxShadow?: string;
+  borderWidth?: number;
+  borderColor?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderRadius?: number;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -128,13 +137,12 @@ const sanitizeHandle = (value: string | undefined | null) => {
 };
 
 
-// Sortable Item Component - drag ONLY from handle, not content
+// Sortable Item Component - drag from anywhere, but allow text selection in contenteditable
 function SortableItem({ id, children, isEditable, className = '' }: { id: string; children: React.ReactNode; isEditable: boolean; className?: string }) {
   const {
     attributes,
     listeners,
     setNodeRef,
-    setActivatorNodeRef,
     transform,
     transition,
     isDragging
@@ -150,25 +158,42 @@ function SortableItem({ id, children, isEditable, className = '' }: { id: string
     zIndex: isDragging ? 50 : 'auto',
   };
 
-  // IMPORTANT: listeners are ONLY on the drag handle, not the container
-  // This allows normal text selection inside contenteditable elements
+  // Create custom listeners that prevent dragging when interacting with contenteditable
+  const customListeners = isEditable ? {
+    ...listeners,
+    onPointerDown: (e: React.PointerEvent) => {
+      const target = e.target as HTMLElement;
+      const contentEditable = target.closest('[contenteditable="true"]');
+      
+      // If clicking directly on a contenteditable element, don't start drag
+      // The activation constraint (distance: 8) will handle the rest
+      // This allows text selection to work normally
+      if (contentEditable && contentEditable === target) {
+        // Check if there's already a text selection
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) {
+          // User has selected text, don't interfere
+          return;
+        }
+        // Allow the click to go through for text editing
+        // The drag will only start if user moves mouse 8px (activation constraint)
+      }
+      
+      // Call the original listener for drag
+      if (listeners?.onPointerDown) {
+        listeners.onPointerDown(e);
+      }
+    }
+  } : {};
+
   return (
     <div 
       ref={setNodeRef} 
       style={style} 
-      className={`group/item relative ${className} ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`group/item relative ${className} ${isDragging ? 'cursor-grabbing' : isEditable ? 'cursor-move' : ''}`}
+      {...(isEditable ? attributes : {})}
+      {...customListeners}
     >
-      {isEditable && (
-        <div 
-            ref={setActivatorNodeRef}
-            {...attributes} 
-            {...listeners} 
-            className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white cursor-grab active:cursor-grabbing opacity-0 group-hover/item:opacity-100 transition-opacity z-50"
-            title="Drag to move"
-        >
-            <GripVertical size={16} />
-        </div>
-      )}
       {children}
     </div>
   );
@@ -223,10 +248,17 @@ export const Slide: React.FC<SlideProps> = ({
   infographicData,
   elementPositions,
   freePositioning = true,
+  textOpacity,
+  boxShadow,
+  borderWidth,
+  borderColor,
+  borderStyle,
+  borderRadius,
   ...props
 }) => {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
+  const [isRemovingBackground, setIsRemovingBackground] = useState(false);
   
   useEffect(() => {
     setIsMounted(true);
@@ -472,6 +504,39 @@ export const Slide: React.FC<SlideProps> = ({
         );
     }
 
+    // Handle background removal
+    const handleRemoveBackground = async () => {
+        if (!mediaUrl || !onUpdate || isRemovingBackground) return;
+        
+        setIsRemovingBackground(true);
+        try {
+            const response = await fetch('/api/remove-background', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ imageUrl: mediaUrl }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Background removal failed');
+            }
+
+            const data = await response.json();
+            if (data.secure_url) {
+                onUpdate('mediaUrl', data.secure_url);
+                toast.success('Background removed successfully!');
+            }
+        } catch (error) {
+            console.error('Background removal error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to remove background. Please try again.';
+            toast.error(errorMessage);
+        } finally {
+            setIsRemovingBackground(false);
+        }
+    };
+
     // Media Actions Overlay (Hover) for Editable Mode
     const MediaOverlay = () => {
         if (!isEditable) return null;
@@ -479,6 +544,23 @@ export const Slide: React.FC<SlideProps> = ({
         return (
             <div className="absolute inset-0 pointer-events-none z-20">
                 <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition pointer-events-auto">
+                    {mediaType === 'image' && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveBackground();
+                            }}
+                            disabled={isRemovingBackground}
+                            className="p-2 bg-blue-500/20 rounded-lg text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/50 shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Remove Background"
+                        >
+                            {isRemovingBackground ? (
+                                <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                                <Scissors size={18} />
+                            )}
+                        </button>
+                    )}
                     <label className="p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 border border-gray-600 cursor-pointer shadow-lg transform hover:scale-105 transition-all" title="Replace Media">
                         {mediaType === 'video' ? <Upload size={18} /> : <ImageIcon size={18} />}
                         <input 
@@ -526,11 +608,17 @@ export const Slide: React.FC<SlideProps> = ({
     };
 
     if (mediaType === 'image' && mediaUrl) {
+        // If aspect ratio is 0 or undefined, show image at natural proportions
+        const hasAspectRatio = mediaAspectRatio && mediaAspectRatio > 0;
+        
         return (
             <div className="mt-6 flex w-full" style={outerStyle}>
                 <div
-                    className={`relative group rounded-3xl border border-white/10 bg-black/30 overflow-hidden shadow-xl flex-shrink-0 ${onImagePreview ? 'cursor-zoom-in' : ''}`}
-                    style={{ ...innerStyle, aspectRatio: mediaAspectRatio || 16 / 9 }}
+                    className={`relative group overflow-visible flex-shrink-0 ${onImagePreview ? 'cursor-zoom-in' : ''}`}
+                    style={{ 
+                        ...innerStyle,
+                        ...(hasAspectRatio ? { aspectRatio: mediaAspectRatio } : {})
+                    }}
                     onDragStart={preventDrag}
                     onClick={(e) => {
                         if (onImagePreview && mediaUrl) {
@@ -542,7 +630,7 @@ export const Slide: React.FC<SlideProps> = ({
                     <img 
                         src={mediaUrl} 
                         alt="Slide Media" 
-                        className="w-full h-full object-contain select-none"
+                        className={`select-none drop-shadow-lg ${hasAspectRatio ? 'w-full h-full object-contain' : 'max-w-full max-h-[600px] object-contain'}`}
                         draggable={false}
                     />
                     {/* Zoom indicator overlay */}
@@ -812,10 +900,99 @@ export const Slide: React.FC<SlideProps> = ({
     );
   };
 
+  // Helper functions for table manipulation
+  const isTableBlock = (html: string) => html.includes('<table');
+  
+  const addTableRow = (block: CustomBlock) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(block.html, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return;
+    
+    const lastRow = table.querySelector('tr:last-child');
+    if (!lastRow) return;
+    
+    const newRow = lastRow.cloneNode(true) as HTMLTableRowElement;
+    // Reset cell content to "Cell"
+    newRow.querySelectorAll('td').forEach(cell => {
+      cell.textContent = 'Cell';
+      cell.style.fontWeight = 'normal';
+      cell.style.background = 'transparent';
+    });
+    table.appendChild(newRow);
+    
+    handleCustomBlockChange(block.id, { 
+      html: table.outerHTML,
+      height: block.height + 50
+    });
+  };
+  
+  const addTableColumn = (block: CustomBlock) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(block.html, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tr');
+    rows.forEach((row, index) => {
+      const lastCell = row.querySelector('td:last-child, th:last-child');
+      if (!lastCell) return;
+      
+      const newCell = lastCell.cloneNode(true) as HTMLTableCellElement;
+      newCell.textContent = index === 0 ? `Header ${row.children.length + 1}` : 'Cell';
+      row.appendChild(newCell);
+    });
+    
+    handleCustomBlockChange(block.id, { 
+      html: table.outerHTML,
+      width: block.width + 100
+    });
+  };
+  
+  const removeTableRow = (block: CustomBlock) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(block.html, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tr');
+    if (rows.length <= 1) return; // Keep at least one row
+    
+    rows[rows.length - 1].remove();
+    
+    handleCustomBlockChange(block.id, { 
+      html: table.outerHTML,
+      height: Math.max(block.height - 50, 70)
+    });
+  };
+  
+  const removeTableColumn = (block: CustomBlock) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(block.html, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tr');
+    const firstRowCells = rows[0]?.querySelectorAll('td, th');
+    if (!firstRowCells || firstRowCells.length <= 1) return; // Keep at least one column
+    
+    rows.forEach(row => {
+      const lastCell = row.querySelector('td:last-child, th:last-child');
+      if (lastCell) lastCell.remove();
+    });
+    
+    handleCustomBlockChange(block.id, { 
+      html: table.outerHTML,
+      width: Math.max(block.width - 100, 160)
+    });
+  };
+
   const renderCustomBlocks = () => {
     if (!customBlocks?.length) return null;
 
     return customBlocks.map((block) => {
+      const isTable = isTableBlock(block.html);
+      
       if (isEditable) {
         return (
           <Rnd
@@ -834,12 +1011,21 @@ export const Slide: React.FC<SlideProps> = ({
               })
             }
             dragHandleClassName="drag-handle"
-            minWidth={160}
-            minHeight={40}
-            className="pointer-events-auto group/block"
+            minWidth={isTable ? 200 : 160}
+            minHeight={isTable ? 60 : 40}
+            className={`pointer-events-auto group/block ${isTable ? 'table-block' : ''}`}
             style={{ zIndex: 40, touchAction: 'none' }}
-            cancel=".editable-text"
-            enableResizing={{
+            cancel=".editable-text, .table-controls"
+            enableResizing={isTable ? {
+              top: true,
+              right: true,
+              bottom: true,
+              left: true,
+              topRight: true,
+              bottomRight: true,
+              bottomLeft: true,
+              topLeft: true,
+            } : {
               top: false,
               right: true,
               bottom: true,
@@ -852,10 +1038,10 @@ export const Slide: React.FC<SlideProps> = ({
           >
             <div className="w-full h-full relative group">
               <div
-                className="drag-handle absolute -top-2 -left-2 w-6 h-6 bg-[#ffd700] rounded-full flex items-center justify-center cursor-move shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                className="drag-handle absolute -top-3 -left-3 w-8 h-8 bg-[#ffd700] rounded-full flex items-center justify-center cursor-move shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-10"
                 title="Drag to move"
               >
-                <GripVertical size={12} className="text-black" />
+                <GripVertical size={16} className="text-black" />
               </div>
               <button
                 onClick={() => handleRemoveCustomBlock(block.id)}
@@ -864,6 +1050,41 @@ export const Slide: React.FC<SlideProps> = ({
               >
                 <Trash2 size={12} />
               </button>
+              
+              {/* Table Controls - show only for table blocks */}
+              {isTable && (
+                <div className="table-controls absolute -bottom-10 left-0 right-0 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); addTableRow(block); }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded font-medium shadow-lg"
+                    title="Add Row"
+                  >
+                    + Row
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeTableRow(block); }}
+                    className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded font-medium shadow-lg"
+                    title="Remove Row"
+                  >
+                    - Row
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); addTableColumn(block); }}
+                    className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded font-medium shadow-lg"
+                    title="Add Column"
+                  >
+                    + Col
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeTableColumn(block); }}
+                    className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded font-medium shadow-lg"
+                    title="Remove Column"
+                  >
+                    - Col
+                  </button>
+                </div>
+              )}
+              
               <div className="w-full h-full text-left overflow-visible cursor-text p-2 editable-text">
                 <EditableText
                   tagName="div"
@@ -871,13 +1092,13 @@ export const Slide: React.FC<SlideProps> = ({
                   style={{
                     color: activeTextColor,
                     overflow: 'visible',
-                    fontSize: `${2.25 * fontScale}rem`, // Match slide content size
+                    fontSize: isTable ? '1rem' : `${2.25 * fontScale}rem`,
                   }}
                   html={block.html}
                   onChange={(val) => {
-                    // Auto-delete if content is empty
+                    // Auto-delete if content is empty (but not for tables)
                     const strippedVal = val.replace(/<[^>]*>/g, '').trim();
-                    if (!strippedVal) {
+                    if (!strippedVal && !isTableBlock(val)) {
                       handleRemoveCustomBlock(block.id);
                     } else {
                       handleCustomBlockChange(block.id, { html: val });
@@ -1008,7 +1229,13 @@ export const Slide: React.FC<SlideProps> = ({
                         color: activeAccentColor, // Consistent color for simplicity in dynamic order
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: titleAlign
+                        textAlign: titleAlign,
+                        opacity: textOpacity !== undefined ? textOpacity : 1,
+                        boxShadow: boxShadow || 'none',
+                        borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                        borderColor: borderColor || 'transparent',
+                        borderStyle: borderStyle || 'solid',
+                        borderRadius: borderRadius ? `${borderRadius}px` : '0',
                     }}
                     html={title}
                     onChange={(val) => onUpdate?.('title', val)}
@@ -1021,7 +1248,13 @@ export const Slide: React.FC<SlideProps> = ({
                         color: activeAccentColor,
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
-                        textAlign: titleAlign
+                        textAlign: titleAlign,
+                        opacity: textOpacity !== undefined ? textOpacity : 1,
+                        boxShadow: boxShadow || 'none',
+                        borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                        borderColor: borderColor || 'transparent',
+                        borderStyle: borderStyle || 'solid',
+                        borderRadius: borderRadius ? `${borderRadius}px` : '0',
                     }}
                     dangerouslySetInnerHTML={{ __html: title }}
                 />
@@ -1037,7 +1270,13 @@ export const Slide: React.FC<SlideProps> = ({
                             color: activeTextColor,
                             fontSize: `${2.25 * fontScale}rem`,
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
-                            textAlign: textAlign
+                            textAlign: textAlign,
+                            opacity: textOpacity !== undefined ? textOpacity : 0.8,
+                            boxShadow: boxShadow || 'none',
+                            borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                            borderColor: borderColor || 'transparent',
+                            borderStyle: borderStyle || 'solid',
+                            borderRadius: borderRadius ? `${borderRadius}px` : '0',
                         }}
                         html={subtitle || ''}
                         onChange={(val) => onUpdate?.('subtitle', val)}
@@ -1050,7 +1289,13 @@ export const Slide: React.FC<SlideProps> = ({
                             color: activeTextColor,
                             fontSize: `${2.25 * fontScale}rem`,
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
-                            textAlign: textAlign
+                            textAlign: textAlign,
+                            opacity: textOpacity !== undefined ? textOpacity : 0.8,
+                            boxShadow: boxShadow || 'none',
+                            borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                            borderColor: borderColor || 'transparent',
+                            borderStyle: borderStyle || 'solid',
+                            borderRadius: borderRadius ? `${borderRadius}px` : '0',
                         }}
                         dangerouslySetInnerHTML={{ __html: subtitle }}
                     />
@@ -1073,6 +1318,12 @@ export const Slide: React.FC<SlideProps> = ({
                                 fontSize: contentFontSize,
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
+                                opacity: textOpacity !== undefined ? textOpacity : 1,
+                                boxShadow: boxShadow || 'none',
+                                borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                                borderColor: borderColor || 'transparent',
+                                borderStyle: borderStyle || 'solid',
+                                borderRadius: borderRadius ? `${borderRadius}px` : '0',
                             }} 
                             html={content || ''}
                             onChange={(val) => onUpdate?.('content', val)}
@@ -1086,6 +1337,12 @@ export const Slide: React.FC<SlideProps> = ({
                                 fontSize: contentFontSize,
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
+                                opacity: textOpacity !== undefined ? textOpacity : 1,
+                                boxShadow: boxShadow || 'none',
+                                borderWidth: borderWidth ? `${borderWidth}px` : '0',
+                                borderColor: borderColor || 'transparent',
+                                borderStyle: borderStyle || 'solid',
+                                borderRadius: borderRadius ? `${borderRadius}px` : '0',
                             }} 
                             dangerouslySetInnerHTML={{ __html: content }}
                         />
@@ -1274,11 +1531,11 @@ export const Slide: React.FC<SlideProps> = ({
               >
                 <div className="w-full h-full relative group">
                   <div
-                    className="free-drag-handle absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#ffd700] rounded-full flex items-center justify-center cursor-move shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50"
+                    className="free-drag-handle absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#ffd700] rounded-full flex items-center justify-center gap-1.5 cursor-move shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50"
                     title="Drag to move anywhere"
                   >
-                    <GripVertical size={14} className="text-black" />
-                    <span className="text-xs font-bold text-black ml-1">Move</span>
+                    <GripVertical size={18} className="text-black" />
+                    <span className="text-sm font-bold text-black">Move</span>
                   </div>
                   <div className="w-full h-full overflow-hidden">
                     {element}
@@ -1314,11 +1571,11 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : (
         /* Flow Layout Mode - elements stack vertically and can be reordered */
-        <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full`}>
+        <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full overflow-visible`}>
           {isEditable && isMounted ? (
               <DndContext 
                   sensors={sensors} 
-                  collisionDetection={closestCenter} 
+                  collisionDetection={rectIntersection} 
                   onDragEnd={handleDragEnd}
               >
                   <SortableContext 
@@ -1363,6 +1620,7 @@ export const Slide: React.FC<SlideProps> = ({
             sanitizeHandle(handle)
          )}
       </motion.div>
+
     </motion.div>
   );
 };

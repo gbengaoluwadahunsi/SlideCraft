@@ -12,19 +12,53 @@ export function getPool() {
       ssl: {
         rejectUnauthorized: false
       },
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 10000, // Return error after 10 seconds if connection not established
+      max: 10, // Reduced pool size for better connection management
+      idleTimeoutMillis: 60000, // Close idle clients after 60 seconds
+      connectionTimeoutMillis: 30000, // Increased timeout to 30 seconds
       keepAlive: true, // Keep TCP connection alive
-      keepAliveInitialDelayMillis: 10000, // Delay before first keepalive probe
+      keepAliveInitialDelayMillis: 5000, // Faster keepalive probe
+      statement_timeout: 30000, // Query timeout 30 seconds
     });
     
     // Handle pool errors to prevent crashes
     pool.on('error', (err) => {
       console.error('Unexpected error on idle database client', err);
+      // Reset pool on critical errors
+      if (err.message.includes('Connection terminated')) {
+        pool = null;
+      }
     });
   }
   return pool;
+}
+
+// Helper function to execute query with retry
+export async function queryWithRetry<T>(
+  queryFn: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await queryFn();
+    } catch (err: any) {
+      lastError = err;
+      console.error(`Database query attempt ${i + 1} failed:`, err.message);
+      
+      // Reset pool on connection errors
+      if (err.message.includes('Connection terminated') || 
+          err.message.includes('timeout') ||
+          err.message.includes('ECONNREFUSED')) {
+        pool = null;
+      }
+      
+      if (i < maxRetries - 1) {
+        // Wait before retry: 1s, 2s, 3s
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
 }
 
 // Initialize database schema

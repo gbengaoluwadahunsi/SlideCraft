@@ -18,7 +18,7 @@ export interface CustomBlock {
 
 export interface InfographicData {
   items: string[];
-  layout?: 'icon-grid' | 'process-flow' | 'comparison' | 'stats' | 'radial';
+  layout?: 'cards-grid' | 'timeline' | 'process-steps' | 'feature-list' | 'metrics-row' | 'icon-cards' | 'numbered-list' | 'pyramid' | 'cycle' | 'comparison' | 'checklist' | 'quote-highlight';
 }
 
 export interface SlideData {
@@ -62,6 +62,14 @@ export interface SlideData {
     media?: ElementPosition;
   };
   freePositioning?: boolean; // Enable free positioning mode for this slide
+  // Styling properties
+  textOpacity?: number; // 0-1
+  boxShadow?: string; // CSS box-shadow value
+  borderWidth?: number;
+  borderColor?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderRadius?: number;
+  textAnimation?: string; // Animation type for text elements (fadeIn, slideUp, zoomIn, etc.)
 }
 
 export interface Project {

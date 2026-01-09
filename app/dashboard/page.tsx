@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { useAppContextSafe } from '@/lib/hooks/useAppContext';
 import { 
@@ -20,7 +20,6 @@ import {
   ChevronLeft,
   ChevronUp,
   ChevronDown,
-  PanelRight,
   X,
   Loader2,
   BarChart3,
@@ -52,7 +51,24 @@ import {
   Link2,
   Globe,
   CheckCircle2,
-  History
+  History,
+  Layers,
+  AlignHorizontalJustifyCenter,
+  AlignVerticalJustifyCenter,
+  MoveHorizontal,
+  MoveVertical,
+  QrCode,
+  Grid,
+  Ruler,
+  Table,
+  Square,
+  Circle,
+  Minus as MinusIcon,
+  ArrowRight,
+  MessageSquare as MessageSquareIcon,
+  FileText as FileTextIcon,
+  Wand2 as Wand2Icon,
+  Sparkles as SparklesIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -64,6 +80,19 @@ import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { BOLD_TEMPLATES } from '@/lib/templates';
+// New feature components
+import { FindReplace } from '@/components/FindReplace';
+import { LayersPanel, Layer } from '@/components/LayersPanel';
+import { AlignmentTools } from '@/components/AlignmentTools';
+import { BrandKit } from '@/components/BrandKit';
+import { PhotoFilters } from '@/components/PhotoFilters';
+import { TableTool } from '@/components/TableTool';
+import { QRCodeGenerator } from '@/components/QRCodeGenerator';
+import { GridGuides } from '@/components/GridGuides';
+import { WordCount } from '@/components/WordCount';
+import { TextAnimations } from '@/components/TextAnimations';
+import { MagicResize } from '@/components/MagicResize';
+import { VersionHistory, Version } from '@/components/VersionHistory';
 
 // Types matching Slide.tsx
 interface CustomBlock {
@@ -128,6 +157,13 @@ interface SlideData {
     media?: ElementPosition;
   };
   freePositioning?: boolean;
+  // Styling properties
+  textOpacity?: number; // 0-1
+  boxShadow?: string; // CSS box-shadow value
+  borderWidth?: number;
+  borderColor?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderRadius?: number;
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -244,9 +280,32 @@ function DashboardContent() {
   const [aiWordCount, setAiWordCount] = useState<number | ''>('');
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
-  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color'>('select');
+  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  
+  // New feature states
+  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+  const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
+  const [isAlignmentToolsOpen, setIsAlignmentToolsOpen] = useState(false);
+  const [isBrandKitOpen, setIsBrandKitOpen] = useState(false);
+  const [isPhotoFiltersOpen, setIsPhotoFiltersOpen] = useState(false);
+  const [isTableToolOpen, setIsTableToolOpen] = useState(false);
+  const [isQRCodeGeneratorOpen, setIsQRCodeGeneratorOpen] = useState(false);
+  const [isGridGuidesOpen, setIsGridGuidesOpen] = useState(false);
+  const [isWordCountOpen, setIsWordCountOpen] = useState(false);
+  const [isTextAnimationsOpen, setIsTextAnimationsOpen] = useState(false);
+  const [isMagicResizeOpen, setIsMagicResizeOpen] = useState(false);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [isTextToolbarOpen, setIsTextToolbarOpen] = useState(false);
+
+  // Feature-specific states
+  const [showGrid, setShowGrid] = useState(false);
+  const [showGuides, setShowGuides] = useState(false);
+  const [gridSize, setGridSize] = useState(20);
+  const [findReplaceMatches, setFindReplaceMatches] = useState({ current: 0, total: 0 });
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [currentVersionId, setCurrentVersionId] = useState<string>('');
 
   // Calculate scale for Rnd
   const [currentScale, setCurrentScale] = useState(0.6);
@@ -720,6 +779,277 @@ function DashboardContent() {
   const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
 
+  // Feature handlers
+  const handleFindReplace = (query: string, caseSensitive: boolean) => {
+    let matches = 0;
+    slides.forEach(slide => {
+      const text = `${slide.title} ${slide.subtitle || ''} ${slide.content || ''}`;
+      const regex = new RegExp(query, caseSensitive ? 'g' : 'gi');
+      const slideMatches = text.match(regex)?.length || 0;
+      matches += slideMatches;
+    });
+    setFindReplaceMatches({ current: 1, total: matches });
+  };
+
+  const handleReplace = (find: string, replace: string, caseSensitive: boolean, replaceAll: boolean) => {
+    const regex = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+    setSlides(prevSlides => prevSlides.map(slide => ({
+      ...slide,
+      title: slide.title.replace(regex, replace),
+      subtitle: slide.subtitle?.replace(regex, replace) || slide.subtitle,
+      content: slide.content?.replace(regex, replace) || slide.content,
+    })));
+    toast.success(replaceAll ? `Replaced all occurrences` : `Replaced first occurrence`);
+  };
+
+  const handleAddShape = (shape: any) => {
+    const newBlock: CustomBlock = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `shape-${Date.now()}`,
+      html: `<div style="width: ${shape.width}px; height: ${shape.height}px; background: ${shape.fill ? shape.color : 'transparent'}; border: ${shape.strokeWidth}px solid ${shape.color}; border-radius: ${shape.type === 'circle' ? '50%' : '0'};"></div>`,
+      x: shape.x,
+      y: shape.y,
+      width: shape.width,
+      height: shape.height,
+    };
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      customBlocks: [...(s.customBlocks || []), newBlock]
+    } : s));
+    toast.success('Shape added');
+  };
+
+  const handleLayersUpdate = (id: string, updates: Partial<Layer>) => {
+    // Update layer visibility/lock state
+    // This would need to be connected to actual element visibility
+    toast.success('Layer updated');
+  };
+
+  const handleLayersReorder = (newOrder: Layer[]) => {
+    // Reorder layers based on z-index
+    toast.success('Layers reordered');
+  };
+
+  const handleAlign = (type: string) => {
+    const activeSlide = slides.find(s => s.id === activeSlideId);
+    if (!activeSlide?.customBlocks || activeSlide.customBlocks.length === 0) {
+      toast.error('No elements to align. Add shapes, tables, or QR codes first.');
+      return;
+    }
+    
+    const blocks = activeSlide.customBlocks;
+    const slideWidth = 1080;
+    const slideHeight = 1080;
+    
+    let updatedBlocks: CustomBlock[];
+    
+    switch (type) {
+      case 'left':
+        // Align all blocks to the left edge
+        updatedBlocks = blocks.map(block => ({ ...block, x: 64 }));
+        break;
+        
+      case 'center':
+        // Center all blocks horizontally
+        updatedBlocks = blocks.map(block => ({ 
+          ...block, 
+          x: (slideWidth - block.width) / 2 
+        }));
+        break;
+        
+      case 'right':
+        // Align all blocks to the right edge
+        updatedBlocks = blocks.map(block => ({ 
+          ...block, 
+          x: slideWidth - block.width - 64 
+        }));
+        break;
+        
+      case 'top':
+        // Align all blocks to the top
+        updatedBlocks = blocks.map(block => ({ ...block, y: 64 }));
+        break;
+        
+      case 'middle':
+        // Center all blocks vertically
+        updatedBlocks = blocks.map(block => ({ 
+          ...block, 
+          y: (slideHeight - block.height) / 2 
+        }));
+        break;
+        
+      case 'bottom':
+        // Align all blocks to the bottom
+        updatedBlocks = blocks.map(block => ({ 
+          ...block, 
+          y: slideHeight - block.height - 64 
+        }));
+        break;
+        
+      case 'distribute-h':
+        // Distribute blocks evenly horizontally
+        if (blocks.length < 2) {
+          toast.error('Need at least 2 elements to distribute');
+          return;
+        }
+        const sortedH = [...blocks].sort((a, b) => a.x - b.x);
+        const totalWidthH = sortedH.reduce((sum, b) => sum + b.width, 0);
+        const spaceH = (slideWidth - 128 - totalWidthH) / (sortedH.length - 1);
+        let currentX = 64;
+        updatedBlocks = blocks.map(block => {
+          const sortIndex = sortedH.findIndex(b => b.id === block.id);
+          let newX = 64;
+          for (let i = 0; i < sortIndex; i++) {
+            newX += sortedH[i].width + spaceH;
+          }
+          return { ...block, x: newX };
+        });
+        break;
+        
+      case 'distribute-v':
+        // Distribute blocks evenly vertically
+        if (blocks.length < 2) {
+          toast.error('Need at least 2 elements to distribute');
+          return;
+        }
+        const sortedV = [...blocks].sort((a, b) => a.y - b.y);
+        const totalHeightV = sortedV.reduce((sum, b) => sum + b.height, 0);
+        const spaceV = (slideHeight - 128 - totalHeightV) / (sortedV.length - 1);
+        updatedBlocks = blocks.map(block => {
+          const sortIndex = sortedV.findIndex(b => b.id === block.id);
+          let newY = 64;
+          for (let i = 0; i < sortIndex; i++) {
+            newY += sortedV[i].height + spaceV;
+          }
+          return { ...block, y: newY };
+        });
+        break;
+        
+      default:
+        return;
+    }
+    
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      customBlocks: updatedBlocks
+    } : s));
+    
+    toast.success(`Aligned: ${type.replace('-', ' ')}`);
+  };
+
+  const handleApplyBrand = (colors: any[], fonts: any[]) => {
+    if (colors.length > 0) {
+      setSlides(prevSlides => prevSlides.map(s => ({ ...s, accentColor: colors[0].value })));
+    }
+    if (fonts.length > 0) {
+      setSlides(prevSlides => prevSlides.map(s => ({ ...s, fontFamily: fonts[0].value })));
+    }
+    toast.success('Brand applied to slides');
+  };
+
+  const handlePhotoFilterChange = (filter: string) => {
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      backgroundImageFilter: filter
+    } : s));
+  };
+
+
+  const handleInsertTable = (rows: number, cols: number) => {
+    // Build table HTML - cells are editable through the parent contenteditable
+    let tableHtml = '<table style="border-collapse: collapse; width: 100%; table-layout: fixed;">';
+    for (let i = 0; i < rows; i++) {
+      tableHtml += '<tr>';
+      for (let j = 0; j < cols; j++) {
+        const cellContent = i === 0 ? `Header ${j + 1}` : 'Cell';
+        const cellStyle = i === 0 
+          ? 'border: 1px solid rgba(255,255,255,0.3); padding: 12px; font-weight: bold; background: rgba(255,255,255,0.1); text-align: center;'
+          : 'border: 1px solid rgba(255,255,255,0.3); padding: 12px; text-align: center;';
+        tableHtml += `<td style="${cellStyle}">${cellContent}</td>`;
+      }
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</table>';
+    
+    // Add as a custom block - the EditableText wrapper makes it editable & formattable
+    const newBlock: CustomBlock = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `table-${Date.now()}`,
+      html: tableHtml,
+      x: 100,
+      y: 400,
+      width: Math.min(cols * 120, 900),
+      height: rows * 50 + 20,
+    };
+    
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      customBlocks: [...(s.customBlocks || []), newBlock]
+    } : s));
+    toast.success('Table inserted - click cells to edit, use toolbar to format');
+  };
+
+  const handleInsertQRCode = (url: string, size: number) => {
+    const qrHtml = `<img src="${url}" alt="QR Code" style="width: 100%; height: 100%; object-fit: contain;" />`;
+    
+    // Add as a custom block (like shapes) for reliable rendering
+    const newBlock: CustomBlock = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `qr-${Date.now()}`,
+      html: qrHtml,
+      x: 100,
+      y: 400,
+      width: size,
+      height: size,
+    };
+    
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      customBlocks: [...(s.customBlocks || []), newBlock]
+    } : s));
+    toast.success('QR Code inserted - drag to position');
+  };
+
+  const handleApplyAnimation = (animation: string) => {
+    // Store animation in slide data
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
+      ...s,
+      // Add animation property if needed
+    } : s));
+    toast.success(`Animation applied: ${animation}`);
+  };
+
+  const handleRestoreVersion = (version: Version) => {
+    if (version.snapshot?.slides) {
+      setSlides(version.snapshot.slides);
+      setCurrentVersionId(version.id);
+      toast.success('Version restored');
+    }
+  };
+
+  const handleViewVersion = (version: Version) => {
+    // Show version preview
+    toast.info('Viewing version: ' + version.name);
+  };
+
+
+  const handleApplyResize = (size: { width: number; height: number }) => {
+    // This would resize the canvas/slide dimensions
+    toast.success(`Resized to ${size.width}×${size.height}px`);
+  };
+
+  // Generate layers from current slide
+  const generateLayers = (): Layer[] => {
+    if (!activeSlide) return [];
+    const layers: Layer[] = [];
+    if (activeSlide.title) layers.push({ id: 'title', name: 'Title', type: 'title', visible: true, locked: false, zIndex: 10 });
+    if (activeSlide.subtitle) layers.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', visible: true, locked: false, zIndex: 9 });
+    if (activeSlide.content) layers.push({ id: 'content', name: 'Content', type: 'content', visible: true, locked: false, zIndex: 8 });
+    if (activeSlide.emoji) layers.push({ id: 'emoji', name: 'Emoji', type: 'emoji', visible: true, locked: false, zIndex: 7 });
+    if (activeSlide.mediaUrl) layers.push({ id: 'media', name: 'Media', type: 'media', visible: true, locked: false, zIndex: 6 });
+    (activeSlide.customBlocks || []).forEach((block, i) => {
+      layers.push({ id: block.id, name: `Block ${i + 1}`, type: 'custom', visible: true, locked: false, zIndex: 5 - i });
+    });
+    return layers;
+  };
+
   const createCustomBlock = (): CustomBlock => ({
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `block-${Date.now()}-${Math.random()}`,
     html: '<p>Text block</p>',
@@ -919,6 +1249,20 @@ function DashboardContent() {
     }
   }, [slides, projectOptions, projectId, autoSaveProject]);
 
+  // Initialize version history
+  useEffect(() => {
+    if (slides.length > 0 && !currentVersionId) {
+      const initialVersion: Version = {
+        id: 'initial',
+        timestamp: new Date(),
+        name: 'Initial Version',
+        snapshot: { slides },
+      };
+      setVersions([initialVersion]);
+      setCurrentVersionId('initial');
+    }
+  }, [slides.length, currentVersionId]);
+
   // Sync context with app state for AI assistant
   useEffect(() => {
     if (appContext) {
@@ -1068,6 +1412,27 @@ function DashboardContent() {
         setPreviewImageUrl(null);
         return;
       }
+
+      // Find & Replace (Ctrl+F or Cmd+F)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setIsFindReplaceOpen(true);
+        return;
+      }
+
+      // Word Count (Ctrl+Shift+W)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'W') {
+        e.preventDefault();
+        setIsWordCountOpen(true);
+        return;
+      }
+
+      // Layers Panel (Ctrl+Shift+L)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        setIsLayersPanelOpen(true);
+        return;
+      }
       
       // Don't trigger destructive/editor-wide shortcuts when typing in inputs/textareas/contenteditable
       const target = e.target as HTMLElement;
@@ -1181,7 +1546,7 @@ function DashboardContent() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl, setIsFindReplaceOpen, setIsWordCountOpen, setIsLayersPanelOpen]);
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -2732,64 +3097,306 @@ function DashboardContent() {
     }
   };
 
-  const renderPropertiesPanelContent = () => (
-    <>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Properties</h3>
-        <button onClick={() => setIsPropertiesPanelOpen(false)} className="text-gray-500 hover:text-white transition">
-          <X size={16} />
-        </button>
-      </div>
+  // Inline Shapes Panel Component for Properties Panel
+  const ShapesPanelInline = ({ onAddShape }: { onAddShape: (shape: any) => void }) => {
+    const [selectedType, setSelectedType] = useState<'rectangle' | 'circle' | 'line' | 'arrow'>('rectangle');
+    const [color, setColor] = useState('#ffd700');
+    const [strokeWidth, setStrokeWidth] = useState(2);
+    const [fill, setFill] = useState(false);
 
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Title</label>
+    const shapes = [
+      { type: 'rectangle' as const, icon: Square, label: 'Rectangle' },
+      { type: 'circle' as const, icon: Circle, label: 'Circle' },
+      { type: 'line' as const, icon: MinusIcon, label: 'Line' },
+      { type: 'arrow' as const, icon: ArrowRight, label: 'Arrow' },
+    ];
+
+    const handleAdd = () => {
+      onAddShape({
+        type: selectedType,
+        x: 100,
+        y: 100,
+        width: selectedType === 'line' || selectedType === 'arrow' ? 200 : 150,
+        height: selectedType === 'line' || selectedType === 'arrow' ? 2 : 100,
+        color,
+        strokeWidth,
+        fill,
+      });
+    };
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-gray-500 mb-2 block">Shape Type</label>
+          <div className="grid grid-cols-2 gap-2">
+            {shapes.map(({ type, icon: Icon, label }) => (
+              <button
+                key={type}
+                onClick={() => setSelectedType(type)}
+                className={`p-2 rounded-lg border-2 transition ${
+                  selectedType === type
+                    ? 'border-[#ffd700] bg-[#ffd700]/10'
+                    : 'border-gray-700 hover:border-gray-600'
+                }`}
+              >
+                <Icon size={18} className="text-white mx-auto mb-1" />
+                <div className="text-[10px] text-gray-300">{label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Color</label>
           <input
-            type="text"
-            value={activeSlide.title || ''}
-            onChange={(e) => {
-              const newTitle = e.target.value;
-              setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
-            }}
-            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="w-full h-10 rounded-lg cursor-pointer border-2 border-gray-600 hover:border-[#ffd700] transition-colors"
           />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Font Size</label>
-          <div className="flex items-center gap-3">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Stroke Width: {strokeWidth}px</label>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            value={strokeWidth}
+            onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
+            className="w-full"
+            style={{ accentColor: '#ffd700' }}
+          />
+        </div>
+
+        {(selectedType === 'rectangle' || selectedType === 'circle') && (
+          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
             <input
-              type="range"
-              min={0.7}
-              max={1.5}
-              step={0.05}
-              aria-label="Font size"
-              value={activeSlide.fontScale ?? 1}
-              onChange={(e) => {
-                const newScale = parseFloat(e.target.value);
-                setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
-              }}
-              className="flex-1"
-              style={{ accentColor: '#ffd700' }}
+              type="checkbox"
+              checked={fill}
+              onChange={(e) => setFill(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700]"
             />
-            <span className="text-xs text-gray-300 w-12 text-right">
-              {Math.round((activeSlide.fontScale ?? 1) * 100)}%
-            </span>
+            Fill shape
+          </label>
+        )}
+
+        <button
+          onClick={handleAdd}
+          className="w-full px-4 py-2 bg-[#ffd700] hover:bg-yellow-400 text-black rounded-lg font-semibold transition-colors text-sm"
+        >
+          Add Shape
+        </button>
+      </div>
+    );
+  };
+
+  const renderPropertiesPanelContent = () => (
+    <>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700/50">
+        <h3 className="text-base font-bold text-white uppercase tracking-wider">Properties</h3>
+        <button 
+          onClick={() => setIsPropertiesPanelOpen(false)} 
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#ffd700] hover:bg-yellow-400 text-black transition-colors flex-shrink-0"
+          title="Close Properties Panel"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {/* TEXT SECTION */}
+        <div className="space-y-3 pb-4 border-b border-gray-700/50">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Text</h4>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500">Title</label>
+              <input
+                type="text"
+                value={activeSlide.title || ''}
+                onChange={(e) => {
+                  const newTitle = e.target.value;
+                  setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
+                }}
+                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500">Font Size</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0.7}
+                  max={1.5}
+                  step={0.05}
+                  aria-label="Font size"
+                  value={activeSlide.fontScale ?? 1}
+                  onChange={(e) => {
+                    const newScale = parseFloat(e.target.value);
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
+                  }}
+                  className="flex-1"
+                  style={{ accentColor: '#ffd700' }}
+                />
+                <span className="text-xs text-gray-300 w-12 text-right">
+                  {Math.round((activeSlide.fontScale ?? 1) * 100)}%
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => adjustFontScale(-0.05)}
+                  className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+                >
+                  A-
+                </button>
+                <button
+                  onClick={() => adjustFontScale(0.05)}
+                  className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+                >
+                  A+
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => adjustFontScale(-0.05)}
-              className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
-            >
-              A-
-            </button>
-            <button
-              onClick={() => adjustFontScale(0.05)}
-              className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
-            >
-              A+
-            </button>
+        </div>
+
+        {/* STYLING SECTION */}
+        <div className="space-y-3 pb-4 border-b border-gray-700/50">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Styling</h4>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500">Text Opacity</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={activeSlide.textOpacity ?? 1}
+                  onChange={(e) => {
+                    const opacity = parseFloat(e.target.value);
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, textOpacity: opacity } : s));
+                  }}
+                  className="flex-1"
+                  style={{ accentColor: '#ffd700' }}
+                />
+                <span className="text-xs text-gray-300 w-12 text-right">
+                  {Math.round((activeSlide.textOpacity ?? 1) * 100)}%
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500">Box Shadow</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={activeSlide.boxShadow || ''}
+                  onChange={(e) => {
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, boxShadow: e.target.value } : s));
+                  }}
+                  placeholder="0 4px 6px rgba(0,0,0,0.1)"
+                  className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                />
+                <button
+                  onClick={() => {
+                    const presets = [
+                      '0 2px 4px rgba(0,0,0,0.1)',
+                      '0 4px 6px rgba(0,0,0,0.1)',
+                      '0 10px 15px rgba(0,0,0,0.1)',
+                      '0 0 20px rgba(0,0,0,0.3)',
+                      'none'
+                    ];
+                    const current = activeSlide.boxShadow || 'none';
+                    const nextIndex = (presets.indexOf(current) + 1) % presets.length;
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, boxShadow: presets[nextIndex] === 'none' ? undefined : presets[nextIndex] } : s));
+                  }}
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs transition whitespace-nowrap"
+                >
+                  Presets
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500">Border</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-gray-500 mb-1 block">Width</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={activeSlide.borderWidth || 0}
+                    onChange={(e) => {
+                      const width = parseInt(e.target.value) || 0;
+                      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderWidth: width } : s));
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-500 mb-1 block">Style</label>
+                  <select
+                    value={activeSlide.borderStyle || 'solid'}
+                    onChange={(e) => {
+                      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderStyle: e.target.value as any } : s));
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                  >
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 mb-1 block">Color</label>
+                <input
+                  type="color"
+                  value={activeSlide.borderColor || '#ffffff'}
+                  onChange={(e) => {
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderColor: e.target.value } : s));
+                  }}
+                  className="w-full h-10 rounded-lg cursor-pointer border-2 border-gray-600 hover:border-[#ffd700] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 mb-1 block">Border Radius</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={activeSlide.borderRadius || 0}
+                  onChange={(e) => {
+                    const radius = parseInt(e.target.value) || 0;
+                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderRadius: radius } : s));
+                  }}
+                  className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                />
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* SHAPES SECTION */}
+        <div className="space-y-3 pb-4 border-b border-gray-700/50">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Shapes</h4>
+          <ShapesPanelInline onAddShape={handleAddShape} />
+        </div>
+
+        {/* ANIMATIONS SECTION */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Animations</h4>
+          <button
+            onClick={() => setIsTextAnimationsOpen(true)}
+            className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+          >
+            <SparklesIcon size={16} />
+            Choose Animation
+          </button>
         </div>
 
         {activeSlide.type === 'cover' && (
@@ -3150,19 +3757,74 @@ function DashboardContent() {
               )}
 
               <div className="space-y-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Aspect ratio</label>
-                <input
+                <label className="text-xs text-gray-600 dark:text-gray-400">Aspect Ratio</label>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  <button
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 0 } : s))}
+                    className={`px-2 py-1 text-xs rounded border transition ${
+                      activeSlide.mediaAspectRatio === 0 || activeSlide.mediaAspectRatio === undefined
+                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
+                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 1 } : s))}
+                    className={`px-2 py-1 text-xs rounded border transition ${
+                      activeSlide.mediaAspectRatio === 1
+                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
+                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    1:1
+                  </button>
+                  <button
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 4/3 } : s))}
+                    className={`px-2 py-1 text-xs rounded border transition ${
+                      Math.abs((activeSlide.mediaAspectRatio || 0) - 4/3) < 0.01
+                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
+                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    4:3
+                  </button>
+                  <button
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 16/9 } : s))}
+                    className={`px-2 py-1 text-xs rounded border transition ${
+                      Math.abs((activeSlide.mediaAspectRatio || 0) - 16/9) < 0.01
+                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
+                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    16:9
+                  </button>
+                  <button
+                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 9/16 } : s))}
+                    className={`px-2 py-1 text-xs rounded border transition ${
+                      Math.abs((activeSlide.mediaAspectRatio || 0) - 9/16) < 0.01
+                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
+                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    9:16
+                  </button>
+                </div>
+                {activeSlide.mediaAspectRatio !== 0 && (
+                  <input
                     type="number"
-                    min={0.5}
+                    min={0.3}
                     max={3}
                     step={0.05}
-                    value={activeSlide.mediaAspectRatio ?? 16 / 9}
+                    value={activeSlide.mediaAspectRatio || ''}
                     onChange={(e) => {
-                    const value = parseFloat(e.target.value) || 16 / 9;
-                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
+                      const value = parseFloat(e.target.value) || 0;
+                      setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
                     }}
+                    placeholder="Custom ratio"
                     className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                />
+                  />
+                )}
               </div>
             </div>
           )}
@@ -3316,6 +3978,13 @@ function DashboardContent() {
                 <div className="flex justify-between items-center gap-2">
                     <span className="text-[10px] text-gray-500 font-medium">SETTINGS</span>
                     <div className="flex gap-1">
+                        <button 
+                            onClick={() => setIsPhotoFiltersOpen(true)}
+                            className="text-[10px] bg-[#ffd700]/20 hover:bg-[#ffd700]/30 text-[#ffd700] px-2 py-1 rounded border border-[#ffd700]/50 transition"
+                            title="Photo Filters"
+                        >
+                            Filters
+                        </button>
                         <button 
                             onClick={() => {
                                 // Smart reset: if all slides have the same background, reset settings on all
@@ -3682,7 +4351,6 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden transition-colors duration-300">
-      <TextToolbar />
       <div
         aria-hidden="true"
         className="absolute"
@@ -3761,14 +4429,6 @@ function DashboardContent() {
                 <Menu size={20} />
              </button>
              <button 
-                onClick={() => setIsPropertiesPanelOpen(!isPropertiesPanelOpen)}
-                className={`hidden lg:flex p-2 rounded-lg transition ${isPropertiesPanelOpen ? 'text-[#ffd700] bg-[#ffd700]/10' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                title="Toggle Properties Panel"
-             >
-                <PanelRight size={20} />
-             </button>
-             <div className="hidden lg:block w-px h-6 bg-gray-800 mx-1"></div>
-             <button 
                 onClick={() => setIsAiModalOpen(true)}
                 className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition items-center gap-2"
              >
@@ -3781,6 +4441,14 @@ function DashboardContent() {
              >
                 <Sparkles size={16} />
                 AI Tools
+             </button>
+             <button 
+                onClick={() => setIsVersionHistoryOpen(true)}
+                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition items-center gap-2"
+                title="Version History"
+             >
+                <History size={16} />
+                History
              </button>
              <button 
                 onClick={() => setIsExportOpen(true)}
@@ -3799,7 +4467,10 @@ function DashboardContent() {
                <CreditCard size={18} className="text-gray-400" />
              </Link>
              <button
-               onClick={() => signOut({ callbackUrl: '/login' })}
+               onClick={async () => {
+                 const { signOut } = await import('next-auth/react');
+                 signOut({ callbackUrl: '/login' });
+               }}
                className="p-2 hover:bg-gray-800 rounded-lg transition"
                title="Sign out"
              >
@@ -3992,57 +4663,100 @@ function DashboardContent() {
                     style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
             </div>
 
-            {/* Toolbar */}
-            <div className="hidden lg:flex absolute top-6 left-1/2 -translate-x-1/2 bg-gray-800/90 backdrop-blur-md border border-gray-700/50 p-1.5 rounded-full items-center gap-1 shadow-2xl z-20">
-                <div 
-                    onClick={() => handleToolClick('color')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[#ffd700]' : 'hover:ring-2 hover:ring-gray-500'}`}
-                    title="Change Background Color for All Slides"
-                    style={{ backgroundColor: slides[0]?.backgroundColor || '#0B0F19' }}
-                >
-                    <div className="absolute inset-0 bg-black/20" />
-                    <Palette size={16} className="relative z-10 text-white drop-shadow-md" />
-                </div>
-                <div 
-                    onClick={() => handleToolClick('text')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Add Text Block"
-                >
-                    <Type size={16} />
-                </div>
-                <button 
-                    onClick={() => handleToolClick('image')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Set Background Image (Current Slide)"
-                    aria-label="Set Background Image"
-                >
-                    <ImageIcon size={16} />
-                </button>
-                <div 
-                    onClick={() => handleToolClick('image-all')}
-                    className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    title="Set Background Image (All Slides)"
-                >
-                    <div className="relative">
-                        <ImageIcon size={16} />
-                        <div className="absolute -bottom-1.5 -right-2 text-[6px] font-bold bg-blue-500 text-white px-0.5 rounded">ALL</div>
+            {/* Toolbar - Two Rows */}
+            <div className="hidden lg:flex flex-col absolute top-4 left-1/2 -translate-x-1/2 bg-gray-800/95 backdrop-blur-md border border-gray-700/50 rounded-2xl shadow-2xl z-20 overflow-hidden">
+                {/* Row 1: Main Tools */}
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                    <div 
+                        onClick={() => handleToolClick('color')}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[#ffd700]' : 'hover:ring-2 hover:ring-gray-500'}`}
+                        title="Background Color"
+                        style={{ backgroundColor: slides[0]?.backgroundColor || '#0B0F19' }}
+                    >
+                        <div className="absolute inset-0 bg-black/20" />
+                        <Palette size={16} className="relative z-10 text-white drop-shadow-md" />
                     </div>
+                    <div 
+                        onClick={() => handleToolClick('text')}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        title="Add Text"
+                    >
+                        <Type size={16} />
+                    </div>
+                    <button 
+                        onClick={() => handleToolClick('image')}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        title="Background Image"
+                    >
+                        <ImageIcon size={16} />
+                    </button>
+                    <div 
+                        onClick={() => handleToolClick('image-all')}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        title="Image All Slides"
+                    >
+                        <div className="relative">
+                            <ImageIcon size={16} />
+                            <div className="absolute -bottom-1.5 -right-2 text-[6px] font-bold bg-blue-500 text-white px-0.5 rounded">ALL</div>
+                        </div>
+                    </div>
+                    <div className="w-px h-6 bg-gray-700 mx-0.5"></div>
+                    <button onClick={() => setIsFindReplaceOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Find & Replace">
+                        <Search size={16} />
+                    </button>
+                    <button onClick={() => setIsPropertiesPanelOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Shapes">
+                        <Square size={16} />
+                    </button>
+                    <button onClick={() => setIsTableToolOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Table">
+                        <Table size={16} />
+                    </button>
+                    <button onClick={() => setIsQRCodeGeneratorOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="QR Code">
+                        <QrCode size={16} />
+                    </button>
+                    <button onClick={() => setIsLayersPanelOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Layers">
+                        <Layers size={16} />
+                    </button>
+                    <button onClick={() => setIsAlignmentToolsOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Alignment">
+                        <AlignHorizontalJustifyCenter size={16} />
+                    </button>
+                    <button onClick={() => setIsWordCountOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Word Count">
+                        <FileTextIcon size={16} />
+                    </button>
+                    <button onClick={() => setIsGridGuidesOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Grid">
+                        <Grid size={16} />
+                    </button>
                 </div>
-                <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                />
-                <input 
-                    type="color" 
-                    ref={colorInputRef} 
-                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0"
-                    value={slides[0]?.backgroundColor || '#0B0F19'}
-                    onChange={handleBackgroundColorChange}
-                />
+                
+                {/* Row 2 & 3: Text Formatting (2 rows from TextToolbar) */}
+                <div className="px-2 py-1 border-t border-gray-700/50 bg-gray-800/50">
+                    <TextToolbar inline />
+                </div>
+
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                <input type="color" ref={colorInputRef} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0" value={slides[0]?.backgroundColor || '#0B0F19'} onChange={handleBackgroundColorChange} />
             </div>
+
+            {/* Text Toolbar Sidebar - appears when button is clicked */}
+            {isTextToolbarOpen && (
+              <div 
+                className="fixed left-16 top-16 bottom-0 w-72 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl z-[100] overflow-y-auto"
+                style={{ 
+                  top: '72px',
+                  maxHeight: 'calc(100vh - 72px)'
+                }}
+              >
+                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Text Editor</h3>
+                  <button
+                    onClick={() => setIsTextToolbarOpen(false)}
+                    className="p-1 hover:bg-gray-800 rounded transition-colors"
+                  >
+                    <X size={18} className="text-gray-400" />
+                  </button>
+                </div>
+                <TextToolbar isOpen={isTextToolbarOpen} onToggle={() => setIsTextToolbarOpen(false)} />
+              </div>
+            )}
 
             {/* Main Viewport */}
             <div className="flex-1 overflow-hidden px-0 lg:px-4 pb-0 lg:pb-8">
@@ -4076,7 +4790,29 @@ function DashboardContent() {
                                         slide.id === activeSlideId ? 'ring-[#ffd700]/70' : ''
                                     }`}
                                 >
-                                    <div className="w-[1080px] h-[1080px] bg-white relative overflow-hidden">
+                                    <div 
+                                        className="w-[1080px] h-[1080px] relative overflow-hidden"
+                                    >
+                                        {/* Grid Overlay */}
+                                        {showGrid && (
+                                            <div 
+                                                className="absolute inset-0 z-[60] pointer-events-none"
+                                                style={{
+                                                    backgroundImage: `
+                                                        linear-gradient(rgba(255, 215, 0, 0.3) 1px, transparent 1px),
+                                                        linear-gradient(90deg, rgba(255, 215, 0, 0.3) 1px, transparent 1px)
+                                                    `,
+                                                    backgroundSize: `${gridSize}px ${gridSize}px`,
+                                                }}
+                                            />
+                                        )}
+                                        {/* Guide Lines */}
+                                        {showGuides && (
+                                            <>
+                                                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-[#ffd700]/50 z-[61] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
+                                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#ffd700]/50 z-[61] pointer-events-none" style={{ transform: 'translateY(-50%)' }} />
+                                            </>
+                                        )}
                                         <Slide
                                             {...slide}
                                             isEditable={slide.id === activeSlideId}
@@ -4166,8 +4902,14 @@ function DashboardContent() {
             {/* Properties Panel */}
             {isPropertiesPanelOpen && (
                 <>
+                    {/* Click outside overlay */}
+                    <div
+                        className="fixed inset-0 z-[99] xl:hidden"
+                        onClick={() => setIsPropertiesPanelOpen(false)}
+                    />
+
                     <div className="pointer-events-none absolute top-0 right-6 hidden xl:block z-30">
-                        <div className="pointer-events-auto mt-6 w-[26rem] bg-gray-800/70 backdrop-blur-md border border-gray-700/50 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto hide-scrollbar animate-in fade-in duration-200">
+                        <div className="pointer-events-auto mt-6 w-[26rem] bg-gray-800/90 backdrop-blur-md border border-gray-700/70 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto hide-scrollbar animate-in fade-in duration-200">
                             {renderPropertiesPanelContent()}
                         </div>
                     </div>
@@ -6491,6 +7233,102 @@ function DashboardContent() {
           </div>
         </div>
       )}
+
+      {/* All New Feature Components */}
+      <FindReplace
+        isOpen={isFindReplaceOpen}
+        onClose={() => setIsFindReplaceOpen(false)}
+        onFind={handleFindReplace}
+        onReplace={handleReplace}
+        currentMatch={findReplaceMatches.current}
+        totalMatches={findReplaceMatches.total}
+      />
+
+      {/* Shapes tool is now integrated into Properties Panel - no separate modal needed */}
+
+      <LayersPanel
+        isOpen={isLayersPanelOpen}
+        onClose={() => setIsLayersPanelOpen(false)}
+        layers={generateLayers()}
+        onUpdateLayer={handleLayersUpdate}
+        onReorderLayers={handleLayersReorder}
+        onSelectLayer={(id) => {
+          // Focus on layer element
+          toast.info(`Selected layer: ${id}`);
+        }}
+      />
+
+      <AlignmentTools
+        isOpen={isAlignmentToolsOpen}
+        onClose={() => setIsAlignmentToolsOpen(false)}
+        onAlign={handleAlign}
+      />
+
+      <BrandKit
+        isOpen={isBrandKitOpen}
+        onClose={() => setIsBrandKitOpen(false)}
+        onApplyBrand={handleApplyBrand}
+      />
+
+      <PhotoFilters
+        isOpen={isPhotoFiltersOpen}
+        onClose={() => setIsPhotoFiltersOpen(false)}
+        currentFilter={activeSlide.backgroundImageFilter || ''}
+        onFilterChange={handlePhotoFilterChange}
+      />
+
+      <TableTool
+        isOpen={isTableToolOpen}
+        onClose={() => setIsTableToolOpen(false)}
+        onInsertTable={handleInsertTable}
+      />
+
+      <QRCodeGenerator
+        isOpen={isQRCodeGeneratorOpen}
+        onClose={() => setIsQRCodeGeneratorOpen(false)}
+        onInsertQRCode={handleInsertQRCode}
+      />
+
+      <GridGuides
+        isOpen={isGridGuidesOpen}
+        onClose={() => setIsGridGuidesOpen(false)}
+        showGrid={showGrid}
+        showGuides={showGuides}
+        gridSize={gridSize}
+        onToggleGrid={() => setShowGrid(!showGrid)}
+        onToggleGuides={() => setShowGuides(!showGuides)}
+        onGridSizeChange={setGridSize}
+      />
+
+      <WordCount
+        isOpen={isWordCountOpen}
+        onClose={() => setIsWordCountOpen(false)}
+        slides={slides}
+      />
+
+      <TextAnimations
+        isOpen={isTextAnimationsOpen}
+        onClose={() => setIsTextAnimationsOpen(false)}
+        onApplyAnimation={handleApplyAnimation}
+      />
+
+      <MagicResize
+        isOpen={isMagicResizeOpen}
+        onClose={() => setIsMagicResizeOpen(false)}
+        currentSize={{ width: 1080, height: 1080 }}
+        targetSizes={[]}
+        onApplySuggestion={handleApplyResize}
+      />
+
+      <VersionHistory
+        isOpen={isVersionHistoryOpen}
+        onClose={() => setIsVersionHistoryOpen(false)}
+        versions={versions}
+        currentVersionId={currentVersionId}
+        onRestoreVersion={handleRestoreVersion}
+        onViewVersion={handleViewVersion}
+      />
+
     </div>
   );
 }

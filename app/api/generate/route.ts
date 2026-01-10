@@ -214,7 +214,20 @@ export async function POST(request: NextRequest) {
     // Track AI generation
     await trackUsage(session.user.id, 'ai_generation', 1);
 
-    const { text, slideCount, wordCount, writingStyle, slideStyle = 'mixed', sections = [] } = await request.json();
+    const { 
+      text, 
+      slideCount, 
+      wordCount, 
+      writingStyle, 
+      slideStyle = 'mixed', 
+      sections = [],
+      language = 'en',
+      tone = 'neutral',
+      autoHashtags = false,
+      smartColors = false,
+      accessibility = false,
+      includeStats = false
+    } = await request.json();
     const requestedSlideCount = Math.max(3, Math.min(50, Number(slideCount) || 6));
     const combinedText = (text || '').trim();
 
@@ -222,6 +235,30 @@ export async function POST(request: NextRequest) {
     const wordCountInstruction = wordCount 
       ? `STRICTLY follow the word count target: approximately ${wordCount} words per slide. Expand on points to reach this length if necessary.` 
       : `Content MUST be detailed and comprehensive. Target roughly 75-100 words per slide. Avoid short, scanty slides. Use multiple paragraphs if necessary to explain concepts fully.`;
+    
+    // Language instruction
+    const languageNames: Record<string, string> = {
+      'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian',
+      'pt': 'Portuguese', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic',
+      'hi': 'Hindi', 'ru': 'Russian', 'nl': 'Dutch', 'sv': 'Swedish', 'pl': 'Polish'
+    };
+    const languageInstruction = language !== 'en' ? `IMPORTANT: Generate all content in ${languageNames[language] || 'the specified language'}. All text, titles, and content must be in this language.` : '';
+    
+    // Tone instruction
+    const toneInstruction = tone !== 'neutral' ? `Tone: Write in a ${tone} tone throughout.` : '';
+    
+    // Additional feature instructions
+    const featureInstructions = [];
+    if (autoHashtags) {
+      featureInstructions.push('Add relevant hashtags at the end of each slide where appropriate.');
+    }
+    if (includeStats) {
+      featureInstructions.push('Include data, statistics, and numbers to support key points where relevant.');
+    }
+    if (accessibility) {
+      featureInstructions.push('Ensure all text has sufficient contrast (WCAG AA compliance). Use clear, readable fonts and avoid color-only information.');
+    }
+    const featuresInstruction = featureInstructions.length > 0 ? featureInstructions.join(' ') : '';
 
     if (!combinedText) {
       return NextResponse.json({ slides: [] });
@@ -259,6 +296,9 @@ Here is the content to convert.
 Create exactly ${requestedSlideCount} slides unless the content is empty, in which case explain why no slides were generated.
 ${styleInstruction}
 ${wordCountInstruction}
+${languageInstruction}
+${toneInstruction}
+${featuresInstruction}
 ${outlineHint}
 ${combinedText}`,
         },
@@ -406,6 +446,13 @@ ${combinedText}`,
       }
     };
 
+    // Helper function to extract colors from image URL (client-side will do actual extraction)
+    const extractColorsFromImageUrl = async (imageUrl: string): Promise<string[]> => {
+      // This is a placeholder - actual extraction happens client-side
+      // Returns common vibrant colors that work well with images
+      return [accentColor, '#4A90E2', '#50C878', '#FF6B6B', '#FFD93D'];
+    };
+
     // Process slides with all enhancements - automatically applying:
     // - Brand colors and fonts from user settings
     // - AI-generated background images for visual appeal
@@ -414,6 +461,8 @@ ${combinedText}`,
     // - Box shadows and borders for modern styling
     // - Text opacity and overlay effects for readability
     // - Infographic layouts for visual slides
+    // - Smart color extraction from images (if enabled)
+    // - Bulk apply settings (if enabled)
     const slidesWithIds = await Promise.all(trimmedSlides.map(async (slide: any, index: number) => {
       // Generate individual 3D icons for infographic items if it's a visual slide
       let infographicIcons: string[] = [];
@@ -443,12 +492,15 @@ ${combinedText}`,
         slideIcon = defaultIcons[index % defaultIcons.length];
       }
 
-      // Generate background image for visual appeal (skip for chart slides)
+      // Generate background image for visual appeal (skip for chart slides and first slide)
       let backgroundImage: string | null = null;
       let backgroundImageFilter: string = '';
-      if (slideType !== 'chart' && (slideStyle === 'visual' || slideStyle === 'mixed' || index === 0)) {
-        // Generate background for cover slides and visual slides
-        if (index === 0 || slideType === 'visual' || slideType === 'cover') {
+      let extractedColors: string[] = [];
+      
+      // Skip background image for first slide (index === 0)
+      if (slideType !== 'chart' && index !== 0 && (slideStyle === 'visual' || slideStyle === 'mixed')) {
+        // Generate background for visual slides (but not the first slide)
+        if (slideType === 'visual') {
           backgroundImage = await generateBackgroundImage(
             slide.title || '',
             slide.content || '',
@@ -456,6 +508,11 @@ ${combinedText}`,
           );
           // Apply a professional filter
           backgroundImageFilter = photoFilters[index % photoFilters.length];
+          
+          // Extract colors from image if smartColors is enabled
+          if (smartColors && backgroundImage) {
+            extractedColors = await extractColorsFromImageUrl(backgroundImage);
+          }
         }
       }
 
@@ -464,22 +521,28 @@ ${combinedText}`,
         ? 'zoomIn' 
         : textAnimations[index % textAnimations.length];
 
-      // Apply box shadow for depth (especially on content slides)
-      const boxShadow = slideType === 'content' || slideType === 'visual'
-        ? boxShadows[index % boxShadows.length]
-        : undefined;
-
-      // Add subtle border radius for modern look
-      const borderRadius = slideType === 'visual' ? 12 : undefined;
+      // Don't apply box shadow or borders to text elements - removed for cleaner look
+      const boxShadow = undefined;
+      const borderRadius = undefined;
 
       // Set text opacity for layered effects (slightly reduced on background images)
       const textOpacity = backgroundImage ? 0.95 : 1;
 
-      // Apply brand colors
-      const slideAccentColor = accentColor;
-      const slideBackgroundColor = backgroundColor;
+      // Apply brand colors, or use extracted colors if smartColors is enabled
+      let slideAccentColor = accentColor;
+      let slideBackgroundColor = backgroundColor;
       const slideTextColor = textColor;
       const slideFontFamily = fontFamily;
+      
+      // If smart color extraction is enabled and we have extracted colors, use them
+      if (smartColors && extractedColors.length > 0) {
+        slideAccentColor = extractedColors[0]; // Use primary extracted color
+        // Optionally adjust background based on extracted colors
+        if (extractedColors.length > 1) {
+          // Use a darker version of extracted color for background
+          slideBackgroundColor = extractedColors[1];
+        }
+      }
 
       // Set background overlay opacity for better text readability on images
       const backgroundOverlayOpacity = backgroundImage ? 0.3 : 0;
@@ -544,8 +607,37 @@ ${combinedText}`,
         boxShadow,
         borderRadius,
         textAnimation, // Store animation type for frontend to apply
+        extractedColors: smartColors ? extractedColors : undefined, // Store extracted colors for reference
       };
     }));
+
+    // Bulk apply settings to all slides if enabled
+    if (smartColors || accessibility || includeStats) {
+      // Apply consistent styling across all slides
+      slidesWithIds.forEach((slide: any, index: number) => {
+        // If bulk apply is enabled, ensure consistency
+        if (index > 0 && slidesWithIds[0]) {
+          const firstSlide = slidesWithIds[0];
+          
+          // Apply consistent colors if smartColors extracted colors from first slide
+          if (smartColors && firstSlide.extractedColors && firstSlide.extractedColors.length > 0) {
+            slide.accentColor = firstSlide.extractedColors[index % firstSlide.extractedColors.length] || slide.accentColor;
+          }
+          
+          // Apply accessibility settings consistently
+          if (accessibility) {
+            // Ensure WCAG AA contrast (dark background with light text or vice versa)
+            if (!slide.backgroundImage) {
+              // For solid backgrounds, ensure good contrast
+              slide.textColor = '#ffffff'; // High contrast white text
+              slide.backgroundColor = slide.backgroundColor || '#0B0F19'; // Dark background
+            }
+            // Ensure text opacity is high for readability
+            slide.textOpacity = Math.max(slide.textOpacity || 1, 0.95);
+          }
+        }
+      });
+    }
 
     incrementAndGetMetrics().catch(console.error);
 

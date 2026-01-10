@@ -402,8 +402,9 @@ export const Slide: React.FC<SlideProps> = ({
   const getDefaultPosition = (elementId: string): ElementPosition => {
     const defaults: Record<string, ElementPosition> = {
       emoji: { x: 64, y: 160, width: 100, height: 80 },
-      title: { x: 64, y: 260, width: 952, height: 120 },
-      subtitle: { x: 64, y: 400, width: 952, height: 80 },
+      // Title and subtitle use large flexible heights to accommodate multi-line text
+      title: { x: 64, y: 260, width: 952, height: 300 }, // Large height to allow wrapping
+      subtitle: { x: 64, y: 400, width: 952, height: 200 }, // Large height to allow wrapping
       content: { x: 64, y: 500, width: 952, height: 300 },
       media: { x: 64, y: 700, width: 600, height: 300 },
       chart: { x: 64, y: 500, width: 900, height: 400 },
@@ -1231,11 +1232,7 @@ export const Slide: React.FC<SlideProps> = ({
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
-                        boxShadow: boxShadow || 'none',
-                        borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                        borderColor: borderColor || 'transparent',
-                        borderStyle: borderStyle || 'solid',
-                        borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                        // Removed boxShadow, borders, and borderRadius for cleaner text
                     }}
                     html={title}
                     onChange={(val) => onUpdate?.('title', val)}
@@ -1250,11 +1247,7 @@ export const Slide: React.FC<SlideProps> = ({
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
-                        boxShadow: boxShadow || 'none',
-                        borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                        borderColor: borderColor || 'transparent',
-                        borderStyle: borderStyle || 'solid',
-                        borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                        // Removed boxShadow, borders, and borderRadius for cleaner text
                     }}
                     dangerouslySetInnerHTML={{ __html: title }}
                 />
@@ -1272,11 +1265,7 @@ export const Slide: React.FC<SlideProps> = ({
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
-                            boxShadow: boxShadow || 'none',
-                            borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                            borderColor: borderColor || 'transparent',
-                            borderStyle: borderStyle || 'solid',
-                            borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                            // Removed boxShadow, borders, and borderRadius for cleaner text
                         }}
                         html={subtitle || ''}
                         onChange={(val) => onUpdate?.('subtitle', val)}
@@ -1291,11 +1280,7 @@ export const Slide: React.FC<SlideProps> = ({
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
-                            boxShadow: boxShadow || 'none',
-                            borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                            borderColor: borderColor || 'transparent',
-                            borderStyle: borderStyle || 'solid',
-                            borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                            // Removed boxShadow, borders, and borderRadius for cleaner text
                         }}
                         dangerouslySetInnerHTML={{ __html: subtitle }}
                     />
@@ -1319,11 +1304,7 @@ export const Slide: React.FC<SlideProps> = ({
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
-                                boxShadow: boxShadow || 'none',
-                                borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                                borderColor: borderColor || 'transparent',
-                                borderStyle: borderStyle || 'solid',
-                                borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                                // Removed boxShadow, borders, and borderRadius for cleaner text
                             }} 
                             html={content || ''}
                             onChange={(val) => onUpdate?.('content', val)}
@@ -1338,11 +1319,7 @@ export const Slide: React.FC<SlideProps> = ({
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
-                                boxShadow: boxShadow || 'none',
-                                borderWidth: borderWidth ? `${borderWidth}px` : '0',
-                                borderColor: borderColor || 'transparent',
-                                borderStyle: borderStyle || 'solid',
-                                borderRadius: borderRadius ? `${borderRadius}px` : '0',
+                                // Removed boxShadow, borders, and borderRadius for cleaner text
                             }} 
                             dangerouslySetInnerHTML={{ __html: content }}
                         />
@@ -1497,6 +1474,10 @@ export const Slide: React.FC<SlideProps> = ({
             const pos = getDefaultPosition(itemId);
             const element = renderElement(itemId);
             if (!element) return null;
+            
+            // Title and subtitle should allow content to overflow and expand naturally
+            const isTextElement = itemId === 'title' || itemId === 'subtitle';
+            
             return (
               <Rnd
                 key={itemId}
@@ -1537,7 +1518,7 @@ export const Slide: React.FC<SlideProps> = ({
                     <GripVertical size={18} className="text-black" />
                     <span className="text-sm font-bold text-black">Move</span>
                   </div>
-                  <div className="w-full h-full overflow-hidden">
+                  <div className={`w-full h-full ${isTextElement ? 'overflow-visible' : 'overflow-hidden'}`}>
                     {element}
                   </div>
                 </div>
@@ -1552,6 +1533,10 @@ export const Slide: React.FC<SlideProps> = ({
             const pos = getDefaultPosition(itemId);
             const element = renderElement(itemId);
             if (!element) return null;
+            
+            // Title and subtitle should allow content to overflow and expand naturally
+            const isTextElement = itemId === 'title' || itemId === 'subtitle';
+            
             return (
               <div
                 key={itemId}
@@ -1561,7 +1546,7 @@ export const Slide: React.FC<SlideProps> = ({
                   top: pos.y,
                   width: pos.width || 400,
                   height: pos.height || 100,
-                  overflow: 'hidden',
+                  overflow: isTextElement ? 'visible' : 'hidden',
                 }}
               >
                 {element}

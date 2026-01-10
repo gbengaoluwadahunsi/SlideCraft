@@ -280,6 +280,13 @@ function DashboardContent() {
   const [aiWordCount, setAiWordCount] = useState<number | ''>('');
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
+  const [aiLanguage, setAiLanguage] = useState<string>('en');
+  const [aiAutoHashtags, setAiAutoHashtags] = useState(false);
+  const [aiSmartColors, setAiSmartColors] = useState(false);
+  const [aiAccessibility, setAiAccessibility] = useState(false);
+  const [aiBulkApply, setAiBulkApply] = useState(false);
+  const [aiTone, setAiTone] = useState<string>('neutral');
+  const [aiIncludeStats, setAiIncludeStats] = useState(false);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -298,6 +305,7 @@ function DashboardContent() {
   const [isMagicResizeOpen, setIsMagicResizeOpen] = useState(false);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isTextToolbarOpen, setIsTextToolbarOpen] = useState(false);
+  const [showTextFormattingToolbar, setShowTextFormattingToolbar] = useState(true);
 
   // Feature-specific states
   const [showGrid, setShowGrid] = useState(false);
@@ -1793,6 +1801,13 @@ function DashboardContent() {
             slideCount: aiSlideCount,
             wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
+            slideStyle: aiSlideStyle,
+            language: aiLanguage,
+            tone: aiTone,
+            autoHashtags: aiAutoHashtags,
+            smartColors: aiSmartColors,
+            accessibility: aiAccessibility,
+            includeStats: aiIncludeStats,
             sections: docAttachment?.sections || [],
           }),
         });
@@ -1826,6 +1841,12 @@ function DashboardContent() {
             wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
             slideStyle: aiSlideStyle,
+            language: aiLanguage,
+            tone: aiTone,
+            autoHashtags: aiAutoHashtags,
+            smartColors: aiSmartColors,
+            accessibility: aiAccessibility,
+            includeStats: aiIncludeStats,
             sections: combinedSections.length > 0 ? combinedSections : undefined,
             sourceFile: docAttachment
               ? {
@@ -1847,14 +1868,112 @@ function DashboardContent() {
         const data = await response.json();
         
         if (data.slides && Array.isArray(data.slides)) {
+          // Helper function to extract colors from image (client-side)
+          const extractColorsFromImage = async (imageUrl: string): Promise<string[]> => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => {
+                try {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                    resolve([brandSettings.accentColor || '#ffd700']);
+                    return;
+                  }
+                  
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  ctx.drawImage(img, 0, 0);
+                  
+                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  const pixels = imageData.data;
+                  const colorMap = new Map<string, number>();
+                  
+                  // Sample pixels (every 10th pixel for performance)
+                  for (let i = 0; i < pixels.length; i += 40) {
+                    const r = pixels[i];
+                    const g = pixels[i + 1];
+                    const b = pixels[i + 2];
+                    const a = pixels[i + 3];
+                    
+                    // Skip transparent or very dark pixels
+                    if (a < 128 || (r + g + b) < 30) continue;
+                    
+                    // Quantize colors to reduce noise
+                    const qr = Math.floor(r / 32) * 32;
+                    const qg = Math.floor(g / 32) * 32;
+                    const qb = Math.floor(b / 32) * 32;
+                    const colorKey = `${qr},${qg},${qb}`;
+                    
+                    colorMap.set(colorKey, (colorMap.get(colorKey) || 0) + 1);
+                  }
+                  
+                  // Get top 5 most common colors
+                  const sortedColors = Array.from(colorMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([color]) => {
+                      const [r, g, b] = color.split(',').map(Number);
+                      return `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
+                    });
+                  
+                  resolve(sortedColors.length > 0 ? sortedColors : [brandSettings.accentColor || '#ffd700']);
+                } catch (error) {
+                  console.error('Color extraction error:', error);
+                  resolve([brandSettings.accentColor || '#ffd700']);
+                }
+              };
+              img.onerror = () => resolve([brandSettings.accentColor || '#ffd700']);
+              img.src = imageUrl;
+            });
+          };
+
           // Reapply current brand/theme colors to AI-generated slides
-          const themedSlides = (data.slides as SlideData[]).map((s, idx) => ({
+          let themedSlides = (data.slides as SlideData[]).map((s, idx) => ({
             ...s,
             backgroundColor: s.backgroundColor || brandSettings.backgroundColor,
             textColor: s.textColor || brandSettings.textColor,
             accentColor: s.accentColor || brandSettings.accentColor,
             fontFamily: s.fontFamily || brandSettings.fontFamily,
           }));
+
+          // Apply smart color extraction if enabled
+          if (aiSmartColors) {
+            const slidesWithColors = await Promise.all(
+              themedSlides.map(async (slide, idx) => {
+                if (slide.backgroundImage) {
+                  try {
+                    const extractedColors = await extractColorsFromImage(slide.backgroundImage);
+                    if (extractedColors.length > 0) {
+                      return {
+                        ...slide,
+                        accentColor: extractedColors[0],
+                        extractedColors, // Store for reference
+                      };
+                    }
+                  } catch (error) {
+                    console.error('Failed to extract colors:', error);
+                  }
+                }
+                return slide;
+              })
+            );
+            themedSlides = slidesWithColors;
+          }
+
+          // Apply bulk settings if enabled
+          if (aiBulkApply && themedSlides.length > 0) {
+            const firstSlide = themedSlides[0];
+            themedSlides = themedSlides.map((slide, idx) => ({
+              ...slide,
+              // Apply consistent styling from first slide
+              accentColor: idx === 0 ? slide.accentColor : (firstSlide.accentColor || slide.accentColor),
+              backgroundColor: idx === 0 ? slide.backgroundColor : (firstSlide.backgroundColor || slide.backgroundColor),
+              textColor: idx === 0 ? slide.textColor : (firstSlide.textColor || slide.textColor),
+              fontFamily: idx === 0 ? slide.fontFamily : (firstSlide.fontFamily || slide.fontFamily),
+            }));
+          }
           // Normalize slide IDs, element order etc.
           const normalized = normalizeSlides(themedSlides.slice(0, aiSlideCount));
           
@@ -4421,6 +4540,20 @@ function DashboardContent() {
           </div>
         </div>
         
+        {/* Text Editor Toggle Button */}
+        <button
+          onClick={() => setShowTextFormattingToolbar(!showTextFormattingToolbar)}
+          className={`hidden lg:flex px-3 py-1.5 text-sm font-medium rounded-lg transition items-center gap-2 border ${
+            showTextFormattingToolbar 
+              ? 'bg-[#ffd700]/10 text-[#ffd700] border-[#ffd700]/30 hover:bg-[#ffd700]/20' 
+              : 'text-gray-400 border-gray-700 hover:text-white hover:bg-gray-800 hover:border-gray-600'
+          }`}
+          title={showTextFormattingToolbar ? 'Hide Text Editor' : 'Show Text Editor'}
+        >
+          <Type size={16} />
+          Text Editor
+        </button>
+        
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
              <button
                 onClick={() => setIsMobileSidebarOpen(true)}
@@ -4664,6 +4797,7 @@ function DashboardContent() {
             </div>
 
             {/* Toolbar - Two Rows */}
+            {showTextFormattingToolbar && (
             <div className="hidden lg:flex flex-col absolute top-4 left-1/2 -translate-x-1/2 bg-gray-800/95 backdrop-blur-md border border-gray-700/50 rounded-2xl shadow-2xl z-20 overflow-hidden">
                 {/* Row 1: Main Tools */}
                 <div className="flex items-center gap-1 px-2 py-1.5">
@@ -4735,6 +4869,7 @@ function DashboardContent() {
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                 <input type="color" ref={colorInputRef} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0" value={slides[0]?.backgroundColor || '#0B0F19'} onChange={handleBackgroundColorChange} />
             </div>
+            )}
 
             {/* Text Toolbar Sidebar - appears when button is clicked */}
             {isTextToolbarOpen && (
@@ -5955,10 +6090,10 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* AI Modal */}
+      {/* AI Modal - Horizontal Layout */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2 text-[#ffd700]">
                 <Sparkles size={20} />
@@ -5972,7 +6107,10 @@ function DashboardContent() {
               </button>
             </div>
             
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column: Input & Sources */}
+                <div className="space-y-4">
               {/* Input Source Tabs */}
               <div className="flex gap-1 p-1 bg-gray-900/50 rounded-xl">
                 <button
@@ -6250,139 +6388,247 @@ function DashboardContent() {
                 <p className="text-xs text-red-400">{docUploadError}</p>
               )}
 
-              {/* Slide Style Selector */}
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Slide Style
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAiSlideStyle('visual')}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                      aiSlideStyle === 'visual'
-                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                    }`}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <path d="M21 15l-5-5L5 21" />
-                    </svg>
-                    <span className="text-xs font-medium">Visual</span>
-                    <span className="text-[10px] opacity-60">Icons & graphics</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiSlideStyle('text')}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                      aiSlideStyle === 'text'
-                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                    }`}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 7V4h16v3" />
-                      <path d="M9 20h6" />
-                      <path d="M12 4v16" />
-                    </svg>
-                    <span className="text-xs font-medium">Text</span>
-                    <span className="text-[10px] opacity-60">Detailed content</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiSlideStyle('mixed')}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                      aiSlideStyle === 'mixed'
-                        ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                        : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                    }`}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="8" height="8" rx="1" />
-                      <path d="M14 5h7" />
-                      <path d="M14 9h5" />
-                      <path d="M3 16h7" />
-                      <path d="M3 20h5" />
-                      <rect x="13" y="13" width="8" height="8" rx="1" />
-                    </svg>
-                    <span className="text-xs font-medium">Mixed</span>
-                    <span className="text-[10px] opacity-60">Best of both</span>
-                  </button>
+              {/* Pro Features - Moved to Left Side */}
+              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-purple-400" />
+                  <h4 className="font-semibold text-white text-sm">Pro Features</h4>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiAutoHashtags}
+                      onChange={(e) => setAiAutoHashtags(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-gray-300">Auto-generate hashtags</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiSmartColors}
+                      onChange={(e) => setAiSmartColors(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-gray-300">Smart color extraction from images</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiAccessibility}
+                      onChange={(e) => setAiAccessibility(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-gray-300">Accessibility check (WCAG compliance)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiBulkApply}
+                      onChange={(e) => setAiBulkApply(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-gray-300">Bulk apply to all slides</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiIncludeStats}
+                      onChange={(e) => setAiIncludeStats(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                    />
+                    <span className="text-xs text-gray-300">Include data/statistics</span>
+                  </label>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                    Writing Style
-                  </label>
-                  <select
-                    value={aiWritingStyle}
-                    onChange={(e) => setAiWritingStyle(e.target.value)}
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                  >
-                    <option value="Professional">Professional</option>
-                    <option value="Funny">Funny</option>
-                    <option value="Storytelling">Storytelling</option>
-                    <option value="Inspirational">Inspirational</option>
-                    <option value="Educational">Educational</option>
-                  </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                    Word count per slide
-                  </label>
-                  <input
-                    type="number"
-                    min={10}
-                    max={500}
-                    placeholder="Auto"
-                    value={aiWordCount}
-                    onChange={(e) => {
-                       const val = e.target.value;
-                       setAiWordCount(val === '' ? '' : parseInt(val, 10));
-                    }}
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Target slide count
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={3}
-                    max={50}
-                    step={1}
-                    value={aiSlideCount}
-                    onChange={(e) => setAiSlideCount(parseInt(e.target.value, 10))}
-                    className="flex-1"
-                    style={{ accentColor: '#ffd700' }}
-                  />
-                  <input
-                    type="number"
-                    min={3}
-                    max={50}
-                    value={aiSlideCount}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value, 10);
-                      if (Number.isNaN(value)) return;
-                      setAiSlideCount(Math.min(50, Math.max(3, value)));
-                    }}
-                    className="w-16 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
-                  />
+                {/* Right Column: Settings & Options */}
+                <div className="space-y-4">
+                  {/* Slide Style Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Slide Style
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAiSlideStyle('visual')}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                          aiSlideStyle === 'visual'
+                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        }`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
+                        <span className="text-xs font-medium">Visual</span>
+                        <span className="text-[10px] opacity-60">Icons & graphics</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiSlideStyle('text')}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                          aiSlideStyle === 'text'
+                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        }`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M4 7V4h16v3" />
+                          <path d="M9 20h6" />
+                          <path d="M12 4v16" />
+                        </svg>
+                        <span className="text-xs font-medium">Text</span>
+                        <span className="text-[10px] opacity-60">Detailed content</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiSlideStyle('mixed')}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
+                          aiSlideStyle === 'mixed'
+                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
+                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        }`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="8" height="8" rx="1" />
+                          <path d="M14 5h7" />
+                          <path d="M14 9h5" />
+                          <path d="M3 16h7" />
+                          <path d="M3 20h5" />
+                          <rect x="13" y="13" width="8" height="8" rx="1" />
+                        </svg>
+                        <span className="text-xs font-medium">Mixed</span>
+                        <span className="text-[10px] opacity-60">Best of both</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Writing Style
+                      </label>
+                      <select
+                        value={aiWritingStyle}
+                        onChange={(e) => setAiWritingStyle(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                      >
+                        <option value="Professional">Professional</option>
+                        <option value="Funny">Funny</option>
+                        <option value="Storytelling">Storytelling</option>
+                        <option value="Inspirational">Inspirational</option>
+                        <option value="Educational">Educational</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Language
+                      </label>
+                      <select
+                        value={aiLanguage}
+                        onChange={(e) => setAiLanguage(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                      >
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="ar">Arabic</option>
+                        <option value="hi">Hindi</option>
+                        <option value="ru">Russian</option>
+                        <option value="nl">Dutch</option>
+                        <option value="sv">Swedish</option>
+                        <option value="pl">Polish</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Tone
+                      </label>
+                      <select
+                        value={aiTone}
+                        onChange={(e) => setAiTone(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                      >
+                        <option value="neutral">Neutral</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="formal">Formal</option>
+                        <option value="casual">Casual</option>
+                        <option value="persuasive">Persuasive</option>
+                        <option value="empathetic">Empathetic</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                        Word count per slide
+                      </label>
+                      <input
+                        type="number"
+                        min={10}
+                        max={500}
+                        placeholder="Auto"
+                        value={aiWordCount}
+                        onChange={(e) => {
+                           const val = e.target.value;
+                           setAiWordCount(val === '' ? '' : parseInt(val, 10));
+                        }}
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Target slide count
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={3}
+                        max={50}
+                        step={1}
+                        value={aiSlideCount}
+                        onChange={(e) => setAiSlideCount(parseInt(e.target.value, 10))}
+                        className="flex-1"
+                        style={{ accentColor: '#ffd700' }}
+                      />
+                      <input
+                        type="number"
+                        min={3}
+                        max={50}
+                        value={aiSlideCount}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value, 10);
+                          if (Number.isNaN(value)) return;
+                          setAiSlideCount(Math.min(50, Math.max(3, value)));
+                        }}
+                        className="w-16 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Choose between 3 and 50 slides for AI output.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Choose between 3 and 50 slides for AI output.
-                </p>
               </div>
               
-              <div className="flex justify-end gap-3 pt-2">
+              {/* Action Buttons at Bottom */}
+              <div className="flex justify-start gap-3 pt-4 border-t border-gray-200 dark:border-gray-800 mt-4">
                 <button
                   onClick={() => setIsAiModalOpen(false)}
                   className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-white font-medium transition"

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Sparkles, Zap, Layout, Download, ArrowRight, Settings, Type, Image as ImageIcon, Palette, MousePointer2, RefreshCw, Menu, X } from 'lucide-react';
+import { Sparkles, Zap, Layout, Download, ArrowRight, Settings, Type, Image as ImageIcon, Palette, MousePointer2, RefreshCw, Menu, X, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const numberFormatter = new Intl.NumberFormat('en-US');
@@ -182,16 +182,16 @@ export default function LandingPageClient() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-8 leading-tight max-w-4xl mx-auto"
+          className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-6 leading-tight max-w-4xl mx-auto"
         >
-          Turn Any Idea into <br />
+          Create Professional Carousels <br />
           <motion.span 
             className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffd700] to-orange-400 relative"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
-            Multi-Platform Carousels
+            in 30 Seconds
             <svg className="absolute w-full h-3 -bottom-1 left-0 text-[#ffd700] opacity-50" viewBox="0 0 200 9" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.00025 6.99997C25.5002 3.99999 77.5 0.499964 197.5 2.49999" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
           </motion.span>
         </motion.h1>
@@ -200,10 +200,30 @@ export default function LandingPageClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed"
+          className="text-lg sm:text-xl lg:text-2xl text-gray-700 dark:text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed font-medium"
         >
-          Social media posts, pitch decks, presentations, newsletters, product launches, educational content—if it needs visual storytelling, Carouslk creates it. No design skills, no hassle, just results.
+          Paste your text or URL. Get a beautiful carousel. <span className="text-[#ffd700]">No design skills needed.</span>
         </motion.p>
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.45 }}
+          className="flex flex-wrap items-center justify-center gap-4 mb-12 text-sm sm:text-base"
+        >
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <Zap className="w-5 h-5 text-[#ffd700]" />
+            <span><strong className="text-gray-900 dark:text-white">3x faster</strong> than competitors</span>
+          </div>
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <Sparkles className="w-5 h-5 text-[#ffd700]" />
+            <span><strong className="text-gray-900 dark:text-white">Every output</strong> looks professional</span>
+          </div>
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <Layout className="w-5 h-5 text-[#ffd700]" />
+            <span><strong className="text-gray-900 dark:text-white">Works immediately</strong>—no learning curve</span>
+          </div>
+        </motion.div>
         
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -318,9 +338,10 @@ export default function LandingPageClient() {
 
                     {/* Floating Toolbar */}
                     <div className="absolute top-6 bg-gray-200 dark:bg-gray-800/80 backdrop-blur-md border border-gray-300 dark:border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20 transform -translate-y-2 opacity-0 animate-fade-in-down" style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}>
-                        <div className="w-8 h-8 flex items-center justify-center bg-[#ffd700] text-black rounded-full cursor-pointer shadow-lg"><MousePointer2 size={14} /></div>
-                        <div className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><Type size={14} /></div>
-                        <div className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 rounded-full cursor-pointer transition"><ImageIcon size={14} /></div>
+                        <div className="w-8 h-8 flex items-center justify-center bg-[#ffd700] text-black rounded-full cursor-pointer shadow-lg"><Zap size={14} /></div>
+                        <div className="px-3 py-1 bg-[#ffd700]/20 text-[#ffd700] text-xs font-bold rounded-full border border-[#ffd700]/30">
+                            <span className="inline-flex items-center gap-1"><Clock size={10} /> 30s</span>
+                        </div>
                     </div>
                     
                     {/* Active Slide */}
@@ -404,8 +425,8 @@ export default function LandingPageClient() {
                 <Zap size={20} className="text-black" />
             </div>
             <div>
-                <div className="text-xs font-bold uppercase opacity-60">Speed</div>
-                <div className="font-black text-lg leading-none">Instant</div>
+                <div className="text-xs font-bold uppercase opacity-60">Generate in</div>
+                <div className="font-black text-lg leading-none">30 seconds</div>
             </div>
         </motion.div>
       </motion.div>
@@ -420,8 +441,8 @@ export default function LandingPageClient() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">Everything You Need</h2>
-            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Packed with powerful features to help you create engaging content faster.</p>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">Why Carouslk Stands Out</h2>
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Three simple reasons why creators choose us over the competition.</p>
         </motion.div>
         
         <div className="grid md:grid-cols-3 gap-8">
@@ -433,12 +454,12 @@ export default function LandingPageClient() {
               transition={{ duration: 0.6, delay: 0.1 }}
               whileHover={{ y: -10, scale: 1.02 }}
             >
-                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition">
+                <div className="w-12 h-12 bg-[#ffd700]/20 rounded-xl flex items-center justify-center text-[#ffd700] mb-6 group-hover:scale-110 transition">
                     <Zap size={24} />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">Lightning Fast</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-3">3x Faster</h3>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Stop wasting hours on design tools. Input your text and let our engine generate beautiful slides instantly.
+                    Generate carousels in 30 seconds—not 2 minutes. We're objectively the fastest tool in the market.
                 </p>
             </motion.div>
             <motion.div 
@@ -452,9 +473,9 @@ export default function LandingPageClient() {
                 <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition">
                     <Sparkles size={24} />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">AI Writing Partner</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-3">Professional Quality</h3>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Stuck on ideas? Use our built-in AI to expand topics into full educational carousels.
+                    Every carousel looks professional. No bad outputs. No wasted time regenerating. Guaranteed quality.
                 </p>
             </motion.div>
             <motion.div 
@@ -465,12 +486,12 @@ export default function LandingPageClient() {
               transition={{ duration: 0.6, delay: 0.3 }}
               whileHover={{ y: -10, scale: 1.02 }}
             >
-                <div className="w-12 h-12 bg-[#ffd700]/20 rounded-xl flex items-center justify-center text-[#ffd700] mb-6 group-hover:scale-110 transition">
+                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition">
                     <Layout size={24} />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">Fully Customizable</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-3">Zero Learning Curve</h3>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Brand your slides. Change colors, fonts, and layout to match your personal brand identity.
+                    Works immediately. No tutorials. No onboarding. First-time users create their first carousel in under 60 seconds.
                 </p>
             </motion.div>
         </div>

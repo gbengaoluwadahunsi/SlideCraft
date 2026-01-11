@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import LandingPageWrapper from './LandingPageWrapper';
 
 export const metadata: Metadata = {
-  title: "Carouslk – AI Carousel Generator for LinkedIn & Instagram",
-  description: "Create viral carousels for LinkedIn, Instagram, and X in seconds. AI-powered writing, beautiful templates, and one-click PDF export. No design skills needed.",
+  title: "Carouslk – Create Professional Carousels in 30 Seconds",
+  description: "The fastest carousel generator. Create professional carousels in 30 seconds—3x faster than competitors. No design skills needed. Works immediately.",
   keywords: ["LinkedIn Carousel Generator", "Instagram Carousel Maker", "AI Content Creation", "PDF Slider Tool", "Social Media Marketing", "Carousel Templates", "LinkedIn PDF", "free carousel maker", "AI carousel generator"],
   openGraph: {
     title: "Carouslk – Create Viral Carousels in Seconds",

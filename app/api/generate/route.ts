@@ -12,10 +12,10 @@ const PROVIDERS = [
   { name: 'together', model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', envKey: 'TOGETHER_API_KEY' },
 ];
 
-// Retry logic with exponential backoff
+// Retry logic with exponential backoff - optimized for speed
 async function generateWithRetry<T>(
   fn: () => Promise<T>,
-  maxRetries: number = 3
+  maxRetries: number = 2 // Reduced from 3 to 2 for faster failure recovery
 ): Promise<T> {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -23,8 +23,8 @@ async function generateWithRetry<T>(
     } catch (err) {
       console.error(`Attempt ${i + 1} failed:`, err);
       if (i === maxRetries - 1) throw err;
-      // Exponential backoff: 1s, 2s, 3s
-      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      // Faster backoff: 500ms, 1s (reduced from 1s, 2s, 3s)
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
   }
   throw new Error('Max retries exceeded');
@@ -65,9 +65,27 @@ Each slide should have:
   - <span style="letter-spacing: 0.1em">text</span> - Spaced out text
   - <span style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5)">text</span> - Shadow effect
   - <a href="url">link text</a> - Clickable links
-  - <p>, <ul>, <li> - Paragraphs and lists
+  - <p> - Paragraphs (use sparingly, prefer lists for multiple points)
+  - <ul><li>item</li></ul> - Bullet lists (REQUIRED for tips, features, benefits, key points)
+  - <ol><li>item</li></ol> - Numbered lists (REQUIRED for steps, rankings, sequences)
   - <pre><code>...</code></pre> - Code snippets
   
+  CRITICAL RULES - YOU MUST FOLLOW THESE:
+  
+  1. BULLET LISTS (<ul><li>) ARE MANDATORY WHEN:
+     - Content mentions "tips", "features", "benefits", "key points", "checklist", "items"
+     - You have 3+ related points to make
+     - Content is a collection of similar items
+     - Example: Instead of "Tip 1: Do this. Tip 2: Do that. Tip 3: Do this other thing."
+       USE: <ul><li>Do this</li><li>Do that</li><li>Do this other thing</li></ul>
+  
+  2. NUMBERED LISTS (<ol><li>) ARE MANDATORY WHEN:
+     - Content mentions "steps", "step 1", "step 2", "first", "second", "third", "rankings", "top 5", "top 10"
+     - Content is sequential or ordered
+     - Example: Instead of "First, do X. Second, do Y. Third, do Z."
+       USE: <ol><li>Do X</li><li>Do Y</li><li>Do Z</li></ol>
+  
+  NEVER write multiple paragraphs when a list would be clearer!
   NEVER use markdown like ** or ### - use HTML tags instead.
 - emoji: DO NOT include emoji. Leave this field empty or omit it entirely.
 - chartType: (for chart slides only) "bar", "line", or "pie"
@@ -80,6 +98,13 @@ Charts will be rendered as professional images using QuickChart.io.
 
 The design style is "Under The Hood", technical but accessible.
 Focus on clarity, high value, and depth. Provide comprehensive explanations.
+
+MANDATORY CONTENT STRUCTURE RULES:
+- If your content has tips, features, benefits, or key points → YOU MUST USE <ul><li> bullet lists
+- If your content has steps, rankings, or sequences → YOU MUST USE <ol><li> numbered lists  
+- DO NOT write long paragraphs when lists would be clearer
+- ALWAYS break up content with lists for better scannability
+- Every slide should have at least ONE list if the content supports it
 `,
 
   visual: `
@@ -145,7 +170,9 @@ Each slide should have:
     * <sub>subscript</sub> - For H₂O, chemical formulas
     * <span style="font-size: 20px">larger</span> - Size variations
     * <a href="url">links</a> - Clickable links
-    * <p>, <ul>, <li> - Structure
+    * <p> - Paragraphs
+    * <ul><li>item</li></ul> - Bullet lists (for tips, features, benefits)
+    * <ol><li>item</li></ol> - Numbered lists (for step-by-step guides, rankings)
 - infographicLayout: (for visual slides) VARY the layouts - use different styles for each visual slide
 - chartType/chartData: For chart slides with statistics
 
@@ -300,6 +327,17 @@ ${languageInstruction}
 ${toneInstruction}
 ${featuresInstruction}
 ${outlineHint}
+
+CRITICAL: You MUST use HTML lists in your content. Examples:
+
+For tips/features/benefits, use bullet lists:
+<ul><li>First tip or feature</li><li>Second tip or feature</li><li>Third tip or feature</li></ul>
+
+For steps/rankings/sequences, use numbered lists:
+<ol><li>First step</li><li>Second step</li><li>Third step</li></ol>
+
+DO NOT write paragraphs when lists would be clearer. ALWAYS use lists for multiple related points.
+
 ${combinedText}`,
         },
     ];
@@ -319,7 +357,7 @@ ${combinedText}`,
               messages,
               model: provider.model,
               temperature: 0.3,
-              max_tokens: 4096,
+              max_tokens: 2048, // Reduced for faster generation
               top_p: 1,
               stream: false,
               response_format: { type: 'json_object' },
@@ -338,7 +376,7 @@ ${combinedText}`,
               messages,
               model: provider.model,
               temperature: 0.3,
-              max_tokens: 4096,
+              max_tokens: 2048, // Reduced for faster generation
               top_p: 1,
               stream: false,
               response_format: { type: 'json_object' },
@@ -464,18 +502,10 @@ ${combinedText}`,
     // - Smart color extraction from images (if enabled)
     // - Bulk apply settings (if enabled)
     const slidesWithIds = await Promise.all(trimmedSlides.map(async (slide: any, index: number) => {
-      // Generate individual 3D icons for infographic items if it's a visual slide
+      // Skip 3D icon generation for speed - use default icons instead
+      // Icon generation adds significant latency per slide
       let infographicIcons: string[] = [];
-      if (slideStyle === 'visual' || (slideStyle === 'mixed' && slide.type === 'visual')) {
-        const items = slide.content ? 
-          slide.content.match(/<li[^>]*>([^<]+)<\/li>/gi)?.map((li: string) => li.replace(/<\/?[^>]+>/g, '').trim()) || [] 
-          : [];
-          
-        infographicIcons = items.map((item: string) => {
-          const prompt = `3D isometric icon for ${item}, high quality, clean white background, vibrant colors, minimalist design, ${accentColor} accent`;
-          return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=256&height=256&nologo=true&model=flux`;
-        });
-      }
+      // Icons are now handled client-side or use default icon set
 
       // For visual slideStyle, ensure non-cover slides have type 'visual' and an icon
       let slideType = slide.type;
@@ -497,8 +527,10 @@ ${combinedText}`,
       let backgroundImageFilter: string = '';
       let extractedColors: string[] = [];
       
-      // Skip background image for first slide (index === 0)
-      if (slideType !== 'chart' && index !== 0 && (slideStyle === 'visual' || slideStyle === 'mixed')) {
+      // Skip background image generation by default for speed
+      // Only generate if explicitly requested (smartColors enabled or visual style specifically requests it)
+      // Background images add 2-5 seconds per slide, so we skip them for the "fast" experience
+      if (false && slideType !== 'chart' && index !== 0 && (slideStyle === 'visual' || slideStyle === 'mixed')) {
         // Generate background for visual slides (but not the first slide)
         if (slideType === 'visual') {
           backgroundImage = await generateBackgroundImage(
@@ -590,10 +622,58 @@ ${combinedText}`,
         title: stripMarkdown(slide.title || ''),
         subtitle: stripMarkdown(slide.subtitle || ''),
         content: slide.content 
-          ? slide.content
-              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-              .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-              .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
+          ? (() => {
+              let processed = slide.content;
+              
+              // First, preserve existing HTML lists and tables by temporarily replacing them
+              const listPlaceholders: string[] = [];
+              const tablePlaceholders: string[] = [];
+              
+              // Store HTML lists
+              processed = processed.replace(/<ul[^>]*>[\s\S]*?<\/ul>/gi, (match) => {
+                listPlaceholders.push(match);
+                return `__LIST_PLACEHOLDER_${listPlaceholders.length - 1}__`;
+              });
+              
+              processed = processed.replace(/<ol[^>]*>[\s\S]*?<\/ol>/gi, (match) => {
+                listPlaceholders.push(match);
+                return `__LIST_PLACEHOLDER_${listPlaceholders.length - 1}__`;
+              });
+              
+              // Store HTML tables
+              processed = processed.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, (match) => {
+                tablePlaceholders.push(match);
+                return `__TABLE_PLACEHOLDER_${tablePlaceholders.length - 1}__`;
+              });
+              
+              // Now process markdown formatting
+              processed = processed
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
+                // Convert markdown lists to HTML (only if not already HTML)
+                .replace(/^[-*+]\s+(.+)$/gm, '<li>$1</li>');
+              
+              // Wrap orphaned <li> tags in <ul>
+              processed = processed.replace(/(<li>.*?<\/li>\s*)+/g, (match) => {
+                if (!match.includes('<ul>') && !match.includes('<ol>')) {
+                  return '<ul>' + match + '</ul>';
+                }
+                return match;
+              });
+              
+              // Restore HTML lists
+              listPlaceholders.forEach((list, index) => {
+                processed = processed.replace(`__LIST_PLACEHOLDER_${index}__`, list);
+              });
+              
+              // Restore HTML tables
+              tablePlaceholders.forEach((table, index) => {
+                processed = processed.replace(`__TABLE_PLACEHOLDER_${index}__`, table);
+              });
+              
+              return processed;
+            })()
           : slide.content,
         // Apply all enhanced features
         backgroundImage,

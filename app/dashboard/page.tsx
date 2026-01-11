@@ -44,7 +44,6 @@ import {
   Send,
   MessageSquare,
   RefreshCw,
-  Keyboard,
   Eye,
   ExternalLink,
   ZoomIn,
@@ -80,19 +79,8 @@ import { THEMES } from '@/app/constants/themes';
 import { toPng, toJpeg } from 'html-to-image';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { BOLD_TEMPLATES } from '@/lib/templates';
-// New feature components
-import { FindReplace } from '@/components/FindReplace';
-import { LayersPanel, Layer } from '@/components/LayersPanel';
-import { AlignmentTools } from '@/components/AlignmentTools';
+// Core feature components
 import { BrandKit } from '@/components/BrandKit';
-import { PhotoFilters } from '@/components/PhotoFilters';
-import { TableTool } from '@/components/TableTool';
-import { QRCodeGenerator } from '@/components/QRCodeGenerator';
-import { GridGuides } from '@/components/GridGuides';
-import { WordCount } from '@/components/WordCount';
-import { TextAnimations } from '@/components/TextAnimations';
-import { MagicResize } from '@/components/MagicResize';
-import { VersionHistory, Version } from '@/components/VersionHistory';
 
 // Types matching Slide.tsx
 interface CustomBlock {
@@ -164,6 +152,13 @@ interface SlideData {
   borderColor?: string;
   borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
   borderRadius?: number;
+}
+
+interface Version {
+  id: string;
+  timestamp: Date;
+  name: string;
+  snapshot: { slides: SlideData[] };
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -268,51 +263,28 @@ function DashboardContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectOptions, setProjectOptions] = useState<any>({});
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState<'pdf' | 'ppt' | 'images' | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' });
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlideCount, setAiSlideCount] = useState(6);
-  const [aiWordCount, setAiWordCount] = useState<number | ''>('');
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
   const [aiLanguage, setAiLanguage] = useState<string>('en');
-  const [aiAutoHashtags, setAiAutoHashtags] = useState(false);
-  const [aiSmartColors, setAiSmartColors] = useState(false);
-  const [aiAccessibility, setAiAccessibility] = useState(false);
-  const [aiBulkApply, setAiBulkApply] = useState(false);
-  const [aiTone, setAiTone] = useState<string>('neutral');
-  const [aiIncludeStats, setAiIncludeStats] = useState(false);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  
-  // New feature states
-  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
-  const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
-  const [isAlignmentToolsOpen, setIsAlignmentToolsOpen] = useState(false);
-  const [isBrandKitOpen, setIsBrandKitOpen] = useState(false);
-  const [isPhotoFiltersOpen, setIsPhotoFiltersOpen] = useState(false);
-  const [isTableToolOpen, setIsTableToolOpen] = useState(false);
-  const [isQRCodeGeneratorOpen, setIsQRCodeGeneratorOpen] = useState(false);
-  const [isGridGuidesOpen, setIsGridGuidesOpen] = useState(false);
-  const [isWordCountOpen, setIsWordCountOpen] = useState(false);
-  const [isTextAnimationsOpen, setIsTextAnimationsOpen] = useState(false);
-  const [isMagicResizeOpen, setIsMagicResizeOpen] = useState(false);
-  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [showTextFormattingToolbar, setShowTextFormattingToolbar] = useState(false);
   const [isTextToolbarOpen, setIsTextToolbarOpen] = useState(false);
-  const [showTextFormattingToolbar, setShowTextFormattingToolbar] = useState(true);
-
-  // Feature-specific states
   const [showGrid, setShowGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(40);
   const [showGuides, setShowGuides] = useState(false);
-  const [gridSize, setGridSize] = useState(20);
-  const [findReplaceMatches, setFindReplaceMatches] = useState({ current: 0, total: 0 });
-  const [versions, setVersions] = useState<Version[]>([]);
+  
+  // Core feature states
+  const [isBrandKitOpen, setIsBrandKitOpen] = useState(false);
   const [currentVersionId, setCurrentVersionId] = useState<string>('');
 
   // Calculate scale for Rnd
@@ -372,6 +344,7 @@ function DashboardContent() {
   const [imageUrlInput, setImageUrlInput] = useState('');
   
   // Version History state
+  const [versions, setVersions] = useState<Version[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyEntries, setHistoryEntries] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -674,7 +647,7 @@ function DashboardContent() {
       id: '1',
       type: 'cover',
       title: 'THE SECRET SAUCE',
-      subtitle: 'How to create viral carousels in minutes.',
+      subtitle: 'How to create viral carousels in seconds.',
       category: '',
       accentColor: '#ffd700',
       handle: '@carouslk',
@@ -788,27 +761,6 @@ function DashboardContent() {
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
 
   // Feature handlers
-  const handleFindReplace = (query: string, caseSensitive: boolean) => {
-    let matches = 0;
-    slides.forEach(slide => {
-      const text = `${slide.title} ${slide.subtitle || ''} ${slide.content || ''}`;
-      const regex = new RegExp(query, caseSensitive ? 'g' : 'gi');
-      const slideMatches = text.match(regex)?.length || 0;
-      matches += slideMatches;
-    });
-    setFindReplaceMatches({ current: 1, total: matches });
-  };
-
-  const handleReplace = (find: string, replace: string, caseSensitive: boolean, replaceAll: boolean) => {
-    const regex = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
-    setSlides(prevSlides => prevSlides.map(slide => ({
-      ...slide,
-      title: slide.title.replace(regex, replace),
-      subtitle: slide.subtitle?.replace(regex, replace) || slide.subtitle,
-      content: slide.content?.replace(regex, replace) || slide.content,
-    })));
-    toast.success(replaceAll ? `Replaced all occurrences` : `Replaced first occurrence`);
-  };
 
   const handleAddShape = (shape: any) => {
     const newBlock: CustomBlock = {
@@ -826,124 +778,6 @@ function DashboardContent() {
     toast.success('Shape added');
   };
 
-  const handleLayersUpdate = (id: string, updates: Partial<Layer>) => {
-    // Update layer visibility/lock state
-    // This would need to be connected to actual element visibility
-    toast.success('Layer updated');
-  };
-
-  const handleLayersReorder = (newOrder: Layer[]) => {
-    // Reorder layers based on z-index
-    toast.success('Layers reordered');
-  };
-
-  const handleAlign = (type: string) => {
-    const activeSlide = slides.find(s => s.id === activeSlideId);
-    if (!activeSlide?.customBlocks || activeSlide.customBlocks.length === 0) {
-      toast.error('No elements to align. Add shapes, tables, or QR codes first.');
-      return;
-    }
-    
-    const blocks = activeSlide.customBlocks;
-    const slideWidth = 1080;
-    const slideHeight = 1080;
-    
-    let updatedBlocks: CustomBlock[];
-    
-    switch (type) {
-      case 'left':
-        // Align all blocks to the left edge
-        updatedBlocks = blocks.map(block => ({ ...block, x: 64 }));
-        break;
-        
-      case 'center':
-        // Center all blocks horizontally
-        updatedBlocks = blocks.map(block => ({ 
-          ...block, 
-          x: (slideWidth - block.width) / 2 
-        }));
-        break;
-        
-      case 'right':
-        // Align all blocks to the right edge
-        updatedBlocks = blocks.map(block => ({ 
-          ...block, 
-          x: slideWidth - block.width - 64 
-        }));
-        break;
-        
-      case 'top':
-        // Align all blocks to the top
-        updatedBlocks = blocks.map(block => ({ ...block, y: 64 }));
-        break;
-        
-      case 'middle':
-        // Center all blocks vertically
-        updatedBlocks = blocks.map(block => ({ 
-          ...block, 
-          y: (slideHeight - block.height) / 2 
-        }));
-        break;
-        
-      case 'bottom':
-        // Align all blocks to the bottom
-        updatedBlocks = blocks.map(block => ({ 
-          ...block, 
-          y: slideHeight - block.height - 64 
-        }));
-        break;
-        
-      case 'distribute-h':
-        // Distribute blocks evenly horizontally
-        if (blocks.length < 2) {
-          toast.error('Need at least 2 elements to distribute');
-          return;
-        }
-        const sortedH = [...blocks].sort((a, b) => a.x - b.x);
-        const totalWidthH = sortedH.reduce((sum, b) => sum + b.width, 0);
-        const spaceH = (slideWidth - 128 - totalWidthH) / (sortedH.length - 1);
-        let currentX = 64;
-        updatedBlocks = blocks.map(block => {
-          const sortIndex = sortedH.findIndex(b => b.id === block.id);
-          let newX = 64;
-          for (let i = 0; i < sortIndex; i++) {
-            newX += sortedH[i].width + spaceH;
-          }
-          return { ...block, x: newX };
-        });
-        break;
-        
-      case 'distribute-v':
-        // Distribute blocks evenly vertically
-        if (blocks.length < 2) {
-          toast.error('Need at least 2 elements to distribute');
-          return;
-        }
-        const sortedV = [...blocks].sort((a, b) => a.y - b.y);
-        const totalHeightV = sortedV.reduce((sum, b) => sum + b.height, 0);
-        const spaceV = (slideHeight - 128 - totalHeightV) / (sortedV.length - 1);
-        updatedBlocks = blocks.map(block => {
-          const sortIndex = sortedV.findIndex(b => b.id === block.id);
-          let newY = 64;
-          for (let i = 0; i < sortIndex; i++) {
-            newY += sortedV[i].height + spaceV;
-          }
-          return { ...block, y: newY };
-        });
-        break;
-        
-      default:
-        return;
-    }
-    
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      customBlocks: updatedBlocks
-    } : s));
-    
-    toast.success(`Aligned: ${type.replace('-', ' ')}`);
-  };
-
   const handleApplyBrand = (colors: any[], fonts: any[]) => {
     if (colors.length > 0) {
       setSlides(prevSlides => prevSlides.map(s => ({ ...s, accentColor: colors[0].value })));
@@ -954,109 +788,6 @@ function DashboardContent() {
     toast.success('Brand applied to slides');
   };
 
-  const handlePhotoFilterChange = (filter: string) => {
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      backgroundImageFilter: filter
-    } : s));
-  };
-
-
-  const handleInsertTable = (rows: number, cols: number) => {
-    // Build table HTML - cells are editable through the parent contenteditable
-    let tableHtml = '<table style="border-collapse: collapse; width: 100%; table-layout: fixed;">';
-    for (let i = 0; i < rows; i++) {
-      tableHtml += '<tr>';
-      for (let j = 0; j < cols; j++) {
-        const cellContent = i === 0 ? `Header ${j + 1}` : 'Cell';
-        const cellStyle = i === 0 
-          ? 'border: 1px solid rgba(255,255,255,0.3); padding: 12px; font-weight: bold; background: rgba(255,255,255,0.1); text-align: center;'
-          : 'border: 1px solid rgba(255,255,255,0.3); padding: 12px; text-align: center;';
-        tableHtml += `<td style="${cellStyle}">${cellContent}</td>`;
-      }
-      tableHtml += '</tr>';
-    }
-    tableHtml += '</table>';
-    
-    // Add as a custom block - the EditableText wrapper makes it editable & formattable
-    const newBlock: CustomBlock = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `table-${Date.now()}`,
-      html: tableHtml,
-      x: 100,
-      y: 400,
-      width: Math.min(cols * 120, 900),
-      height: rows * 50 + 20,
-    };
-    
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      customBlocks: [...(s.customBlocks || []), newBlock]
-    } : s));
-    toast.success('Table inserted - click cells to edit, use toolbar to format');
-  };
-
-  const handleInsertQRCode = (url: string, size: number) => {
-    const qrHtml = `<img src="${url}" alt="QR Code" style="width: 100%; height: 100%; object-fit: contain;" />`;
-    
-    // Add as a custom block (like shapes) for reliable rendering
-    const newBlock: CustomBlock = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `qr-${Date.now()}`,
-      html: qrHtml,
-      x: 100,
-      y: 400,
-      width: size,
-      height: size,
-    };
-    
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      customBlocks: [...(s.customBlocks || []), newBlock]
-    } : s));
-    toast.success('QR Code inserted - drag to position');
-  };
-
-  const handleApplyAnimation = (animation: string) => {
-    // Store animation in slide data
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      // Add animation property if needed
-    } : s));
-    toast.success(`Animation applied: ${animation}`);
-  };
-
-  const handleRestoreVersion = (version: Version) => {
-    if (version.snapshot?.slides) {
-      setSlides(version.snapshot.slides);
-      setCurrentVersionId(version.id);
-      toast.success('Version restored');
-    }
-  };
-
-  const handleViewVersion = (version: Version) => {
-    // Show version preview
-    toast.info('Viewing version: ' + version.name);
-  };
-
-
-  const handleApplyResize = (size: { width: number; height: number }) => {
-    // This would resize the canvas/slide dimensions
-    toast.success(`Resized to ${size.width}×${size.height}px`);
-  };
-
-  // Generate layers from current slide
-  const generateLayers = (): Layer[] => {
-    if (!activeSlide) return [];
-    const layers: Layer[] = [];
-    if (activeSlide.title) layers.push({ id: 'title', name: 'Title', type: 'title', visible: true, locked: false, zIndex: 10 });
-    if (activeSlide.subtitle) layers.push({ id: 'subtitle', name: 'Subtitle', type: 'subtitle', visible: true, locked: false, zIndex: 9 });
-    if (activeSlide.content) layers.push({ id: 'content', name: 'Content', type: 'content', visible: true, locked: false, zIndex: 8 });
-    if (activeSlide.emoji) layers.push({ id: 'emoji', name: 'Emoji', type: 'emoji', visible: true, locked: false, zIndex: 7 });
-    if (activeSlide.mediaUrl) layers.push({ id: 'media', name: 'Media', type: 'media', visible: true, locked: false, zIndex: 6 });
-    (activeSlide.customBlocks || []).forEach((block, i) => {
-      layers.push({ id: block.id, name: `Block ${i + 1}`, type: 'custom', visible: true, locked: false, zIndex: 5 - i });
-    });
-    return layers;
-  };
 
   const createCustomBlock = (): CustomBlock => ({
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `block-${Date.now()}-${Math.random()}`,
@@ -1421,26 +1152,6 @@ function DashboardContent() {
         return;
       }
 
-      // Find & Replace (Ctrl+F or Cmd+F)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setIsFindReplaceOpen(true);
-        return;
-      }
-
-      // Word Count (Ctrl+Shift+W)
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'W') {
-        e.preventDefault();
-        setIsWordCountOpen(true);
-        return;
-      }
-
-      // Layers Panel (Ctrl+Shift+L)
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'L') {
-        e.preventDefault();
-        setIsLayersPanelOpen(true);
-        return;
-      }
       
       // Don't trigger destructive/editor-wide shortcuts when typing in inputs/textareas/contenteditable
       const target = e.target as HTMLElement;
@@ -1539,22 +1250,14 @@ function DashboardContent() {
         return;
       }
       
-      // Show keyboard shortcuts: ?
-      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        e.preventDefault();
-        setShowKeyboardShortcuts(true);
-        return;
-      }
-      
       // Close modals: Escape
       if (e.key === 'Escape') {
-        setShowKeyboardShortcuts(false);
         return;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl, setIsFindReplaceOpen, setIsWordCountOpen, setIsLayersPanelOpen]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl]);
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -1799,15 +1502,9 @@ function DashboardContent() {
           body: JSON.stringify({
             text: combinedSource,
             slideCount: aiSlideCount,
-            wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
             slideStyle: aiSlideStyle,
             language: aiLanguage,
-            tone: aiTone,
-            autoHashtags: aiAutoHashtags,
-            smartColors: aiSmartColors,
-            accessibility: aiAccessibility,
-            includeStats: aiIncludeStats,
             sections: docAttachment?.sections || [],
           }),
         });
@@ -1838,15 +1535,9 @@ function DashboardContent() {
           body: JSON.stringify({
             text: combinedSource,
             slideCount: aiSlideCount,
-            wordCount: aiWordCount || undefined,
             writingStyle: aiWritingStyle,
             slideStyle: aiSlideStyle,
             language: aiLanguage,
-            tone: aiTone,
-            autoHashtags: aiAutoHashtags,
-            smartColors: aiSmartColors,
-            accessibility: aiAccessibility,
-            includeStats: aiIncludeStats,
             sections: combinedSections.length > 0 ? combinedSections : undefined,
             sourceFile: docAttachment
               ? {
@@ -1938,42 +1629,6 @@ function DashboardContent() {
             fontFamily: s.fontFamily || brandSettings.fontFamily,
           }));
 
-          // Apply smart color extraction if enabled
-          if (aiSmartColors) {
-            const slidesWithColors = await Promise.all(
-              themedSlides.map(async (slide, idx) => {
-                if (slide.backgroundImage) {
-                  try {
-                    const extractedColors = await extractColorsFromImage(slide.backgroundImage);
-                    if (extractedColors.length > 0) {
-                      return {
-                        ...slide,
-                        accentColor: extractedColors[0],
-                        extractedColors, // Store for reference
-                      };
-                    }
-                  } catch (error) {
-                    console.error('Failed to extract colors:', error);
-                  }
-                }
-                return slide;
-              })
-            );
-            themedSlides = slidesWithColors;
-          }
-
-          // Apply bulk settings if enabled
-          if (aiBulkApply && themedSlides.length > 0) {
-            const firstSlide = themedSlides[0];
-            themedSlides = themedSlides.map((slide, idx) => ({
-              ...slide,
-              // Apply consistent styling from first slide
-              accentColor: idx === 0 ? slide.accentColor : (firstSlide.accentColor || slide.accentColor),
-              backgroundColor: idx === 0 ? slide.backgroundColor : (firstSlide.backgroundColor || slide.backgroundColor),
-              textColor: idx === 0 ? slide.textColor : (firstSlide.textColor || slide.textColor),
-              fontFamily: idx === 0 ? slide.fontFamily : (firstSlide.fontFamily || slide.fontFamily),
-            }));
-          }
           // Normalize slide IDs, element order etc.
           const normalized = normalizeSlides(themedSlides.slice(0, aiSlideCount));
           
@@ -2934,9 +2589,9 @@ function DashboardContent() {
       });
   };
 
-  // Export as Images ZIP (client-side only, no server needed)
-  const handleExportImages = async () => {
-    setIsExporting('images');
+  // Export as PDF only (simplified for speed)
+  const handleExportPDF = async () => {
+    setIsExporting(true);
     setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
     
     try {
@@ -3001,7 +2656,7 @@ function DashboardContent() {
       console.error('Export images failed:', error);
       toast.error('Failed to export images');
     } finally {
-      setIsExporting(null);
+      setIsExporting(false);
       setSlideDownloadData(null);
       setExportProgress({ current: 0, total: 0, status: '' });
     }
@@ -3020,7 +2675,7 @@ function DashboardContent() {
     // Debug: Log what we're sending
     console.log('Export - Current slides mediaUrls:', currentSlides.map(s => ({ type: s.type, mediaType: s.mediaType, mediaUrl: s.mediaUrl?.substring(0, 50) })));
     
-    setIsExporting(format);
+    setIsExporting(true);
     setExportProgress({ current: 0, total: currentSlides.length, status: 'Preparing slides...' });
     
     try {
@@ -3103,7 +2758,7 @@ function DashboardContent() {
       // Check if we have any valid captures
       if (validCaptures.length === 0) {
           toast.error('Failed to capture any slides. Please try again or contact support.');
-          setIsExporting(null);
+          setIsExporting(false);
           setSlideDownloadData(null);
           setExportProgress({ current: 0, total: 0, status: '' });
           return;
@@ -3131,21 +2786,6 @@ function DashboardContent() {
           formData.append(`slide_image_${i}`, blob, `slide-${i}.jpg`);
       });
 
-      // Attach videos if PPT export
-      if (format === 'ppt') {
-          setExportProgress({ current: totalSlides, total: totalSlides, status: 'Attaching videos...' });
-          await Promise.all(currentSlides.map(async (slide, index) => {
-              if (slide.mediaType === 'video' && slide.mediaUrl?.startsWith('blob:')) {
-                  try {
-                      const blobRes = await fetch(slide.mediaUrl);
-                      const blob = await blobRes.blob();
-                      formData.append(`video_${index}`, blob, 'video.mp4');
-                  } catch (e) {
-                      console.error('Failed to attach video blob', e);
-                  }
-              }
-          }));
-      }
 
       // Construct simplified payload - use currentSlides for fresh data
       const payloadSlides = currentSlides.map((slide, index) => ({
@@ -3170,12 +2810,12 @@ function DashboardContent() {
 
       formData.append('data', JSON.stringify({
           slides: safePayload,
-          format,
+          format: 'pdf',
           options: { title: currentSlides[0]?.title },
           mode: 'client-side-images'
       }));
 
-      setExportProgress({ current: totalSlides, total: totalSlides, status: `Generating ${format.toUpperCase()}...` });
+      setExportProgress({ current: totalSlides, total: totalSlides, status: 'Generating PDF...' });
 
       const response = await fetch('/api/export', {
         method: 'POST',
@@ -3193,7 +2833,7 @@ function DashboardContent() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `carouslk-export.${format === 'ppt' ? 'pptx' : 'pdf'}`;
+      a.download = `carouslk-export.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -3210,7 +2850,7 @@ function DashboardContent() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast.error(`Export failed: ${errorMessage}. Try removing media or using simpler slides.`);
     } finally {
-      setIsExporting(null);
+      setIsExporting(false);
       setSlideDownloadData(null);
       setExportProgress({ current: 0, total: 0, status: '' });
     }
@@ -3506,17 +3146,6 @@ function DashboardContent() {
           <ShapesPanelInline onAddShape={handleAddShape} />
         </div>
 
-        {/* ANIMATIONS SECTION */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Animations</h4>
-          <button
-            onClick={() => setIsTextAnimationsOpen(true)}
-            className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
-          >
-            <SparklesIcon size={16} />
-            Choose Animation
-          </button>
-        </div>
 
         {activeSlide.type === 'cover' && (
           <div className="space-y-2">
@@ -4098,13 +3727,6 @@ function DashboardContent() {
                     <span className="text-[10px] text-gray-500 font-medium">SETTINGS</span>
                     <div className="flex gap-1">
                         <button 
-                            onClick={() => setIsPhotoFiltersOpen(true)}
-                            className="text-[10px] bg-[#ffd700]/20 hover:bg-[#ffd700]/30 text-[#ffd700] px-2 py-1 rounded border border-[#ffd700]/50 transition"
-                            title="Photo Filters"
-                        >
-                            Filters
-                        </button>
-                        <button 
                             onClick={() => {
                                 // Smart reset: if all slides have the same background, reset settings on all
                                 const currentBg = activeSlide.backgroundImage;
@@ -4576,14 +4198,6 @@ function DashboardContent() {
                 AI Tools
              </button>
              <button 
-                onClick={() => setIsVersionHistoryOpen(true)}
-                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition items-center gap-2"
-                title="Version History"
-             >
-                <History size={16} />
-                History
-             </button>
-             <button 
                 onClick={() => setIsExportOpen(true)}
                 className="hidden lg:flex px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-lg transition items-center gap-2"
              >
@@ -4651,13 +4265,6 @@ function DashboardContent() {
             <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Slides ({slides.length})</span>
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => setShowKeyboardShortcuts(true)}
-                        className="w-6 h-6 hover:bg-gray-700 rounded flex items-center justify-center text-gray-500 hover:text-gray-300 transition"
-                        title="Keyboard shortcuts"
-                    >
-                        <Keyboard size={12} />
-                    </button>
                     <button 
                         onClick={addNewSlide}
                         className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white transition"
@@ -4835,29 +4442,8 @@ function DashboardContent() {
                         </div>
                     </div>
                     <div className="w-px h-6 bg-gray-700 mx-0.5"></div>
-                    <button onClick={() => setIsFindReplaceOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Find & Replace">
-                        <Search size={16} />
-                    </button>
                     <button onClick={() => setIsPropertiesPanelOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Shapes">
                         <Square size={16} />
-                    </button>
-                    <button onClick={() => setIsTableToolOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Table">
-                        <Table size={16} />
-                    </button>
-                    <button onClick={() => setIsQRCodeGeneratorOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="QR Code">
-                        <QrCode size={16} />
-                    </button>
-                    <button onClick={() => setIsLayersPanelOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Layers">
-                        <Layers size={16} />
-                    </button>
-                    <button onClick={() => setIsAlignmentToolsOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Alignment">
-                        <AlignHorizontalJustifyCenter size={16} />
-                    </button>
-                    <button onClick={() => setIsWordCountOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Word Count">
-                        <FileTextIcon size={16} />
-                    </button>
-                    <button onClick={() => setIsGridGuidesOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Grid">
-                        <Grid size={16} />
                     </button>
                 </div>
                 
@@ -5102,12 +4688,11 @@ function DashboardContent() {
                   )}
                 </div>
               ) : (
-                // Format selection buttons
-                <>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">Choose your preferred format:</p>
-                  
+                // Export button (only PDF available - no "choose" needed)
+                <div className="space-y-3">
+                  <p className="text-gray-400 text-sm">Export your carousel as a PDF file</p>
                   <button
-                    onClick={() => handleExport('pdf')}
+                    onClick={() => handleExportPDF()}
                     disabled={!!isExporting}
                     className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
                   >
@@ -5122,41 +4707,7 @@ function DashboardContent() {
                     </div>
                     <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
                   </button>
-
-                  <button
-                    onClick={() => handleExport('ppt')}
-                    disabled={!!isExporting}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-500 group-hover:scale-110 transition">
-                        <Layout size={20} />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-white">Export as PowerPoint</div>
-                        <div className="text-xs text-gray-500">Editable PPTX Slides</div>
-                      </div>
-                    </div>
-                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
-                  </button>
-
-                  <button
-                    onClick={() => handleExportImages()}
-                    disabled={!!isExporting}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500 group-hover:scale-110 transition">
-                        <ImageIcon size={20} />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-white">Export as Images</div>
-                        <div className="text-xs text-gray-500">ZIP of PNG files • Best for Instagram</div>
-                      </div>
-                    </div>
-                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
-                  </button>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -5901,143 +5452,230 @@ function DashboardContent() {
       {/* Templates Modal */}
       {isTemplatesOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[70vh]">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2">
+          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
                 <Layout size={20} className="text-[#ffd700]" />
-                <h3 className="font-bold text-white text-lg">Theme Gallery</h3>
+                <div>
+                  <h3 className="font-bold text-white text-lg">Theme Gallery</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Choose from 5 carefully curated themes</p>
+                </div>
               </div>
               <button 
                 onClick={() => setIsTemplatesOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
+                className="text-gray-400 hover:text-white transition p-2 hover:bg-gray-800 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto space-y-10">
-                {['Professional', 'Bold', 'Minimalist', 'Dark Mode', 'Premium', 'Educational Templates'].map((category) => (
-                    <div key={category}>
-                        <h4 className="text-white font-bold text-xl mb-4 flex items-center gap-2">
-                            <span className="w-1 h-6 bg-[#ffd700] rounded-full"></span>
-                            {category}
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {THEMES.filter(t => t.category === category).map((theme) => {
-                                // Find matching template from BOLD_TEMPLATES if it's a full template
-                                const fullTemplate = theme.isFullTemplate 
-                                  ? BOLD_TEMPLATES.find(t => t.id === theme.id.replace('-template', ''))
-                                  : null;
+            <div className="p-6 flex-1 flex items-center justify-center overflow-hidden">
+              {/* Horizontal layout: All 5 themes in a single row */}
+              <div className="w-full max-w-6xl">
+                <div className="grid grid-cols-5 gap-4">
+                  {THEMES.map((theme) => {
+                  // Find matching template from BOLD_TEMPLATES if it's a full template
+                  const fullTemplate = theme.isFullTemplate 
+                    ? BOLD_TEMPLATES.find(t => t.id === theme.id.replace('-template', ''))
+                    : null;
 
-                                return (
-                                <div 
-                                    key={theme.id}
-                                    onClick={async () => {
-                                        if (theme.isFullTemplate && fullTemplate) {
-                                            // Apply template STYLING to existing slides (preserve user content)
-                                            const templateFirst = fullTemplate.slides[0];
-                                            // Use functional update to get current state (not stale closure)
-                                            setSlides(prevSlides => prevSlides.map((s, idx) => {
-                                                // Get matching template slide for styling (cycle if fewer template slides)
-                                                const templateSlide = fullTemplate.slides[idx % fullTemplate.slides.length];
-                                                return {
-                                                    ...s,
-                                                    // Apply template styling
-                                                    backgroundColor: templateSlide.backgroundColor,
-                                                    textColor: templateSlide.textColor,
-                                                    accentColor: templateSlide.accentColor,
-                                                    fontFamily: templateSlide.fontFamily,
-                                                    fontScale: templateSlide.fontScale,
-                                                    // Keep user's content: title, subtitle, content, media, customBlocks, etc.
-                                                };
-                                            }));
-                                            // Update brand settings to match template colors/fonts
-                                            const newBrand = {
-                                              ...brandSettings,
-                                              backgroundColor: templateFirst.backgroundColor,
-                                              textColor: templateFirst.textColor,
-                                              accentColor: templateFirst.accentColor,
-                                              fontFamily: templateFirst.fontFamily,
-                                            };
-                                            setBrandSettings(newBrand);
-                                            if (typeof window !== 'undefined' && status !== 'authenticated') {
-                                              localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
-                                            }
-                                            toast.success(`Applied "${theme.name}" styling to your slides!`);
-                                            addToHistory();
-                                        } else {
-                                            // Apply theme colors/fonts to existing slides
-                                            // Use functional update to get current state (not stale closure)
-                                            setSlides(prevSlides => prevSlides.map(s => {
-                                                const updatedSlide = {
-                                                    ...s,
-                                                    backgroundColor: theme.backgroundColor,
-                                                    textColor: theme.textColor,
-                                                    accentColor: theme.accentColor,
-                                                    fontFamily: theme.fontFamily
-                                                };
-                                                
-                                                // Only update category if the theme specifically defines one
-                                                if (theme.defaultCategory) {
-                                                    updatedSlide.category = theme.defaultCategory;
-                                                }
-                                                
-                                                return updatedSlide;
-                                            }));
-                                            // Update brand settings state and persist for non-auth users
-                                            const newBrand = {
-                                                ...brandSettings,
-                                                backgroundColor: theme.backgroundColor,
-                                                textColor: theme.textColor,
-                                                accentColor: theme.accentColor,
-                                                fontFamily: theme.fontFamily
-                                            };
-                                            setBrandSettings(newBrand);
-                                            if (typeof window !== 'undefined' && status !== 'authenticated') {
-                                                localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
-                                            }
-                                            toast.success(`Applied "${theme.name}" theme!`);
-                                        }
-                                        setIsTemplatesOpen(false);
-                                    }}
-                                    className="group cursor-pointer relative bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-[#ffd700] transition-all hover:shadow-xl hover:scale-[1.02]"
-                                >
-                                    <div className="aspect-[4/3] p-4 flex flex-col justify-center items-center gap-2" style={{ backgroundColor: theme.backgroundColor }}>
-                                        <div className="text-center space-y-1">
-                                            {theme.isFullTemplate ? (
-                                                <>
-                                                    <div className="text-3xl mb-2">{theme.name.split(' ')[0]}</div>
-                                                    <div className="text-sm font-bold px-2" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                                        {fullTemplate?.slides[0]?.title || 'Template'}
-                                                    </div>
-                                                    <div className="text-xs opacity-70 px-3" style={{ color: theme.textColor }}>
-                                                        {fullTemplate?.slides.length} slides
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div className="text-xl font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                                        Title
-                                                    </div>
-                                                    <div className="text-xs opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                                        Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-300">{theme.name}</span>
-                                        <span className="text-xs text-[#ffd700] opacity-0 group-hover:opacity-100 transition">
-                                            {theme.isFullTemplate ? 'Use Template' : 'Apply'}
-                                        </span>
-                                    </div>
-                                </div>
-                                );
-                            })}
+                  // Get category display name
+                  const categoryLabels: Record<string, string> = {
+                    'Professional': 'Professional',
+                    'Minimalist': 'Minimalist',
+                    'Dark Mode': 'Dark Mode',
+                    'Bold': 'Bold',
+                    'Premium': 'Premium',
+                    'Educational Templates': 'Template'
+                  };
+
+                  return (
+                    <div 
+                      key={theme.id}
+                      onClick={async () => {
+                        if (theme.isFullTemplate && fullTemplate) {
+                          // Apply template STYLING to existing slides (preserve user content)
+                          const templateFirst = fullTemplate.slides[0];
+                          // Use functional update to get current state (not stale closure)
+                          setSlides(prevSlides => prevSlides.map((s, idx) => {
+                            // Get matching template slide for styling (cycle if fewer template slides)
+                            const templateSlide = fullTemplate.slides[idx % fullTemplate.slides.length];
+                            return {
+                              ...s,
+                              // Apply template styling
+                              backgroundColor: templateSlide.backgroundColor,
+                              textColor: templateSlide.textColor,
+                              accentColor: templateSlide.accentColor,
+                              fontFamily: templateSlide.fontFamily,
+                              fontScale: templateSlide.fontScale,
+                              // Keep user's content: title, subtitle, content, media, customBlocks, etc.
+                            };
+                          }));
+                          // Update brand settings to match template colors/fonts
+                          const newBrand = {
+                            ...brandSettings,
+                            backgroundColor: templateFirst.backgroundColor,
+                            textColor: templateFirst.textColor,
+                            accentColor: templateFirst.accentColor,
+                            fontFamily: templateFirst.fontFamily,
+                          };
+                          setBrandSettings(newBrand);
+                          if (typeof window !== 'undefined' && status !== 'authenticated') {
+                            localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
+                          }
+                          toast.success(`Applied "${theme.name}" styling to your slides!`);
+                          addToHistory();
+                        } else {
+                          // Apply theme colors/fonts AND unique design properties to existing slides
+                          // Use functional update to get current state (not stale closure)
+                          setSlides(prevSlides => prevSlides.map(s => {
+                            const updatedSlide = {
+                              ...s,
+                              backgroundColor: theme.backgroundColor,
+                              textColor: theme.textColor,
+                              accentColor: theme.accentColor,
+                              fontFamily: theme.fontFamily,
+                              // Apply unique design properties
+                              fontScale: theme.fontScale ?? s.fontScale ?? 1,
+                              textAlign: theme.textAlign ?? s.textAlign ?? 'left',
+                              elementOrder: theme.elementOrder ?? s.elementOrder
+                            };
+                            
+                            // Only update category if the theme specifically defines one
+                            if (theme.defaultCategory) {
+                              updatedSlide.category = theme.defaultCategory;
+                            }
+                            
+                            return updatedSlide;
+                          }));
+                          // Update brand settings state and persist for non-auth users
+                          const newBrand = {
+                            ...brandSettings,
+                            backgroundColor: theme.backgroundColor,
+                            textColor: theme.textColor,
+                            accentColor: theme.accentColor,
+                            fontFamily: theme.fontFamily
+                          };
+                          setBrandSettings(newBrand);
+                          if (typeof window !== 'undefined' && status !== 'authenticated') {
+                            localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
+                          }
+                          toast.success(`Applied "${theme.name}" theme with unique design!`);
+                        }
+                        setIsTemplatesOpen(false);
+                      }}
+                      className="group cursor-pointer relative bg-gray-900 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-[#ffd700] transition-all hover:shadow-xl hover:shadow-[#ffd700]/20 hover:scale-[1.02]"
+                    >
+                      {/* Preview Card */}
+                      <div className="aspect-[3/4] p-3 flex flex-col justify-center items-center gap-1.5 relative overflow-hidden" style={{ backgroundColor: theme.backgroundColor }}>
+                        {/* Category Badge */}
+                        <div className="absolute top-1.5 right-1.5">
+                          <span className="px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider rounded-full bg-black/20 backdrop-blur-sm text-white border border-white/10">
+                            {categoryLabels[theme.category] || theme.category}
+                          </span>
                         </div>
+                        
+                        <div className={`w-full h-full flex flex-col ${theme.textAlign === 'center' ? 'items-center justify-center text-center' : theme.textAlign === 'right' ? 'items-end justify-center text-right' : 'items-start justify-center text-left'} space-y-1 px-2`}>
+                          {theme.isFullTemplate ? (
+                            <>
+                              <div className="text-2xl mb-0.5">{theme.name.split(' ')[0]}</div>
+                              <div className="text-xs font-bold px-1.5" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                {fullTemplate?.slides[0]?.title || 'Template'}
+                              </div>
+                              <div className="text-[9px] opacity-70 px-1.5" style={{ color: theme.textColor }}>
+                                {fullTemplate?.slides.length} slides
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {/* Unique preview layouts for each theme */}
+                              {theme.id === 'nordic-frost' && (
+                                <>
+                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
+                                    Title
+                                  </div>
+                                  <div className="text-[9px] opacity-80 leading-tight" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Clean minimal design<br/>with left alignment
+                                  </div>
+                                </>
+                              )}
+                              {theme.id === 'clean-studio' && (
+                                <>
+                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
+                                    Title
+                                  </div>
+                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Elegant centered<br/>professional style
+                                  </div>
+                                </>
+                              )}
+                              {theme.id === 'corporate-blue' && (
+                                <>
+                                  <div className="text-[8px] mb-0.5 opacity-60" style={{ color: theme.accentColor }}>💼</div>
+                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
+                                    Title
+                                  </div>
+                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Bold corporate<br/>with emoji support
+                                  </div>
+                                </>
+                              )}
+                              {theme.id === 'midnight-gold' && (
+                                <>
+                                  <div className="text-xs font-bold mb-0.5" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
+                                    Title
+                                  </div>
+                                  <div className="text-[8px] opacity-70 mb-0.5" style={{ color: theme.textColor }}>
+                                    Subtitle
+                                  </div>
+                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Modern centered<br/>with subtitle
+                                  </div>
+                                </>
+                              )}
+                              {theme.id === 'deep-ocean' && (
+                                <>
+                                  <div className="text-[9px] opacity-80 mb-1 text-right w-full" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Content first<br/>approach
+                                  </div>
+                                  <div className="text-xs font-bold text-right w-full" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
+                                    Title
+                                  </div>
+                                </>
+                              )}
+                              {!['nordic-frost', 'clean-studio', 'corporate-blue', 'midnight-gold', 'deep-ocean'].includes(theme.id) && (
+                                <>
+                                  <div className="text-sm font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Title
+                                  </div>
+                                  <div className="text-[10px] opacity-90" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
+                                    Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
+                                  </div>
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Footer */}
+                      <div className="p-2 bg-gray-900 border-t border-gray-700">
+                        <div className="text-center">
+                          <span className="text-[10px] font-semibold text-white block truncate">{theme.name}</span>
+                          <span className="text-[9px] text-gray-400 mt-0.5 block truncate">{categoryLabels[theme.category] || theme.category}</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-1 mt-1.5">
+                          <span className="text-[9px] text-[#ffd700] opacity-0 group-hover:opacity-100 transition font-medium">
+                            {theme.isFullTemplate ? 'Use' : 'Apply'}
+                          </span>
+                          <ArrowRight size={12} className="text-[#ffd700] opacity-0 group-hover:opacity-100 transition transform group-hover:translate-x-0.5" />
+                        </div>
+                      </div>
                     </div>
-                ))}
+                  );
+                })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -6388,125 +6026,23 @@ function DashboardContent() {
                 <p className="text-xs text-red-400">{docUploadError}</p>
               )}
 
-              {/* Pro Features - Moved to Left Side */}
-              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-purple-400" />
-                  <h4 className="font-semibold text-white text-sm">Pro Features</h4>
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiAutoHashtags}
-                      onChange={(e) => setAiAutoHashtags(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                    />
-                    <span className="text-xs text-gray-300">Auto-generate hashtags</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiSmartColors}
-                      onChange={(e) => setAiSmartColors(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                    />
-                    <span className="text-xs text-gray-300">Smart color extraction from images</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiAccessibility}
-                      onChange={(e) => setAiAccessibility(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                    />
-                    <span className="text-xs text-gray-300">Accessibility check (WCAG compliance)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiBulkApply}
-                      onChange={(e) => setAiBulkApply(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                    />
-                    <span className="text-xs text-gray-300">Bulk apply to all slides</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiIncludeStats}
-                      onChange={(e) => setAiIncludeStats(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                    />
-                    <span className="text-xs text-gray-300">Include data/statistics</span>
-                  </label>
-                </div>
-              </div>
 
                 </div>
 
                 {/* Right Column: Settings & Options */}
                 <div className="space-y-4">
-                  {/* Slide Style Selector */}
+                  {/* Slide Style - Only Text Available */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                      Slide Style
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setAiSlideStyle('visual')}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                          aiSlideStyle === 'visual'
-                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                        }`}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <circle cx="8.5" cy="8.5" r="1.5" />
-                          <path d="M21 15l-5-5L5 21" />
-                        </svg>
-                        <span className="text-xs font-medium">Visual</span>
-                        <span className="text-[10px] opacity-60">Icons & graphics</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAiSlideStyle('text')}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                          aiSlideStyle === 'text'
-                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                        }`}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M4 7V4h16v3" />
-                          <path d="M9 20h6" />
-                          <path d="M12 4v16" />
-                        </svg>
-                        <span className="text-xs font-medium">Text</span>
-                        <span className="text-[10px] opacity-60">Detailed content</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAiSlideStyle('mixed')}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${
-                          aiSlideStyle === 'mixed'
-                            ? 'bg-[#ffd700]/10 border-[#ffd700] text-[#ffd700]'
-                            : 'bg-gray-900/50 border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-600 hover:text-gray-300'
-                        }`}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="8" height="8" rx="1" />
-                          <path d="M14 5h7" />
-                          <path d="M14 9h5" />
-                          <path d="M3 16h7" />
-                          <path d="M3 20h5" />
-                          <rect x="13" y="13" width="8" height="8" rx="1" />
-                        </svg>
-                        <span className="text-xs font-medium">Mixed</span>
-                        <span className="text-[10px] opacity-60">Best of both</span>
-                      </button>
+                    <div className="flex items-center gap-2 p-3 rounded-xl border border-[#ffd700]/30 bg-[#ffd700]/10">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd700]">
+                        <path d="M4 7V4h16v3" />
+                        <path d="M9 20h6" />
+                        <path d="M12 4v16" />
+                      </svg>
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-[#ffd700]">Text Style</span>
+                        <p className="text-xs text-gray-400 mt-0.5">Detailed content with lists and formatting</p>
+                      </div>
                     </div>
                   </div>
 
@@ -6555,42 +6091,6 @@ function DashboardContent() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                        Tone
-                      </label>
-                      <select
-                        value={aiTone}
-                        onChange={(e) => setAiTone(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                      >
-                        <option value="neutral">Neutral</option>
-                        <option value="friendly">Friendly</option>
-                        <option value="formal">Formal</option>
-                        <option value="casual">Casual</option>
-                        <option value="persuasive">Persuasive</option>
-                        <option value="empathetic">Empathetic</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                        Word count per slide
-                      </label>
-                      <input
-                        type="number"
-                        min={10}
-                        max={500}
-                        placeholder="Auto"
-                        value={aiWordCount}
-                        onChange={(e) => {
-                           const val = e.target.value;
-                           setAiWordCount(val === '' ? '' : parseInt(val, 10));
-                        }}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                      />
-                    </div>
-                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
@@ -7380,199 +6880,12 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Keyboard Shortcuts Modal */}
-      {showKeyboardShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Keyboard className="text-[#ffd700]" size={20} />
-                <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
-              </div>
-              <button 
-                onClick={() => setShowKeyboardShortcuts(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              {/* Navigation */}
-              <div>
-                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Navigation</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Previous slide</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↑</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Next slide</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">↓</kbd>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Editing */}
-              <div>
-                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Editing</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Undo</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Z</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Redo</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Y</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Bold text</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+B</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Italic text</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+I</kbd>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Slides */}
-              <div>
-                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Slides</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">New slide</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Enter</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Duplicate slide</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+D</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Delete slide</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Delete</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Move slide up</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↑</kbd>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Move slide down</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+Shift+↓</kbd>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Project */}
-              <div>
-                <h3 className="text-sm font-semibold text-[#ffd700] uppercase tracking-wider mb-3">Project</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Save project</span>
-                    <kbd className="px-2 py-1 bg-gray-800 rounded text-gray-300 text-xs font-mono">Ctrl+S</kbd>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-900/50">
-              <p className="text-xs text-gray-500 text-center">Press <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-600 dark:text-gray-400 font-mono">?</kbd> anytime to show shortcuts</p>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* All New Feature Components */}
-      <FindReplace
-        isOpen={isFindReplaceOpen}
-        onClose={() => setIsFindReplaceOpen(false)}
-        onFind={handleFindReplace}
-        onReplace={handleReplace}
-        currentMatch={findReplaceMatches.current}
-        totalMatches={findReplaceMatches.total}
-      />
-
-      {/* Shapes tool is now integrated into Properties Panel - no separate modal needed */}
-
-      <LayersPanel
-        isOpen={isLayersPanelOpen}
-        onClose={() => setIsLayersPanelOpen(false)}
-        layers={generateLayers()}
-        onUpdateLayer={handleLayersUpdate}
-        onReorderLayers={handleLayersReorder}
-        onSelectLayer={(id) => {
-          // Focus on layer element
-          toast.info(`Selected layer: ${id}`);
-        }}
-      />
-
-      <AlignmentTools
-        isOpen={isAlignmentToolsOpen}
-        onClose={() => setIsAlignmentToolsOpen(false)}
-        onAlign={handleAlign}
-      />
-
+      {/* Core Feature Components */}
       <BrandKit
         isOpen={isBrandKitOpen}
         onClose={() => setIsBrandKitOpen(false)}
         onApplyBrand={handleApplyBrand}
-      />
-
-      <PhotoFilters
-        isOpen={isPhotoFiltersOpen}
-        onClose={() => setIsPhotoFiltersOpen(false)}
-        currentFilter={activeSlide.backgroundImageFilter || ''}
-        onFilterChange={handlePhotoFilterChange}
-      />
-
-      <TableTool
-        isOpen={isTableToolOpen}
-        onClose={() => setIsTableToolOpen(false)}
-        onInsertTable={handleInsertTable}
-      />
-
-      <QRCodeGenerator
-        isOpen={isQRCodeGeneratorOpen}
-        onClose={() => setIsQRCodeGeneratorOpen(false)}
-        onInsertQRCode={handleInsertQRCode}
-      />
-
-      <GridGuides
-        isOpen={isGridGuidesOpen}
-        onClose={() => setIsGridGuidesOpen(false)}
-        showGrid={showGrid}
-        showGuides={showGuides}
-        gridSize={gridSize}
-        onToggleGrid={() => setShowGrid(!showGrid)}
-        onToggleGuides={() => setShowGuides(!showGuides)}
-        onGridSizeChange={setGridSize}
-      />
-
-      <WordCount
-        isOpen={isWordCountOpen}
-        onClose={() => setIsWordCountOpen(false)}
-        slides={slides}
-      />
-
-      <TextAnimations
-        isOpen={isTextAnimationsOpen}
-        onClose={() => setIsTextAnimationsOpen(false)}
-        onApplyAnimation={handleApplyAnimation}
-      />
-
-      <MagicResize
-        isOpen={isMagicResizeOpen}
-        onClose={() => setIsMagicResizeOpen(false)}
-        currentSize={{ width: 1080, height: 1080 }}
-        targetSizes={[]}
-        onApplySuggestion={handleApplyResize}
-      />
-
-      <VersionHistory
-        isOpen={isVersionHistoryOpen}
-        onClose={() => setIsVersionHistoryOpen(false)}
-        versions={versions}
-        currentVersionId={currentVersionId}
-        onRestoreVersion={handleRestoreVersion}
-        onViewVersion={handleViewVersion}
       />
 
     </div>

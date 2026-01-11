@@ -720,6 +720,94 @@ export const Slide: React.FC<SlideProps> = ({
     .${scopeClass} strong, .${scopeClass} b { color: ${activeAccentColor}; font-weight: 700; }
     .${scopeClass} em, .${scopeClass} i { background-color: ${activeAccentColor}33; color: ${activeAccentColor}; font-style: normal; padding: 0 4px; border-radius: 4px; }
     .${scopeClass} code { background-color: transparent; color: ${activeAccentColor}; padding: 0 2px; font-family: var(--font-roboto-mono), monospace; font-weight: bold; }
+    .${scopeClass} ul, .${scopeClass} ol { 
+      margin: 1.5rem 0; 
+      padding-left: 0;
+      padding-right: 0;
+      list-style-position: outside;
+      overflow: visible;
+    }
+    .${scopeClass} ul li, .${scopeClass} ol li { 
+      margin: 0.75rem 0; 
+      line-height: 1.8; 
+      padding-left: 2.5rem;
+      padding-right: 0;
+      list-style-position: outside;
+      position: relative;
+    }
+    .${scopeClass} ul { 
+      list-style-type: disc; 
+      padding-left: 2rem;
+    }
+    .${scopeClass} ul li::marker { 
+      color: ${activeAccentColor}; 
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-left: -0.5rem;
+    }
+    .${scopeClass} ol { 
+      list-style-type: decimal; 
+      padding-left: 3rem;
+    }
+    .${scopeClass} ol li { 
+      counter-increment: list-counter;
+      padding-left: 3rem;
+    }
+    .${scopeClass} ol li::marker { 
+      color: ${activeAccentColor}; 
+      font-weight: bold;
+      font-size: 1.1em;
+      content: counter(list-counter) '.';
+      position: absolute;
+      left: 0;
+      width: 2.5rem;
+      text-align: right;
+      padding-right: 0.75rem;
+    }
+    .${scopeClass} table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin: 1.5rem 0; 
+      border-radius: 8px; 
+      overflow: visible;
+      background-color: rgba(0,0,0,0.2);
+      border: 1px solid ${activeAccentColor}40;
+      table-layout: auto;
+    }
+    .${scopeClass} table thead { 
+      background-color: ${activeAccentColor}20; 
+    }
+    .${scopeClass} table th { 
+      padding: 1rem; 
+      text-align: left; 
+      font-weight: bold; 
+      color: ${activeAccentColor};
+      border-bottom: 2px solid ${activeAccentColor}60;
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      overflow: visible;
+      vertical-align: top;
+    }
+    .${scopeClass} table td { 
+      padding: 0.75rem 1rem; 
+      border-bottom: 1px solid ${activeAccentColor}20;
+      color: ${activeTextColor};
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      overflow: visible;
+      vertical-align: top;
+    }
+    .${scopeClass} table tbody tr { 
+      overflow: visible;
+    }
+    .${scopeClass} table tbody tr:hover { 
+      background-color: ${activeAccentColor}10; 
+    }
+    .${scopeClass} table tbody tr:last-child td { 
+      border-bottom: none; 
+    }
   `;
 
   const COLORS = [activeAccentColor, '#ff9f40', '#ff6384', '#4bc0c0', '#9966ff'];
@@ -1293,17 +1381,20 @@ export const Slide: React.FC<SlideProps> = ({
             const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
             const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
-                 <div className={`flex-1 ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`}>
+                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%' }}>
                     {isEditable ? (
                         <EditableText 
                             tagName="div"
-                            className={`slide-content leading-relaxed font-light mb-6 ${isVisualSlide ? 'visual-content' : ''}`}
+                            className={`slide-content leading-relaxed font-light ${isVisualSlide ? 'visual-content' : ''}`}
                             style={{ 
                                 color: activeTextColor,
                                 fontSize: contentFontSize,
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
+                                overflow: 'visible',
+                                width: '100%',
+                                paddingBottom: '1.5rem',
                                 // Removed boxShadow, borders, and borderRadius for cleaner text
                             }} 
                             html={content || ''}
@@ -1311,16 +1402,19 @@ export const Slide: React.FC<SlideProps> = ({
                             placeholder="Content..."
                         />
                     ) : contentStripped ? (
-                        <div 
-                            className={`slide-content leading-relaxed font-light mb-6 ${isVisualSlide ? 'visual-content' : ''}`}
+                        <div
+                            className={`slide-content leading-relaxed font-light ${isVisualSlide ? 'visual-content' : ''}`}
                             style={{ 
                                 color: activeTextColor,
                                 fontSize: contentFontSize,
                                 textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                                 textAlign: contentAlign,
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
+                                overflow: 'visible',
+                                width: '100%',
+                                paddingBottom: '1.5rem',
                                 // Removed boxShadow, borders, and borderRadius for cleaner text
-                            }} 
+                            }}
                             dangerouslySetInnerHTML={{ __html: content }}
                         />
                     ) : null}
@@ -1354,11 +1448,11 @@ export const Slide: React.FC<SlideProps> = ({
   };
 
   return (
-    <motion.div 
-      className={`w-[1080px] h-[1080px] flex flex-col relative overflow-hidden shrink-0 ${scopeClass}`}
+    <motion.div
+      className={`w-[1080px] min-h-[1080px] flex flex-col relative overflow-visible shrink-0 ${scopeClass}`}
       style={{
         // If there's a background image, use a fallback dark color; otherwise use the selected color
-        backgroundColor: backgroundImage ? '#0a0a0a' : activeBgColor, 
+        backgroundColor: backgroundImage ? '#0a0a0a' : activeBgColor,
         color: activeTextColor,
         fontFamily: fontFamily,
         userSelect: isEditable ? 'text' : 'none',
@@ -1469,7 +1563,7 @@ export const Slide: React.FC<SlideProps> = ({
       {/* Main Content Area */}
       {freePositioning && isEditable && isMounted ? (
         /* Free Positioning Mode - elements can be dragged anywhere (editable) */
-        <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', height: '1080px' }}>
+        <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', minHeight: '1080px' }}>
           {currentOrder.map((itemId) => {
             const pos = getDefaultPosition(itemId);
             const element = renderElement(itemId);
@@ -1528,7 +1622,7 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : freePositioning ? (
         /* Free Positioning Mode - static render for export/download */
-        <div className="absolute inset-0 z-10" style={{ top: 0, left: 0, width: '1080px', height: '1080px' }}>
+        <div className="absolute inset-0 z-10" style={{ top: 0, left: 0, width: '1080px', minHeight: '1080px' }}>
           {currentOrder.map((itemId) => {
             const pos = getDefaultPosition(itemId);
             const element = renderElement(itemId);
@@ -1556,7 +1650,7 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : (
         /* Flow Layout Mode - elements stack vertically and can be reordered */
-        <div className={`flex-1 px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} h-full overflow-visible`}>
+        <div className={`w-full px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto' }}>
           {isEditable && isMounted ? (
               <DndContext 
                   sensors={sensors} 
@@ -1568,7 +1662,7 @@ export const Slide: React.FC<SlideProps> = ({
                       strategy={verticalListSortingStrategy}
                   >
                       {currentOrder.map((itemId) => (
-                          <SortableItem key={itemId} id={itemId} isEditable={isEditable} className={itemId === 'content' ? 'flex-1' : ''}>
+                          <SortableItem key={itemId} id={itemId} isEditable={isEditable} className={itemId === 'content' ? '' : ''}>
                               {renderElement(itemId)}
                           </SortableItem>
                       ))}
@@ -1577,7 +1671,7 @@ export const Slide: React.FC<SlideProps> = ({
           ) : (
               <>
                   {currentOrder.map((itemId) => (
-                      <div key={itemId} className={`relative ${itemId === 'content' ? 'flex-1' : ''}`}>
+                      <div key={itemId} className="relative">
                           {renderElement(itemId)}
                       </div>
                   ))}

@@ -28,29 +28,24 @@ export default function PricingPage() {
     core: [
       { name: 'Projects', free: '5 projects', starter: 'Unlimited', pro: 'Unlimited', enterprise: 'Unlimited' },
       { name: 'Slide Editor', free: true, starter: true, pro: true, enterprise: true },
-      { name: 'PDF & PPT Exports', free: '5 total', starter: 'Unlimited', pro: 'Unlimited', enterprise: 'Unlimited' },
+      { name: 'PDF Export', free: '5 total', starter: 'Unlimited', pro: 'Unlimited', enterprise: 'Unlimited' },
       { name: 'Project Sharing', free: false, starter: true, pro: true, enterprise: true },
       { name: 'Custom Brand Colors & Fonts', free: true, starter: true, pro: true, enterprise: true },
       { name: 'Brand Logo Upload', free: false, starter: true, pro: true, enterprise: true },
-      { name: 'Templates Library', free: 'Basic only', starter: 'All templates', pro: 'All templates', enterprise: 'All + Custom' },
+      { name: 'Templates Library', free: '5 perfect templates', starter: '5 perfect templates', pro: '5 perfect templates', enterprise: '5 perfect templates' },
       { name: 'Auto-save', free: true, starter: true, pro: true, enterprise: true },
       { name: 'Undo/Redo', free: true, starter: true, pro: true, enterprise: true },
     ],
     ai: [
       { name: 'AI Content Generation', free: '5/month', starter: '20/month', pro: 'Unlimited', enterprise: 'Unlimited' },
-      { name: 'AI Image Generation', free: false, starter: false, pro: true, enterprise: true },
-      { name: 'Content Enhancement', free: false, starter: false, pro: true, enterprise: true },
-      { name: 'Research Agent', free: false, starter: false, pro: true, enterprise: true },
-      { name: 'Design Suggestions', free: false, starter: false, pro: true, enterprise: true },
-      { name: 'Performance Prediction', free: false, starter: false, pro: true, enterprise: true },
+      { name: 'Generate in 30 seconds', free: true, starter: true, pro: true, enterprise: true },
+      { name: 'Professional quality guaranteed', free: true, starter: true, pro: true, enterprise: true },
     ],
     advanced: [
       { name: 'Priority Support', free: false, starter: false, pro: true, enterprise: true },
-      { name: 'Advanced Analytics', free: false, starter: false, pro: false, enterprise: true },
       { name: 'Team Collaboration', free: false, starter: false, pro: false, enterprise: true },
       { name: 'API Access', free: false, starter: false, pro: false, enterprise: true },
       { name: 'White-label', free: false, starter: false, pro: false, enterprise: true },
-      { name: 'Custom AI Training', free: false, starter: false, pro: false, enterprise: true },
     ]
   };
 
@@ -59,7 +54,7 @@ export default function PricingPage() {
       name: 'Free',
       price: '$0',
       period: 'forever',
-      description: 'Custom colors & fonts included',
+      description: 'Try it free. Generate in 30 seconds.',
       cta: session ? 'Current Plan' : 'Get Started',
       href: session ? '/dashboard' : '/register',
       popular: false,
@@ -70,7 +65,7 @@ export default function PricingPage() {
       name: 'Starter',
       price: '$10',
       period: 'month',
-      description: 'Add your logo + unlimited projects',
+      description: 'Unlimited carousels. Save 2+ hours/week.',
       cta: 'Start Free Trial',
       href: session ? '/dashboard?upgrade=starter' : '/register?plan=starter',
       popular: false,
@@ -81,7 +76,7 @@ export default function PricingPage() {
       name: 'Pro',
       price: '$19',
       period: 'month',
-      description: 'Unlimited AI + advanced features',
+      description: 'Unlimited everything. Maximum speed & quality.',
       cta: 'Start Free Trial',
       href: session ? '/dashboard?upgrade=pro' : '/register?plan=pro',
       popular: true,
@@ -199,8 +194,11 @@ export default function PricingPage() {
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-[#ffd700] to-yellow-400 bg-clip-text text-transparent">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-xl text-gray-400 mb-12">
-            Choose the perfect plan for your content creation needs. All plans include our core features.
+          <p className="text-xl text-gray-300 mb-4">
+            Create professional carousels in <span className="text-[#ffd700] font-bold">30 seconds</span>. Save hours every week.
+          </p>
+          <p className="text-lg text-gray-400 mb-12">
+            All plans include our core features: <span className="text-white">3x faster</span> than competitors, <span className="text-white">professional quality</span> guaranteed, <span className="text-white">zero learning curve</span>.
           </p>
         </div>
 
@@ -319,11 +317,11 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-green-400" />
-                        <span>5 Exports (PDF/PPT)</span>
+                        <span>5 PDF Exports</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-green-400" />
-                        <span>5 AI Generations/month</span>
+                        <span>5 AI Generations/month (30 sec each)</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-green-400" />
@@ -373,19 +371,15 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
-                        <span>Unlimited AI Generations</span>
+                        <span>Unlimited AI Generations (30 sec each)</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
-                        <span>AI Image Generation</span>
+                        <span>Professional quality guaranteed</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
-                        <span>Research Agent</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={16} className="text-[#ffd700]" />
-                        <span>Performance Prediction</span>
+                        <span>3x faster than competitors</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-[#ffd700]" />
@@ -404,10 +398,6 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-purple-400" />
-                        <span>Advanced Analytics</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check size={16} className="text-purple-400" />
                         <span>API Access</span>
                       </li>
                       <li className="flex items-center gap-2">
@@ -416,7 +406,7 @@ export default function PricingPage() {
                       </li>
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-purple-400" />
-                        <span>Custom AI Training</span>
+                        <span>Dedicated account manager</span>
                       </li>
                     </>
                   )}
@@ -475,15 +465,15 @@ export default function PricingPage() {
             <ul className="space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
-                <span className="font-medium">Unlimited AI</span>
+                <span className="font-medium">Unlimited AI (30 sec generation)</span>
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
-                <span>AI image generation</span>
+                <span>Professional quality guaranteed</span>
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#ffd700]" />
-                <span>Research & insights</span>
+                <span>3x faster than competitors</span>
               </li>
             </ul>
           </div>
@@ -561,49 +551,31 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* AI Features Highlight */}
+      {/* Core Value Proposition */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-gradient-to-r from-purple-600/20 to-[#ffd700]/20 border border-purple-500/30 rounded-2xl p-8">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">AI-Powered Features</h2>
-            <p className="text-gray-300">Pro and Enterprise plans include our full AI suite</p>
+            <h2 className="text-3xl font-bold mb-4">Why Carouslk Stands Out</h2>
+            <p className="text-gray-300">Three simple reasons why creators choose us</p>
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <ImageIcon className="text-purple-400 mb-4" size={32} />
-              <h3 className="font-semibold mb-2">AI Image Generation</h3>
-              <p className="text-sm text-gray-400">Generate contextual images automatically for your slides</p>
+              <Zap className="text-[#ffd700] mb-4" size={32} />
+              <h3 className="font-semibold mb-2">3x Faster</h3>
+              <p className="text-sm text-gray-400">Generate carousels in 30 seconds—not 2 minutes. We're objectively the fastest tool in the market.</p>
             </div>
             
             <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <Wand2 className="text-[#ffd700] mb-4" size={32} />
-              <h3 className="font-semibold mb-2">Content Enhancement</h3>
-              <p className="text-sm text-gray-400">Improve clarity, SEO, and engagement with AI</p>
+              <Sparkles className="text-purple-400 mb-4" size={32} />
+              <h3 className="font-semibold mb-2">Professional Quality</h3>
+              <p className="text-sm text-gray-400">Every carousel looks professional. No bad outputs. No wasted time regenerating. Guaranteed quality.</p>
             </div>
             
             <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <Search className="text-blue-400 mb-4" size={32} />
-              <h3 className="font-semibold mb-2">Research Agent</h3>
-              <p className="text-sm text-gray-400">Research any topic and get comprehensive insights</p>
-            </div>
-            
-            <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <Lightbulb className="text-yellow-400 mb-4" size={32} />
-              <h3 className="font-semibold mb-2">Design Suggestions</h3>
-              <p className="text-sm text-gray-400">Get AI-powered design recommendations</p>
-            </div>
-            
-            <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <TrendingUp className="text-green-400 mb-4" size={32} />
-              <h3 className="font-semibold mb-2">Performance Prediction</h3>
-              <p className="text-sm text-gray-400">Predict engagement before you post</p>
-            </div>
-            
-            <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
-              <Sparkles className="text-pink-400 mb-4" size={32} />
-              <h3 className="font-semibold mb-2">AI Content Generation</h3>
-              <p className="text-sm text-gray-400">Convert text to professional carousels instantly</p>
+              <Rocket className="text-blue-400 mb-4" size={32} />
+              <h3 className="font-semibold mb-2">Zero Learning Curve</h3>
+              <p className="text-sm text-gray-400">Works immediately. No tutorials. No onboarding. First-time users create their first carousel in under 60 seconds.</p>
             </div>
           </div>
         </div>
@@ -641,8 +613,8 @@ export default function PricingPage() {
       {/* CTA Section */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <div className="bg-gradient-to-r from-[#ffd700]/10 to-purple-600/10 border border-[#ffd700]/30 rounded-2xl p-12">
-          <h2 className="text-3xl font-bold mb-4">Ready to create amazing carousels?</h2>
-          <p className="text-gray-300 mb-8">Join thousands of creators using AI to create engaging content</p>
+          <h2 className="text-3xl font-bold mb-4">Ready to save hours every week?</h2>
+          <p className="text-gray-300 mb-8">Create professional carousels in 30 seconds. Join thousands of creators who've switched to Carouslk.</p>
           <div className="flex gap-4 justify-center">
             {session ? (
               <Link

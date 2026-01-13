@@ -274,6 +274,12 @@ function DashboardContent() {
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
   const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
   const [aiLanguage, setAiLanguage] = useState<string>('en');
+  const [aiWordCount, setAiWordCount] = useState<number | null>(null);
+  const [aiTone, setAiTone] = useState<string>('neutral');
+  const [aiAutoHashtags, setAiAutoHashtags] = useState<boolean>(false);
+  const [aiIncludeStats, setAiIncludeStats] = useState<boolean>(false);
+  const [aiAccessibility, setAiAccessibility] = useState<boolean>(false);
+  const [aiSmartColors, setAiSmartColors] = useState<boolean>(false);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -1506,6 +1512,12 @@ function DashboardContent() {
             slideStyle: aiSlideStyle,
             language: aiLanguage,
             sections: docAttachment?.sections || [],
+            wordCount: aiWordCount || undefined,
+            tone: aiTone,
+            autoHashtags: aiAutoHashtags,
+            includeStats: aiIncludeStats,
+            accessibility: aiAccessibility,
+            smartColors: aiSmartColors,
           }),
         });
 
@@ -1539,6 +1551,12 @@ function DashboardContent() {
             slideStyle: aiSlideStyle,
             language: aiLanguage,
             sections: combinedSections.length > 0 ? combinedSections : undefined,
+            wordCount: aiWordCount || undefined,
+            tone: aiTone,
+            autoHashtags: aiAutoHashtags,
+            includeStats: aiIncludeStats,
+            accessibility: aiAccessibility,
+            smartColors: aiSmartColors,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,
@@ -6031,18 +6049,64 @@ function DashboardContent() {
 
                 {/* Right Column: Settings & Options */}
                 <div className="space-y-4">
-                  {/* Slide Style - Only Text Available */}
+                  {/* Slide Style Options */}
                   <div>
-                    <div className="flex items-center gap-2 p-3 rounded-xl border border-[#ffd700]/30 bg-[#ffd700]/10">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd700]">
-                        <path d="M4 7V4h16v3" />
-                        <path d="M9 20h6" />
-                        <path d="M12 4v16" />
-                      </svg>
-                      <div className="flex-1">
-                        <span className="text-sm font-medium text-[#ffd700]">Text Style</span>
-                        <p className="text-xs text-gray-400 mt-0.5">Detailed content with lists and formatting</p>
-                      </div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Slide Style
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Text Style - Active */}
+                      <button
+                        onClick={() => setAiSlideStyle('text')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition ${
+                          aiSlideStyle === 'text'
+                            ? 'border-[#ffd700] bg-[#ffd700]/10'
+                            : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
+                        }`}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-400'}>
+                          <path d="M4 7V4h16v3" />
+                          <path d="M9 20h6" />
+                          <path d="M12 4v16" />
+                        </svg>
+                        <div className="text-center">
+                          <span className={`text-xs font-medium ${aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-300'}`}>Text</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Detailed content</p>
+                        </div>
+                      </button>
+
+                      {/* Graphics Style - Coming Soon */}
+                      <button
+                        disabled
+                        className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
+                        title="Coming Soon"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="9" cy="9" r="2" />
+                          <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                        </svg>
+                        <div className="text-center">
+                          <span className="text-xs font-medium text-gray-500">Graphics</span>
+                          <p className="text-xs text-gray-600 mt-0.5">Coming Soon</p>
+                        </div>
+                      </button>
+
+                      {/* Mixed Style - Coming Soon */}
+                      <button
+                        disabled
+                        className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
+                        title="Coming Soon"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                          <path d="M12 2v20M2 12h20" />
+                          <circle cx="12" cy="12" r="2" />
+                        </svg>
+                        <div className="text-center">
+                          <span className="text-xs font-medium text-gray-500">Mixed</span>
+                          <p className="text-xs text-gray-600 mt-0.5">Coming Soon</p>
+                        </div>
+                      </button>
                     </div>
                   </div>
 
@@ -6123,6 +6187,127 @@ function DashboardContent() {
                     <p className="text-xs text-gray-500 mt-1">
                       Choose between 3 and 50 slides for AI output.
                     </p>
+                  </div>
+
+                  {/* Words per slide settings */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Words per slide
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={25}
+                        max={200}
+                        step={5}
+                        value={aiWordCount || 75}
+                        onChange={(e) => setAiWordCount(parseInt(e.target.value, 10))}
+                        className="flex-1"
+                        style={{ accentColor: '#ffd700' }}
+                      />
+                      <input
+                        type="number"
+                        min={25}
+                        max={200}
+                        value={aiWordCount || 75}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value, 10);
+                          if (Number.isNaN(value)) {
+                            setAiWordCount(null);
+                            return;
+                          }
+                          setAiWordCount(Math.min(200, Math.max(25, value)));
+                        }}
+                        className="w-20 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-gray-500">
+                        Target word count per slide (optional)
+                      </p>
+                      <button
+                        onClick={() => setAiWordCount(null)}
+                        className="text-xs text-gray-500 hover:text-gray-300 transition"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Advanced Options */}
+                  <div className="border-t border-gray-700 pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Tone
+                      </label>
+                      <select
+                        value={aiTone}
+                        onChange={(e) => setAiTone(e.target.value)}
+                        className="bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#ffd700] transition"
+                      >
+                        <option value="neutral">Neutral</option>
+                        <option value="formal">Formal</option>
+                        <option value="casual">Casual</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="professional">Professional</option>
+                        <option value="conversational">Conversational</option>
+                        <option value="authoritative">Authoritative</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Auto-hashtags</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Add relevant hashtags to slides</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={aiAutoHashtags}
+                          onChange={(e) => setAiAutoHashtags(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Include statistics</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Add data and numbers to support points</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={aiIncludeStats}
+                          onChange={(e) => setAiIncludeStats(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Accessibility mode</span>
+                          <p className="text-xs text-gray-500 mt-0.5">WCAG AA compliant contrast & readability</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={aiAccessibility}
+                          onChange={(e) => setAiAccessibility(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Smart colors</span>
+                          <p className="text-xs text-gray-500 mt-0.5">AI-suggested color schemes</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={aiSmartColors}
+                          onChange={(e) => setAiSmartColors(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>

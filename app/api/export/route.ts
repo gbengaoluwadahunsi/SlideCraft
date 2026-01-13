@@ -419,9 +419,6 @@ export async function POST(request: NextRequest) {
                 
                 let page;
                 try {
-                    // Create a new page
-                    page = pdfDoc.addPage([pageWidth, pageHeight]);
-                    
                     // Detect image type and embed accordingly
                     const isPng = imageBuffer[0] === 0x89;
                     
@@ -432,12 +429,38 @@ export async function POST(request: NextRequest) {
                         image = await pdfDoc.embedJpg(imageBuffer);
                     }
                     
-                    // Draw the image to fill the entire page
+                    // Get actual image dimensions
+                    const imageWidth = image.width;
+                    const imageHeight = image.height;
+                    
+                    // Calculate page dimensions to fit the image
+                    // Keep width at 1080, adjust height proportionally if image is taller
+                    const actualPageWidth = pageWidth;
+                    const actualPageHeight = Math.max(
+                        pageHeight, 
+                        (imageHeight / imageWidth) * actualPageWidth
+                    );
+                    
+                    // Create a new page with calculated dimensions
+                    page = pdfDoc.addPage([actualPageWidth, actualPageHeight]);
+                    
+                    // Draw the image to fill the entire page, maintaining aspect ratio
+                    // If image is wider than tall, it will be centered vertically
+                    // If image is taller than wide, page height will accommodate it
+                    const scaleX = actualPageWidth / imageWidth;
+                    const scaleY = actualPageHeight / imageHeight;
+                    const scale = Math.min(scaleX, scaleY); // Maintain aspect ratio
+                    
+                    const scaledWidth = imageWidth * scale;
+                    const scaledHeight = imageHeight * scale;
+                    const xOffset = (actualPageWidth - scaledWidth) / 2;
+                    const yOffset = (actualPageHeight - scaledHeight) / 2;
+                    
                     page.drawImage(image, {
-                        x: 0,
-                        y: 0,
-                        width: pageWidth,
-                        height: pageHeight,
+                        x: xOffset,
+                        y: yOffset,
+                        width: scaledWidth,
+                        height: scaledHeight,
                     });
                 } catch (imageError) {
                     console.error(`Failed to embed image for slide ${index}:`, imageError);

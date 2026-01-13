@@ -16,6 +16,7 @@ import {
   Download, 
   MousePointer2, 
   Type, 
+  SquarePen,
   Image as ImageIcon, 
   ChevronLeft,
   ChevronUp,
@@ -2736,20 +2737,37 @@ function DashboardContent() {
               while (!captured && attempts < maxAttempts) {
                   attempts++;
                   try {
+                     // Calculate actual height to prevent content cut-off
+                     const element = slideDownloadRef.current;
+                     // Wait a bit more for content to fully render (especially for bullet points and long text)
+                     await new Promise(r => setTimeout(r, 100));
+                     
+                     const actualHeight = Math.max(
+                         element.scrollHeight,
+                         element.offsetHeight,
+                         1080 // Minimum height
+                     );
+                     
+                     // Ensure we capture full content, but cap at reasonable max to prevent memory issues
+                     const captureHeight = Math.min(actualHeight, 2160); // Max 2x height
+                     const captureWidth = 1080;
+                     
                      // Use JPEG with quality 0.85 for faster export and smaller payload
                      // Add timeout wrapper to prevent hanging
                      const capturePromise = toJpeg(slideDownloadRef.current, {
                         cacheBust: true,
-                        width: 1080,
-                        height: 1080,
+                        width: captureWidth,
+                        height: captureHeight,
                         pixelRatio: 1.5,
-                        skipAutoScale: true,
+                        skipAutoScale: false, // Allow scaling to ensure full content is captured
                         quality: 0.85,
                         backgroundColor: slide.backgroundColor || '#0B0F19',
-                        // Skip fonts to avoid CORS issues
+                        // Don't skip fonts - we need them for proper rendering
                         skipFonts: false,
                         // Add pixel ratio for better quality
                         pixelRatio: attempts > 1 ? 1 : 1.5,
+                        // Ensure all styles are applied
+                        useCORS: true,
                      });
                      
                      // Add 10 second timeout per slide
@@ -4446,7 +4464,7 @@ function DashboardContent() {
                         className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
                         title="Add Text"
                     >
-                        <Type size={16} />
+                        <SquarePen size={16} />
                     </div>
                     <button 
                         onClick={() => handleToolClick('image')}
@@ -4484,22 +4502,27 @@ function DashboardContent() {
             {/* Text Toolbar Sidebar - appears when button is clicked */}
             {isTextToolbarOpen && (
               <div 
-                className="fixed left-16 top-16 bottom-0 w-72 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl z-[100] overflow-y-auto"
+                className="fixed left-16 top-16 bottom-0 w-72 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl z-[100]"
                 style={{ 
                   top: '72px',
-                  maxHeight: 'calc(100vh - 72px)'
+                  maxHeight: 'calc(100vh - 72px)',
+                  overflow: 'visible'
                 }}
               >
-                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Text Editor</h3>
-                  <button
-                    onClick={() => setIsTextToolbarOpen(false)}
-                    className="p-1 hover:bg-gray-800 rounded transition-colors"
-                  >
-                    <X size={18} className="text-gray-400" />
-                  </button>
+                <div className="h-full overflow-y-auto" style={{ overflowX: 'visible' }}>
+                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Text Editor</h3>
+                    <button
+                      onClick={() => setIsTextToolbarOpen(false)}
+                      className="p-1 hover:bg-gray-800 rounded transition-colors"
+                    >
+                      <X size={18} className="text-gray-400" />
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative', overflow: 'visible' }}>
+                    <TextToolbar isOpen={isTextToolbarOpen} onToggle={() => setIsTextToolbarOpen(false)} />
+                  </div>
                 </div>
-                <TextToolbar isOpen={isTextToolbarOpen} onToggle={() => setIsTextToolbarOpen(false)} />
               </div>
             )}
 

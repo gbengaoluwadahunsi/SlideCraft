@@ -726,24 +726,29 @@ export const Slide: React.FC<SlideProps> = ({
       padding-right: 0;
       list-style-position: outside;
       overflow: visible;
+      display: block;
+    }
+    .${scopeClass} ul { 
+      list-style-type: disc; 
+      padding-left: 2.5rem;
+      list-style-position: outside;
+      margin-left: 0;
+      margin-right: 0;
     }
     .${scopeClass} ul li, .${scopeClass} ol li { 
       margin: 0.75rem 0; 
       line-height: 1.8; 
-      padding-left: 2.5rem;
+      padding-left: 0.5rem;
       padding-right: 0;
       list-style-position: outside;
       position: relative;
-    }
-    .${scopeClass} ul { 
-      list-style-type: disc; 
-      padding-left: 2rem;
+      display: list-item;
     }
     .${scopeClass} ul li::marker { 
-      color: ${activeAccentColor}; 
-      font-size: 1.2em;
-      font-weight: bold;
-      margin-left: -0.5rem;
+      color: ${activeAccentColor} !important; 
+      font-size: 1.2em !important;
+      font-weight: bold !important;
+      display: list-item !important;
     }
     .${scopeClass} ol { 
       list-style-type: decimal; 

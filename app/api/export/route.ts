@@ -785,8 +785,8 @@ export async function POST(request: NextRequest) {
               }
               case 'content': {
                   const contentStripped = slide.content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem;">
-                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}">
+                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem; overflow: visible;">
+                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}; overflow: visible;">
                         ${slide.content}
                       </div>
                   </div>` : '';
@@ -833,7 +833,7 @@ export async function POST(request: NextRequest) {
             ${backgroundImageStyle}
             color: ${activeTextColor}; 
             position: relative; 
-            overflow: hidden; 
+            overflow: visible; 
             display: flex; 
             flex-direction: column; 
             font-family: '${selectedFontFamily}', system-ui, sans-serif; 
@@ -853,8 +853,18 @@ export async function POST(request: NextRequest) {
             .slide-content pre { background-color: #1f2937; padding: 1rem; border-radius: 0.5rem; overflow-x: hidden; margin: 1rem 0; border: 1px solid #374151; white-space: pre-wrap; word-break: break-word; }
             .slide-content pre code { background-color: transparent; color: inherit; padding: 0; font-weight: normal; font-family: 'Roboto Mono', monospace; }
             .slide-content pre code::before, .slide-content pre code::after { content: none; }
-            .slide-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 1rem 0; }
-            .slide-content li { margin-bottom: 0.5rem; }
+            .slide-content ul { 
+              list-style-type: disc; 
+              padding-left: 3rem; 
+              margin: 1rem 0; 
+              list-style-position: outside;
+              overflow: visible;
+            }
+            .slide-content li { 
+              margin-bottom: 0.5rem; 
+              list-style-position: outside;
+              padding-left: 0.5rem;
+            }
             .slide-content p { margin-bottom: 1.5rem; }
             .slide-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; font-size: 0.75em; border: 1px solid #374151; border-radius: 0.5rem; overflow: hidden; }
             .slide-content th, .slide-content td { padding: 1.25rem; border-bottom: 1px solid #374151; border-right: 1px solid #374151; text-align: left; vertical-align: middle; }
@@ -875,7 +885,7 @@ export async function POST(request: NextRequest) {
           ${customBlocksHtml}
 
           <!-- Main Content -->
-          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; ${isCover ? 'justify-content: center;' : ''}">
+          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; overflow: visible; ${isCover ? 'justify-content: center;' : ''}">
              ${innerContent}
           </div>
 

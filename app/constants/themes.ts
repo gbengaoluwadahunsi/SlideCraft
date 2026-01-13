@@ -50,17 +50,17 @@ export const THEMES: Theme[] = [
     designStyle: 'elegant'
   },
   {
-    id: 'corporate-blue',
-    name: 'Corporate Blue',
-    category: 'Professional',
-    backgroundColor: '#1e3a8a',
-    textColor: '#ffffff',
-    accentColor: '#60a5fa',
+    id: 'pitch-deck',
+    name: 'Pitch Deck',
+    category: 'Bold',
+    backgroundColor: '#F2F0E5',
+    textColor: '#333333',
+    accentColor: '#D52028',
     fontFamily: 'var(--font-inter)',
-    previewColors: ['#1e3a8a', '#60a5fa'],
-    fontScale: 1.2,
-    textAlign: 'left',
-    elementOrder: ['emoji', 'title', 'content', 'media'],
+    previewColors: ['#F2F0E5', '#D52028'],
+    fontScale: 1.3,
+    textAlign: 'center',
+    elementOrder: ['title', 'content', 'media'],
     designStyle: 'bold'
   },
 
@@ -81,17 +81,17 @@ export const THEMES: Theme[] = [
     designStyle: 'modern'
   },
   {
-    id: 'deep-ocean',
-    name: 'Deep Ocean',
+    id: 'twitter-dark',
+    name: 'Twitter Dark',
     category: 'Dark Mode',
-    backgroundColor: '#0f172a',
-    textColor: '#e2e8f0',
-    accentColor: '#38bdf8',
+    backgroundColor: '#000000',
+    textColor: '#ffffff',
+    accentColor: '#ffd700',
     fontFamily: 'var(--font-inter)',
-    previewColors: ['#0f172a', '#38bdf8'],
+    previewColors: ['#000000', '#ffd700'],
     fontScale: 1.0,
-    textAlign: 'right',
-    elementOrder: ['content', 'title', 'media'],
-    designStyle: 'classic'
+    textAlign: 'left',
+    elementOrder: ['title', 'content', 'media'],
+    designStyle: 'modern'
   }
 ];

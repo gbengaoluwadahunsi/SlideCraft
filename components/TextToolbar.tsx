@@ -311,6 +311,45 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
   };
 
   const execCommand = (command: string, value: string = '') => {
+    // Handle foreColor (text color) with modern approach
+    if (command === 'foreColor' && value) {
+      if (savedElementRef.current) {
+        savedElementRef.current.focus();
+      }
+
+      const selection = window.getSelection();
+      if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
+
+      selection.removeAllRanges();
+      selection.addRange(savedSelectionRef.current.cloneRange());
+
+      if (selection.rangeCount === 0 || selection.isCollapsed) return;
+
+      const range = selection.getRangeAt(0);
+      const wrapper = document.createElement('span');
+      wrapper.style.color = value;
+
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      selection.addRange(newRange);
+
+      if (!recentColors.includes(value)) {
+        setRecentColors(prev => [value, ...prev.slice(0, 7)]);
+      }
+
+      if (savedElementRef.current) {
+        savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      saveSelection();
+      return;
+    }
+
+    // For other commands, use execCommand (still works for most formatting)
     const selection = window.getSelection();
     if (selection && savedSelectionRef.current && savedElementRef.current) {
       savedElementRef.current.focus();
@@ -322,10 +361,6 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
       document.execCommand('styleWithCSS', false, 'true');
     }
     document.execCommand(command, false, value);
-    
-    if (command === 'foreColor' && value && !recentColors.includes(value)) {
-      setRecentColors(prev => [value, ...prev.slice(0, 7)]);
-    }
     
     if (savedElementRef.current) {
       savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
@@ -447,28 +482,109 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
   };
 
   const applyHighlight = (color: string) => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
+    if (savedElementRef.current) {
+      savedElementRef.current.focus();
+    }
 
-    savedElementRef.current.focus();
+    const selection = window.getSelection();
+    if (!selection || !savedSelectionRef.current || !savedElementRef.current) {
+      // Try to get current selection if saved selection is not available
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        const wrapper = document.createElement('span');
+        wrapper.style.backgroundColor = color;
+        wrapper.style.padding = '0 2px';
+        wrapper.style.borderRadius = '2px';
+
+        wrapper.appendChild(range.extractContents());
+        range.insertNode(wrapper);
+
+        selection.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(wrapper);
+        selection.addRange(newRange);
+
+        const container = range.commonAncestorContainer;
+        const element = container.nodeType === Node.TEXT_NODE 
+          ? container.parentElement 
+          : container as HTMLElement;
+        const editableElement = element?.closest('[contenteditable="true"]') as HTMLElement | null;
+        
+        if (editableElement) {
+          editableElement.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+      setShowHighlightPicker(false);
+      return;
+    }
+
     selection.removeAllRanges();
     selection.addRange(savedSelectionRef.current.cloneRange());
 
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
+    if (selection.rangeCount === 0 || selection.isCollapsed) {
+      setShowHighlightPicker(false);
+      return;
+    }
 
     const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    wrapper.style.backgroundColor = color;
-    wrapper.style.padding = '0 2px';
-    wrapper.style.borderRadius = '2px';
+    
+    // If color is transparent, remove highlight by removing background color
+    if (color === 'transparent') {
+      // Find all spans with background color in the range
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: (node) => {
+            const el = node as HTMLElement;
+            if (el.tagName === 'SPAN' && el.style.backgroundColor) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+            return NodeFilter.FILTER_SKIP;
+          }
+        }
+      );
+      
+      const spans: HTMLElement[] = [];
+      let node;
+      while (node = walker.nextNode()) {
+        spans.push(node as HTMLElement);
+      }
+      
+      // Also check if the range itself is within a highlighted span
+      const parent = range.commonAncestorContainer.parentElement;
+      if (parent && parent.tagName === 'SPAN' && parent.style.backgroundColor) {
+        spans.push(parent);
+      }
+      
+      // Remove background color from all found spans
+      spans.forEach(span => {
+        span.style.backgroundColor = '';
+        if (!span.style.cssText.trim()) {
+          // If span has no styles left, unwrap it
+          const parent = span.parentNode;
+          if (parent) {
+            while (span.firstChild) {
+              parent.insertBefore(span.firstChild, span);
+            }
+            parent.removeChild(span);
+          }
+        }
+      });
+    } else {
+      const wrapper = document.createElement('span');
+      wrapper.style.backgroundColor = color;
+      wrapper.style.padding = '0 2px';
+      wrapper.style.borderRadius = '2px';
 
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
 
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      selection.addRange(newRange);
+    }
 
     if (savedElementRef.current) {
       savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
@@ -904,7 +1020,16 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
       <div className="flex items-center justify-center gap-0.5">
         {/* Font Family */}
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowFontPicker(!showFontPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Font">
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); 
+              closeAllPickers(); 
+              setShowFontPicker(!showFontPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition" 
+            title="Font"
+          >
             <Type size={16} />
           </button>
           <AnimatePresence>
@@ -914,6 +1039,7 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-400 font-medium">Select Font</span>
@@ -922,7 +1048,12 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                   {fonts.map(font => (
                     <button 
                       key={font.name} 
-                      onMouseDown={(e) => { e.preventDefault(); applyFontFamily(font.value); }} 
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        saveSelection();
+                        applyFontFamily(font.value); 
+                      }} 
                       className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors" 
                       style={{ fontFamily: font.value }}
                     >
@@ -938,9 +1069,46 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         <Divider />
 
         {/* Font Size */}
-        <button onClick={() => adjustFontSize(-2)} className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Smaller"><Minus size={14} /></button>
-        <input type="text" value={fontSizeInput} onChange={(e) => setFontSizeInput(e.target.value)} onBlur={() => { const s = parseInt(fontSizeInput); if (!isNaN(s) && s >= 8 && s <= 120) applyFontSize(s); }} onKeyDown={(e) => { if (e.key === 'Enter') { const s = parseInt(fontSizeInput); if (!isNaN(s) && s >= 8 && s <= 120) applyFontSize(s); } }} className="w-8 px-1 py-0.5 text-center text-xs bg-gray-700 rounded text-gray-200 focus:outline-none" />
-        <button onClick={() => adjustFontSize(2)} className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Larger"><Plus size={14} /></button>
+        <button 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            adjustFontSize(-2); 
+          }} 
+          className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+          title="Smaller"
+        >
+          <Minus size={14} />
+        </button>
+        <input 
+          type="text" 
+          value={fontSizeInput} 
+          onChange={(e) => setFontSizeInput(e.target.value)} 
+          onBlur={() => { 
+            saveSelection();
+            const s = parseInt(fontSizeInput); 
+            if (!isNaN(s) && s >= 8 && s <= 120) applyFontSize(s); 
+          }} 
+          onKeyDown={(e) => { 
+            if (e.key === 'Enter') { 
+              saveSelection();
+              const s = parseInt(fontSizeInput); 
+              if (!isNaN(s) && s >= 8 && s <= 120) applyFontSize(s); 
+            } 
+          }} 
+          className="w-8 px-1 py-0.5 text-center text-xs bg-gray-700 rounded text-gray-200 focus:outline-none" 
+        />
+        <button 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            adjustFontSize(2); 
+          }} 
+          className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+          title="Larger"
+        >
+          <Plus size={14} />
+        </button>
 
         <Divider />
 
@@ -954,7 +1122,16 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
 
         {/* Colors */}
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowColorPicker(!showColorPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 flex flex-col items-center" title="Color">
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); // Save selection before opening picker
+              closeAllPickers(); 
+              setShowColorPicker(!showColorPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 flex flex-col items-center" 
+            title="Color"
+          >
             <Palette size={16} />
             <div className="w-4 h-0.5 rounded-sm" style={{ backgroundColor: recentColors[0] || '#ffd700' }} />
           </button>
@@ -965,13 +1142,20 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
               >
                 <div className="text-xs text-gray-400 font-medium mb-2">Text Color</div>
                 <div className="grid grid-cols-8 gap-1.5">
                   {textColors.map(color => (
                     <button 
                       key={color} 
-                      onMouseDown={(e) => { e.preventDefault(); execCommand('foreColor', color); setShowColorPicker(false); }} 
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        saveSelection(); // Ensure selection is saved
+                        execCommand('foreColor', color); 
+                        setShowColorPicker(false); 
+                      }} 
                       className="w-5 h-5 rounded-md border border-gray-600 hover:scale-110 hover:border-white transition-all" 
                       style={{ backgroundColor: color }} 
                     />
@@ -979,7 +1163,16 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 </div>
                 <div className="mt-3 pt-2 border-t border-gray-700">
                   <div className="text-xs text-gray-400 mb-1">Custom</div>
-                  <input type="color" className="w-full h-8 rounded-lg cursor-pointer bg-gray-700 border-0" onChange={(e) => { execCommand('foreColor', e.target.value); setShowColorPicker(false); }} />
+                  <input 
+                    type="color" 
+                    className="w-full h-8 rounded-lg cursor-pointer bg-gray-700 border-0" 
+                    onMouseDown={(e) => { e.stopPropagation(); saveSelection(); }}
+                    onChange={(e) => { 
+                      saveSelection(); // Ensure selection is saved
+                      execCommand('foreColor', e.target.value); 
+                      setShowColorPicker(false); 
+                    }} 
+                  />
                 </div>
               </motion.div>
             )}
@@ -987,7 +1180,18 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         </div>
 
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowHighlightPicker(!showHighlightPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Highlight"><Highlighter size={16} /></button>
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); // Save selection before opening picker
+              closeAllPickers(); 
+              setShowHighlightPicker(!showHighlightPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+            title="Highlight"
+          >
+            <Highlighter size={16} />
+          </button>
           <AnimatePresence>
             {showHighlightPicker && (
               <motion.div 
@@ -995,13 +1199,19 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
               >
                 <div className="text-xs text-gray-400 font-medium mb-2">Highlight</div>
                 <div className="grid grid-cols-6 gap-1.5">
                   {highlightColors.map(color => (
                     <button 
                       key={color} 
-                      onMouseDown={(e) => { e.preventDefault(); applyHighlight(color); }} 
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        saveSelection(); // Ensure selection is saved
+                        applyHighlight(color); 
+                      }} 
                       className={`w-5 h-5 rounded-md border border-gray-600 hover:scale-110 hover:border-white transition-all ${color === 'transparent' ? 'bg-gray-700 relative' : ''}`} 
                       style={{ backgroundColor: color === 'transparent' ? undefined : color }}
                     >
@@ -1017,28 +1227,105 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         <Divider />
 
         {/* Alignment */}
-        <ToolbarButton onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }} active={activeStates.alignLeft} title="Left"><AlignLeft size={16} /></ToolbarButton>
-        <ToolbarButton onMouseDown={(e) => { e.preventDefault(); execCommand('justifyCenter'); }} active={activeStates.alignCenter} title="Center"><AlignCenter size={16} /></ToolbarButton>
-        <ToolbarButton onMouseDown={(e) => { e.preventDefault(); execCommand('justifyRight'); }} active={activeStates.alignRight} title="Right"><AlignRight size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            execCommand('justifyLeft'); 
+          }} 
+          active={activeStates.alignLeft} 
+          title="Left"
+        >
+          <AlignLeft size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            execCommand('justifyCenter'); 
+          }} 
+          active={activeStates.alignCenter} 
+          title="Center"
+        >
+          <AlignCenter size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            execCommand('justifyRight'); 
+          }} 
+          active={activeStates.alignRight} 
+          title="Right"
+        >
+          <AlignRight size={16} />
+        </ToolbarButton>
 
         <Divider />
 
         {/* Lists */}
-        <ToolbarButton onMouseDown={(e) => { e.preventDefault(); execCommand('insertUnorderedList'); }} title="Bullets"><List size={16} /></ToolbarButton>
-        <ToolbarButton onMouseDown={(e) => { e.preventDefault(); execCommand('insertOrderedList'); }} title="Numbers"><ListOrdered size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            execCommand('insertUnorderedList'); 
+          }} 
+          title="Bullets"
+        >
+          <List size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            execCommand('insertOrderedList'); 
+          }} 
+          title="Numbers"
+        >
+          <ListOrdered size={16} />
+        </ToolbarButton>
       </div>
 
       {/* Row 2: Advanced Features */}
       <div className="flex items-center justify-center gap-0.5 border-t border-gray-700/50 pt-1">
         {/* Indent */}
-        <ToolbarButton onClick={() => adjustIndent('decrease')} title="Outdent"><Outdent size={16} /></ToolbarButton>
-        <ToolbarButton onClick={() => adjustIndent('increase')} title="Indent"><Indent size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            adjustIndent('decrease'); 
+          }} 
+          title="Outdent"
+        >
+          <Outdent size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            adjustIndent('increase'); 
+          }} 
+          title="Indent"
+        >
+          <Indent size={16} />
+        </ToolbarButton>
 
         <Divider />
 
         {/* Line Height */}
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowLineHeightPicker(!showLineHeightPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Line Height"><LineChart size={16} /></button>
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); 
+              closeAllPickers(); 
+              setShowLineHeightPicker(!showLineHeightPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+            title="Line Height"
+          >
+            <LineChart size={16} />
+          </button>
           <AnimatePresence>
             {showLineHeightPicker && (
               <motion.div 
@@ -1046,6 +1333,7 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-400 font-medium">Line Height</span>
@@ -1054,7 +1342,12 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                   {['1', '1.25', '1.5', '1.75', '2', '2.5'].map(lh => (
                     <button 
                       key={lh} 
-                      onMouseDown={(e) => { e.preventDefault(); applyLineHeight(lh); }} 
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        saveSelection();
+                        applyLineHeight(lh); 
+                      }} 
                       className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
                     >
                       {lh}
@@ -1068,7 +1361,18 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
 
         {/* Letter Spacing */}
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowLetterSpacingPicker(!showLetterSpacingPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Letter Spacing"><Space size={16} /></button>
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); 
+              closeAllPickers(); 
+              setShowLetterSpacingPicker(!showLetterSpacingPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+            title="Letter Spacing"
+          >
+            <Space size={16} />
+          </button>
           <AnimatePresence>
             {showLetterSpacingPicker && (
               <motion.div 
@@ -1076,6 +1380,7 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-400 font-medium">Spacing</span>
@@ -1084,7 +1389,12 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                   {['-0.05em', '0', '0.05em', '0.1em', '0.15em', '0.2em'].map(ls => (
                     <button 
                       key={ls} 
-                      onMouseDown={(e) => { e.preventDefault(); applyLetterSpacing(ls); }} 
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation();
+                        saveSelection();
+                        applyLetterSpacing(ls); 
+                      }} 
                       className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
                     >
                       {ls}
@@ -1099,9 +1409,36 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         <Divider />
 
         {/* Text Transform */}
-        <ToolbarButton onClick={() => applyTextTransform('uppercase')} title="UPPERCASE"><CaseUpper size={16} /></ToolbarButton>
-        <ToolbarButton onClick={() => applyTextTransform('lowercase')} title="lowercase"><CaseLower size={16} /></ToolbarButton>
-        <ToolbarButton onClick={() => applyTextTransform('capitalize')} title="Capitalize"><CaseSensitive size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            applyTextTransform('uppercase'); 
+          }} 
+          title="UPPERCASE"
+        >
+          <CaseUpper size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            applyTextTransform('lowercase'); 
+          }} 
+          title="lowercase"
+        >
+          <CaseLower size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            applyTextTransform('capitalize'); 
+          }} 
+          title="Capitalize"
+        >
+          <CaseSensitive size={16} />
+        </ToolbarButton>
 
         <Divider />
 
@@ -1112,14 +1449,44 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         <Divider />
 
         {/* Format Painter */}
-        <ToolbarButton onClick={copyFormat} active={!!copiedFormat} title="Copy Format"><Copy size={16} /></ToolbarButton>
-        <ToolbarButton onClick={pasteFormat} title="Paste Format"><Pipette size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            copyFormat(); 
+          }} 
+          active={!!copiedFormat} 
+          title="Copy Format"
+        >
+          <Copy size={16} />
+        </ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            pasteFormat(); 
+          }} 
+          title="Paste Format"
+        >
+          <Pipette size={16} />
+        </ToolbarButton>
 
         <Divider />
 
         {/* Text Effects */}
         <div className="relative">
-          <button onClick={() => { closeAllPickers(); setShowTextEffectsPicker(!showTextEffectsPicker); }} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="Text Effects"><Sparkles size={16} /></button>
+          <button 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); 
+              closeAllPickers(); 
+              setShowTextEffectsPicker(!showTextEffectsPicker); 
+            }} 
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" 
+            title="Text Effects"
+          >
+            <Sparkles size={16} />
+          </button>
           <AnimatePresence>
             {showTextEffectsPicker && (
               <motion.div 
@@ -1127,15 +1494,56 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-400 font-medium">Text Effects</span>
                 </div>
                 <div className="p-1">
-                  <button onMouseDown={(e) => { e.preventDefault(); applyTextEffect('shadow'); }} className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors">Shadow</button>
-                  <button onMouseDown={(e) => { e.preventDefault(); applyTextEffect('outline'); }} className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors">Outline</button>
-                  <button onMouseDown={(e) => { e.preventDefault(); applyTextEffect('glow'); }} className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors">Glow</button>
-                  <button onMouseDown={(e) => { e.preventDefault(); applyTextEffect('none'); }} className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors">None</button>
+                  <button 
+                    onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation();
+                      saveSelection();
+                      applyTextEffect('shadow'); 
+                    }} 
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Shadow
+                  </button>
+                  <button 
+                    onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation();
+                      saveSelection();
+                      applyTextEffect('outline'); 
+                    }} 
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Outline
+                  </button>
+                  <button 
+                    onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation();
+                      saveSelection();
+                      applyTextEffect('glow'); 
+                    }} 
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Glow
+                  </button>
+                  <button 
+                    onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation();
+                      saveSelection();
+                      applyTextEffect('none'); 
+                    }} 
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    None
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -1145,11 +1553,30 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         <Divider />
 
         {/* Link */}
-        <ToolbarButton onClick={insertLink} title="Link"><Link2 size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            insertLink(); 
+          }} 
+          title="Link"
+        >
+          <Link2 size={16} />
+        </ToolbarButton>
 
         {/* Emoji */}
         <div className="relative">
-          <ToolbarButton onClick={() => { saveSelection(); closeAllPickers(); setShowEmojiPicker(!showEmojiPicker); }} title="Emoji"><Smile size={16} /></ToolbarButton>
+          <ToolbarButton 
+            onMouseDown={(e) => { 
+              e.preventDefault(); 
+              saveSelection(); 
+              closeAllPickers(); 
+              setShowEmojiPicker(!showEmojiPicker); 
+            }} 
+            title="Emoji"
+          >
+            <Smile size={16} />
+          </ToolbarButton>
           <AnimatePresence>
             {showEmojiPicker && (
               <motion.div 
@@ -1157,6 +1584,7 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
                 initial={{ opacity: 0, y: -5, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-400 font-medium">Emoji</span>
@@ -1180,7 +1608,16 @@ export const TextToolbar = ({ isOpen: externalIsOpen, onToggle, hoveredElement, 
         </div>
 
         {/* Clear */}
-        <ToolbarButton onClick={clearFormatting} title="Clear Format"><RotateCcw size={16} /></ToolbarButton>
+        <ToolbarButton 
+          onMouseDown={(e) => { 
+            e.preventDefault(); 
+            saveSelection(); 
+            clearFormatting(); 
+          }} 
+          title="Clear Format"
+        >
+          <RotateCcw size={16} />
+        </ToolbarButton>
       </div>
     </div>
   );

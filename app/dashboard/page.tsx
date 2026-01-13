@@ -2608,8 +2608,8 @@ function DashboardContent() {
       });
   };
 
-  // Export as PDF only (simplified for speed)
-  const handleExportPDF = async () => {
+  // Export as Images (ZIP file)
+  const handleExportImages = async () => {
     setIsExporting(true);
     setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
     
@@ -2679,6 +2679,11 @@ function DashboardContent() {
       setSlideDownloadData(null);
       setExportProgress({ current: 0, total: 0, status: '' });
     }
+  };
+
+  // Export as PDF
+  const handleExportPDF = async () => {
+    await handleExport('pdf');
   };
 
   const handleExport = async (format: 'pdf' | 'ppt') => {
@@ -4707,9 +4712,11 @@ function DashboardContent() {
                   )}
                 </div>
               ) : (
-                // Export button (only PDF available - no "choose" needed)
+                // Export options - PDF and Images
                 <div className="space-y-3">
-                  <p className="text-gray-400 text-sm">Export your carousel as a PDF file</p>
+                  <p className="text-gray-400 text-sm">Choose your export format</p>
+                  
+                  {/* PDF Export */}
                   <button
                     onClick={() => handleExportPDF()}
                     disabled={!!isExporting}
@@ -4722,6 +4729,24 @@ function DashboardContent() {
                       <div className="text-left">
                         <div className="font-bold text-white">Export as PDF</div>
                         <div className="text-xs text-gray-500">Best for LinkedIn & Printing</div>
+                      </div>
+                    </div>
+                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
+                  </button>
+
+                  {/* Images Export */}
+                  <button
+                    onClick={() => handleExportImages()}
+                    disabled={!!isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 group-hover:scale-110 transition">
+                        <Download size={20} />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-white">Export as Images</div>
+                        <div className="text-xs text-gray-500">ZIP file with PNG images</div>
                       </div>
                     </div>
                     <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />

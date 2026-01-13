@@ -280,6 +280,7 @@ function DashboardContent() {
   const [aiIncludeStats, setAiIncludeStats] = useState<boolean>(false);
   const [aiAccessibility, setAiAccessibility] = useState<boolean>(false);
   const [aiSmartColors, setAiSmartColors] = useState<boolean>(false);
+  const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState<boolean>(false);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -5748,27 +5749,27 @@ function DashboardContent() {
 
       {/* AI Modal - Horizontal Layout */}
       {isAiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[95vh] flex flex-col">
+            <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2 text-[#ffd700]">
-                <Sparkles size={20} />
-                <h3 className="font-bold text-white text-lg">Generate with AI</h3>
+                <Sparkles size={18} />
+                <h3 className="font-bold text-white text-base">Generate with AI</h3>
               </div>
               <button 
                 onClick={() => setIsAiModalOpen(false)}
                 className="text-gray-600 dark:text-gray-400 hover:text-white transition"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="p-4 flex-1 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
                 {/* Left Column: Input & Sources */}
-                <div className="space-y-4">
+                <div className="space-y-3 flex flex-col min-h-0">
               {/* Input Source Tabs */}
-              <div className="flex gap-1 p-1 bg-gray-900/50 rounded-xl">
+              <div className="flex gap-1 p-1 bg-gray-900/50 rounded-xl shrink-0">
                 <button
                   onClick={() => setAiInputTab('prompt')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
@@ -5806,15 +5807,15 @@ function DashboardContent() {
 
               {/* Tab Content: Topic/Prompt */}
               {aiInputTab === 'prompt' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                <div className="flex-1 flex flex-col min-h-0">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
                     What&apos;s your carousel about?
                   </label>
                   <textarea
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     placeholder="e.g., 5 tips for better sleep, How to learn React in 2024..."
-                    className="w-full h-32 bg-gray-900/50 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] resize-none transition"
+                    className="w-full flex-1 min-h-[80px] bg-gray-900/50 border border-gray-700 rounded-xl p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] resize-none transition"
                     autoFocus
                   />
                 </div>
@@ -5822,8 +5823,8 @@ function DashboardContent() {
 
               {/* Tab Content: Document Upload */}
               {aiInputTab === 'document' && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400">
+                <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
                     Upload your document
                   </label>
                   <input
@@ -5834,36 +5835,36 @@ function DashboardContent() {
                     onChange={handleDocUpload}
                   />
                   {docAttachment ? (
-                    <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 text-white font-semibold">
-                            <FileText size={16} className="text-[#ffd700]" />
-                            <span className="break-all">{docAttachment.name}</span>
+                    <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-2.5 space-y-2 flex-1 min-h-0 overflow-y-auto">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 text-white font-medium text-xs">
+                            <FileText size={14} className="text-[#ffd700] shrink-0" />
+                            <span className="truncate">{docAttachment.name}</span>
                           </div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
                             {docAttachment.wordCount ?? '—'} words
-                            {docAttachment.truncated ? ' • trimmed to first 20k characters' : ''}
+                            {docAttachment.truncated ? ' • trimmed' : ''}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={clearDocAttachment}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition shrink-0"
                           title="Remove attachment"
                         >
-                          <Trash size={16} />
+                          <Trash size={14} />
                         </button>
                       </div>
                       {docAttachment.sections && docAttachment.sections.length > 0 && (
-                        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 max-h-28 overflow-y-auto">
-                          <p className="font-semibold text-gray-300">Detected Sections</p>
-                          <ul className="list-disc pl-4 space-y-1">
-                            {docAttachment.sections.slice(0, 6).map((section, idx) => (
-                              <li key={idx}>{section}</li>
+                        <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5 max-h-20 overflow-y-auto">
+                          <p className="font-semibold text-gray-300">Sections</p>
+                          <ul className="list-disc pl-3 space-y-0.5">
+                            {docAttachment.sections.slice(0, 4).map((section, idx) => (
+                              <li key={idx} className="truncate">{section}</li>
                             ))}
-                            {docAttachment.sections.length > 6 && (
-                              <li>+ {docAttachment.sections.length - 6} more…</li>
+                            {docAttachment.sections.length > 4 && (
+                              <li>+ {docAttachment.sections.length - 4} more…</li>
                             )}
                           </ul>
                         </div>
@@ -5873,17 +5874,17 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => docUploadInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-300 hover:text-white hover:border-gray-500 transition"
+                      className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition"
                     >
                       {isUploadingDoc ? (
                         <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Reading document...
+                          <Loader2 size={14} className="animate-spin" />
+                          Reading...
                         </>
                       ) : (
                         <>
-                          <Paperclip size={16} />
-                          Upload .docx / .pdf / .md / .txt
+                          <Paperclip size={14} />
+                          Upload Document
                         </>
                       )}
                     </button>
@@ -5896,34 +5897,33 @@ function DashboardContent() {
 
               {/* Tab Content: URL Import */}
               {aiInputTab === 'url' && (
-                <div className="space-y-3">
-                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <RefreshCw size={20} className="text-purple-400 shrink-0 mt-0.5" />
+                <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-2 shrink-0">
+                    <div className="flex items-start gap-2">
+                      <RefreshCw size={14} className="text-purple-400 shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-white text-sm">Repurpose Your Content</h4>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                          Turn your blog posts, articles, or web content into engaging carousels. 
-                          Perfect for repurposing content you&apos;ve already created.
+                        <h4 className="font-semibold text-white text-xs">Repurpose Your Content</h4>
+                        <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
+                          Turn blog posts into engaging carousels
                         </p>
                       </div>
                     </div>
                   </div>
 
                   {urlAttachment ? (
-                    <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
+                    <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-2.5 space-y-2 flex-1 min-h-0 overflow-y-auto">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 text-white font-semibold">
-                            <Globe size={16} className="text-[#ffd700] shrink-0" />
+                          <div className="flex items-center gap-1.5 text-white font-medium text-xs">
+                            <Globe size={14} className="text-[#ffd700] shrink-0" />
                             <span className="truncate">{urlAttachment.title}</span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1 truncate">
+                          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
                             {urlAttachment.sourceDomain}
                           </p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
                             {urlAttachment.wordCount ?? '—'} words
-                            {urlAttachment.truncated ? ' • trimmed for processing' : ''}
+                            {urlAttachment.truncated ? ' • trimmed' : ''}
                           </p>
                         </div>
                         <button
@@ -5932,32 +5932,27 @@ function DashboardContent() {
                           className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition shrink-0"
                           title="Remove URL"
                         >
-                          <Trash size={16} />
+                          <Trash size={14} />
                         </button>
                       </div>
-                      {urlAttachment.description && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-                          {urlAttachment.description}
-                        </p>
-                      )}
                       {urlAttachment.sections && urlAttachment.sections.length > 0 && (
-                        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 max-h-28 overflow-y-auto">
-                          <p className="font-semibold text-gray-300">Detected Sections</p>
-                          <ul className="list-disc pl-4 space-y-1">
-                            {urlAttachment.sections.slice(0, 6).map((section, idx) => (
-                              <li key={idx}>{section}</li>
+                        <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5 max-h-20 overflow-y-auto">
+                          <p className="font-semibold text-gray-300">Sections</p>
+                          <ul className="list-disc pl-3 space-y-0.5">
+                            {urlAttachment.sections.slice(0, 4).map((section, idx) => (
+                              <li key={idx} className="truncate">{section}</li>
                             ))}
-                            {urlAttachment.sections.length > 6 && (
-                              <li>+ {urlAttachment.sections.length - 6} more…</li>
+                            {urlAttachment.sections.length > 4 && (
+                              <li>+ {urlAttachment.sections.length - 4} more…</li>
                             )}
                           </ul>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    <div className="flex-1 flex flex-col gap-2 min-h-0">
+                      <div className="shrink-0">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Paste your content URL
                         </label>
                         <div className="flex gap-2">
@@ -5969,24 +5964,24 @@ function DashboardContent() {
                               setUrlError(null);
                             }}
                             placeholder="https://yourblog.com/your-article"
-                            className="flex-1 bg-gray-900/50 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] transition text-sm"
+                            className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] transition"
                           />
                           <button
                             onClick={handleParseUrl}
                             disabled={isParsingUrl || !urlInput.trim() || !urlOwnershipConfirmed}
-                            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition flex items-center gap-2 shrink-0"
+                            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition flex items-center gap-1.5 shrink-0"
                           >
                             {isParsingUrl ? (
-                              <Loader2 size={16} className="animate-spin" />
+                              <Loader2 size={14} className="animate-spin" />
                             ) : (
-                              <Download size={16} />
+                              <Download size={14} />
                             )}
                           </button>
                         </div>
                       </div>
 
                       {/* Ownership Confirmation */}
-                      <label className="flex items-start gap-3 p-3 bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:bg-gray-900/50 transition">
+                      <label className="flex items-start gap-2 p-2 bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-lg cursor-pointer hover:bg-gray-900/50 transition shrink-0">
                         <input
                           type="checkbox"
                           checked={urlOwnershipConfirmed}
@@ -5994,19 +5989,16 @@ function DashboardContent() {
                             setUrlOwnershipConfirmed(e.target.checked);
                             setUrlError(null);
                           }}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
+                          className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
                         />
                         <div className="flex-1">
-                          <span className="text-sm text-gray-300 font-medium flex items-center gap-2">
-                            <CheckCircle2 size={14} className={urlOwnershipConfirmed ? 'text-green-400' : 'text-gray-500'} />
+                          <span className="text-xs text-gray-300 font-medium flex items-center gap-1.5">
+                            <CheckCircle2 size={12} className={urlOwnershipConfirmed ? 'text-green-400' : 'text-gray-500'} />
                             This is my own content
                           </span>
-                          <p className="text-xs text-gray-500 mt-1">
-                            I confirm I have the rights to repurpose this content
-                          </p>
                         </div>
                       </label>
-                    </>
+                    </div>
                   )}
                   {urlError && (
                     <p className="text-xs text-red-400">{urlError}</p>
@@ -6018,22 +6010,21 @@ function DashboardContent() {
               {(aiInputTab !== 'prompt' && aiPrompt.trim()) || 
                (aiInputTab !== 'document' && docAttachment) || 
                (aiInputTab !== 'url' && urlAttachment) ? (
-                <div className="bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-xl p-3">
-                  <p className="text-xs text-gray-500 mb-2">Active sources:</p>
-                  <div className="flex flex-wrap gap-2">
+                <div className="bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-lg p-1.5 shrink-0">
+                  <div className="flex flex-wrap gap-1">
                     {aiPrompt.trim() && (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
-                        <Type size={12} /> Topic
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300">
+                        <Type size={10} /> Topic
                       </span>
                     )}
                     {docAttachment && (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
-                        <FileText size={12} /> {docAttachment.name}
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 truncate max-w-[120px]">
+                        <FileText size={10} /> <span className="truncate">{docAttachment.name}</span>
                       </span>
                     )}
                     {urlAttachment && (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded-lg text-xs text-gray-300">
-                        <Globe size={12} /> {urlAttachment.sourceDomain}
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 truncate max-w-[120px]">
+                        <Globe size={10} /> <span className="truncate">{urlAttachment.sourceDomain}</span>
                       </span>
                     )}
                   </div>
@@ -6048,77 +6039,76 @@ function DashboardContent() {
                 </div>
 
                 {/* Right Column: Settings & Options */}
-                <div className="space-y-4">
+                <div className="space-y-3 flex flex-col min-h-0 overflow-y-auto">
                   {/* Slide Style Options */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                  <div className="shrink-0">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
                       Slide Style
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {/* Text Style - Active */}
                       <button
                         onClick={() => setAiSlideStyle('text')}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition ${
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition ${
                           aiSlideStyle === 'text'
                             ? 'border-[#ffd700] bg-[#ffd700]/10'
                             : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
                         }`}
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-400'}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-400'}>
                           <path d="M4 7V4h16v3" />
                           <path d="M9 20h6" />
                           <path d="M12 4v16" />
                         </svg>
                         <div className="text-center">
-                          <span className={`text-xs font-medium ${aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-300'}`}>Text</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Detailed content</p>
+                          <span className={`text-[10px] font-medium ${aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-300'}`}>Text</span>
                         </div>
                       </button>
 
                       {/* Graphics Style - Coming Soon */}
                       <button
                         disabled
-                        className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
+                        className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
                         title="Coming Soon"
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
                           <rect x="3" y="3" width="18" height="18" rx="2" />
                           <circle cx="9" cy="9" r="2" />
                           <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
                         </svg>
                         <div className="text-center">
-                          <span className="text-xs font-medium text-gray-500">Graphics</span>
-                          <p className="text-xs text-gray-600 mt-0.5">Coming Soon</p>
+                          <span className="text-[10px] font-medium text-gray-500">Graphics</span>
+                          <p className="text-[9px] text-gray-600 mt-0.5">Soon</p>
                         </div>
                       </button>
 
                       {/* Mixed Style - Coming Soon */}
                       <button
                         disabled
-                        className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
+                        className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
                         title="Coming Soon"
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
                           <path d="M12 2v20M2 12h20" />
                           <circle cx="12" cy="12" r="2" />
                         </svg>
                         <div className="text-center">
-                          <span className="text-xs font-medium text-gray-500">Mixed</span>
-                          <p className="text-xs text-gray-600 mt-0.5">Coming Soon</p>
+                          <span className="text-[10px] font-medium text-gray-500">Mixed</span>
+                          <p className="text-[9px] text-gray-600 mt-0.5">Soon</p>
                         </div>
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-2 shrink-0">
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                         Writing Style
                       </label>
                       <select
                         value={aiWritingStyle}
                         onChange={(e) => setAiWritingStyle(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
                       >
                         <option value="Professional">Professional</option>
                         <option value="Funny">Funny</option>
@@ -6128,13 +6118,13 @@ function DashboardContent() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                         Language
                       </label>
                       <select
                         value={aiLanguage}
                         onChange={(e) => setAiLanguage(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
+                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
                       >
                         <option value="en">English</option>
                         <option value="es">Spanish</option>
@@ -6156,11 +6146,11 @@ function DashboardContent() {
                   </div>
 
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                  <div className="shrink-0">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Target slide count
                     </label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <input
                         type="range"
                         min={3}
@@ -6181,20 +6171,17 @@ function DashboardContent() {
                           if (Number.isNaN(value)) return;
                           setAiSlideCount(Math.min(50, Math.max(3, value)));
                         }}
-                        className="w-16 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                        className="w-14 bg-gray-900/50 border border-gray-700 rounded-lg px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[#ffd700] transition"
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Choose between 3 and 50 slides for AI output.
-                    </p>
                   </div>
 
                   {/* Words per slide settings */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                  <div className="shrink-0">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Words per slide
                     </label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <input
                         type="range"
                         min={25}
@@ -6218,126 +6205,121 @@ function DashboardContent() {
                           }
                           setAiWordCount(Math.min(200, Math.max(25, value)));
                         }}
-                        className="w-20 bg-gray-900/50 border border-gray-700 rounded-xl px-2 py-1 text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                        className="w-16 bg-gray-900/50 border border-gray-700 rounded-lg px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[#ffd700] transition"
                       />
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-gray-500">
-                        Target word count per slide (optional)
-                      </p>
-                      <button
-                        onClick={() => setAiWordCount(null)}
-                        className="text-xs text-gray-500 hover:text-gray-300 transition"
-                      >
-                        Reset
-                      </button>
                     </div>
                   </div>
 
-                  {/* Advanced Options */}
-                  <div className="border-t border-gray-700 pt-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Tone
-                      </label>
-                      <select
-                        value={aiTone}
-                        onChange={(e) => setAiTone(e.target.value)}
-                        className="bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#ffd700] transition"
+                  {/* Advanced Options - Collapsible */}
+                  <div className="shrink-0">
+                    <button
+                      onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
+                      className="w-full flex items-center justify-between p-2 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition"
+                    >
+                      <span className="text-xs font-medium text-gray-300">Advanced Options</span>
+                      <svg
+                        className={`w-4 h-4 text-gray-400 transition-transform ${isAdvancedOptionsOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <option value="neutral">Neutral</option>
-                        <option value="formal">Formal</option>
-                        <option value="casual">Casual</option>
-                        <option value="friendly">Friendly</option>
-                        <option value="professional">Professional</option>
-                        <option value="conversational">Conversational</option>
-                        <option value="authoritative">Authoritative</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="flex items-center justify-between cursor-pointer group">
-                        <div>
-                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Auto-hashtags</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Add relevant hashtags to slides</p>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isAdvancedOptionsOpen && (
+                      <div className="mt-2 space-y-2 border-t border-gray-700 pt-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Tone
+                          </label>
+                          <select
+                            value={aiTone}
+                            onChange={(e) => setAiTone(e.target.value)}
+                            className="bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#ffd700] transition"
+                          >
+                            <option value="neutral">Neutral</option>
+                            <option value="formal">Formal</option>
+                            <option value="casual">Casual</option>
+                            <option value="friendly">Friendly</option>
+                            <option value="professional">Professional</option>
+                            <option value="conversational">Conversational</option>
+                            <option value="authoritative">Authoritative</option>
+                          </select>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={aiAutoHashtags}
-                          onChange={(e) => setAiAutoHashtags(e.target.checked)}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                        />
-                      </label>
 
-                      <label className="flex items-center justify-between cursor-pointer group">
-                        <div>
-                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Include statistics</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Add data and numbers to support points</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={aiIncludeStats}
-                          onChange={(e) => setAiIncludeStats(e.target.checked)}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                        />
-                      </label>
+                        <div className="space-y-1.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-xs text-gray-300">Auto-hashtags</span>
+                            <input
+                              type="checkbox"
+                              checked={aiAutoHashtags}
+                              onChange={(e) => setAiAutoHashtags(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                            />
+                          </label>
 
-                      <label className="flex items-center justify-between cursor-pointer group">
-                        <div>
-                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Accessibility mode</span>
-                          <p className="text-xs text-gray-500 mt-0.5">WCAG AA compliant contrast & readability</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={aiAccessibility}
-                          onChange={(e) => setAiAccessibility(e.target.checked)}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                        />
-                      </label>
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-xs text-gray-300">Include statistics</span>
+                            <input
+                              type="checkbox"
+                              checked={aiIncludeStats}
+                              onChange={(e) => setAiIncludeStats(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                            />
+                          </label>
 
-                      <label className="flex items-center justify-between cursor-pointer group">
-                        <div>
-                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Smart colors</span>
-                          <p className="text-xs text-gray-500 mt-0.5">AI-suggested color schemes</p>
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-xs text-gray-300">Accessibility mode</span>
+                            <input
+                              type="checkbox"
+                              checked={aiAccessibility}
+                              onChange={(e) => setAiAccessibility(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                            />
+                          </label>
+
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-xs text-gray-300">Smart colors</span>
+                            <input
+                              type="checkbox"
+                              checked={aiSmartColors}
+                              onChange={(e) => setAiSmartColors(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
+                            />
+                          </label>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={aiSmartColors}
-                          onChange={(e) => setAiSmartColors(e.target.checked)}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                        />
-                      </label>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
               
-              {/* Action Buttons at Bottom */}
-              <div className="flex justify-start gap-3 pt-4 border-t border-gray-200 dark:border-gray-800 mt-4">
-                <button
-                  onClick={() => setIsAiModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-white font-medium transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAiGenerate}
-                  disabled={(!docAttachment && !aiPrompt.trim() && !urlAttachment) || isGenerating}
-                  className="px-6 py-2 bg-[#ffd700] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl transition flex items-center gap-2"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={18} />
-                      Generate Magic
-                    </>
-                  )}
-                </button>
-              </div>
+            {/* Action Buttons at Bottom - Fixed */}
+            <div className="p-3 border-t border-gray-200 dark:border-gray-800 flex justify-start gap-2 shrink-0">
+              <button
+                onClick={() => setIsAiModalOpen(false)}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-white font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAiGenerate}
+                disabled={(!docAttachment && !aiPrompt.trim() && !urlAttachment) || isGenerating}
+                className="px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg transition flex items-center gap-2 text-sm"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Generate Magic
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

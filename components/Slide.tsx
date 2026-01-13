@@ -1320,6 +1320,10 @@ export const Slide: React.FC<SlideProps> = ({
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
+                        wordWrap: 'break-word',
+                        overflowWrap: 'break-word',
+                        hyphens: 'auto',
+                        width: '100%',
                         // Removed boxShadow, borders, and borderRadius for cleaner text
                     }}
                     html={title}
@@ -1335,6 +1339,10 @@ export const Slide: React.FC<SlideProps> = ({
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
+                        wordWrap: 'break-word',
+                        overflowWrap: 'break-word',
+                        hyphens: 'auto',
+                        width: '100%',
                         // Removed boxShadow, borders, and borderRadius for cleaner text
                     }}
                     dangerouslySetInnerHTML={{ __html: title }}
@@ -1353,6 +1361,10 @@ export const Slide: React.FC<SlideProps> = ({
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
+                            wordWrap: 'break-word',
+                            overflowWrap: 'break-word',
+                            hyphens: 'auto',
+                            width: '100%',
                             // Removed boxShadow, borders, and borderRadius for cleaner text
                         }}
                         html={subtitle || ''}
@@ -1368,6 +1380,10 @@ export const Slide: React.FC<SlideProps> = ({
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
+                            wordWrap: 'break-word',
+                            overflowWrap: 'break-word',
+                            hyphens: 'auto',
+                            width: '100%',
                             // Removed boxShadow, borders, and borderRadius for cleaner text
                         }}
                         dangerouslySetInnerHTML={{ __html: subtitle }}
@@ -1381,7 +1397,7 @@ export const Slide: React.FC<SlideProps> = ({
             const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
             const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
-                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%' }}>
+                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
                     {isEditable ? (
                         <EditableText 
                             tagName="div"
@@ -1395,6 +1411,9 @@ export const Slide: React.FC<SlideProps> = ({
                                 overflow: 'visible',
                                 width: '100%',
                                 paddingBottom: '1.5rem',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                hyphens: 'auto',
                                 // Removed boxShadow, borders, and borderRadius for cleaner text
                             }} 
                             html={content || ''}
@@ -1413,6 +1432,9 @@ export const Slide: React.FC<SlideProps> = ({
                                 overflow: 'visible',
                                 width: '100%',
                                 paddingBottom: '1.5rem',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                hyphens: 'auto',
                                 // Removed boxShadow, borders, and borderRadius for cleaner text
                             }}
                             dangerouslySetInnerHTML={{ __html: content }}
@@ -1457,6 +1479,8 @@ export const Slide: React.FC<SlideProps> = ({
         fontFamily: fontFamily,
         userSelect: isEditable ? 'text' : 'none',
         WebkitUserSelect: isEditable ? 'text' : 'none',
+        height: 'auto', // Allow slide to expand to fit content
+        maxHeight: 'none', // Remove any max height restrictions
       }}
       initial={isDownloading ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -1563,21 +1587,21 @@ export const Slide: React.FC<SlideProps> = ({
       {/* Main Content Area */}
       {freePositioning && isEditable && isMounted ? (
         /* Free Positioning Mode - elements can be dragged anywhere (editable) */
-        <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', minHeight: '1080px' }}>
+        <div className="absolute inset-0 z-10 pointer-events-none" style={{ top: 0, left: 0, width: '1080px', minHeight: '1080px', height: 'auto' }}>
           {currentOrder.map((itemId) => {
             const pos = getDefaultPosition(itemId);
             const element = renderElement(itemId);
             if (!element) return null;
             
-            // Title and subtitle should allow content to overflow and expand naturally
-            const isTextElement = itemId === 'title' || itemId === 'subtitle';
+            // Title, subtitle, and content should allow content to overflow and expand naturally
+            const isTextElement = itemId === 'title' || itemId === 'subtitle' || itemId === 'content';
             
             return (
               <Rnd
                 key={itemId}
                 bounds="parent"
                 scale={scale}
-                size={{ width: pos.width || 400, height: pos.height || 100 }}
+                size={{ width: pos.width || 400, height: isTextElement ? 'auto' : (pos.height || 100) }}
                 position={{ x: pos.x, y: pos.y }}
                 onDragStop={(_, data) => handleElementPositionChange(itemId, { ...pos, x: data.x, y: data.y })}
                 onResizeStop={(_, __, ref, ___, position) =>
@@ -1585,26 +1609,26 @@ export const Slide: React.FC<SlideProps> = ({
                     x: position.x,
                     y: position.y,
                     width: parseFloat(ref.style.width),
-                    height: parseFloat(ref.style.height),
+                    height: isTextElement ? 'auto' : parseFloat(ref.style.height),
                   })
                 }
                 dragHandleClassName="free-drag-handle"
                 minWidth={100}
-                minHeight={40}
+                minHeight={isTextElement ? undefined : 40}
                 className="pointer-events-auto group/element"
-                style={{ zIndex: 20, touchAction: 'none' }}
+                style={{ zIndex: 20, touchAction: 'none', height: isTextElement ? 'auto' : undefined }}
                 enableResizing={{
                   top: false,
                   right: true,
-                  bottom: true,
+                  bottom: !isTextElement,
                   left: false,
                   topRight: false,
-                  bottomRight: true,
+                  bottomRight: !isTextElement,
                   bottomLeft: false,
                   topLeft: false,
                 }}
               >
-                <div className="w-full h-full relative group">
+                <div className={`w-full relative group ${isTextElement ? 'h-auto min-h-full' : 'h-full'}`}>
                   <div
                     className="free-drag-handle absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#ffd700] rounded-full flex items-center justify-center gap-1.5 cursor-move shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50"
                     title="Drag to move anywhere"
@@ -1612,7 +1636,7 @@ export const Slide: React.FC<SlideProps> = ({
                     <GripVertical size={18} className="text-black" />
                     <span className="text-sm font-bold text-black">Move</span>
                   </div>
-                  <div className={`w-full h-full ${isTextElement ? 'overflow-visible' : 'overflow-hidden'}`}>
+                  <div className={`w-full ${isTextElement ? 'overflow-visible h-auto' : 'h-full overflow-hidden'}`}>
                     {element}
                   </div>
                 </div>
@@ -1650,7 +1674,7 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : (
         /* Flow Layout Mode - elements stack vertically and can be reordered */
-        <div className={`w-full px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto' }}>
+        <div className={`w-full px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto', height: 'auto' }}>
           {isEditable && isMounted ? (
               <DndContext 
                   sensors={sensors} 

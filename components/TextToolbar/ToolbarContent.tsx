@@ -18,6 +18,7 @@ import { TextEffectsPicker } from './TextEffectsPicker';
 import { useTextToolbar } from './TextToolbarContext';
 
 interface ToolbarContentProps {
+  copiedFormat?: any;
   // Picker states
   showColorPicker: boolean;
   showHighlightPicker: boolean;
@@ -98,6 +99,7 @@ export const ToolbarContent: React.FC<ToolbarContentProps> = ({
   clearFormatting,
   fontSizeInput,
   setFontSizeInput,
+  copiedFormat,
 }) => {
   const { activeStates } = useTextToolbar();
 
@@ -310,7 +312,7 @@ export const ToolbarContent: React.FC<ToolbarContentProps> = ({
         {/* Format Painter */}
         <ToolbarButton 
           onClick={copyFormat} 
-          active={false} 
+          active={!!copiedFormat} 
           title="Copy Format"
         >
           <Copy size={16} />

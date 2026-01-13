@@ -66,18 +66,17 @@ export const THEMES: Theme[] = [
 
   // --- DARK MODE ---
   {
-    id: 'midnight-gold',
-    name: 'Midnight Gold',
+    id: 'teal-gradient',
+    name: 'Teal Gradient',
     category: 'Dark Mode',
-    backgroundColor: '#0B0F19',
+    backgroundColor: '#000000',
     textColor: '#ffffff',
-    accentColor: '#ffd700',
+    accentColor: '#14b8a6',
     fontFamily: 'var(--font-inter)',
-    previewColors: ['#0B0F19', '#ffd700'],
-    defaultCategory: 'UNDER THE HOOD',
-    fontScale: 1.15,
+    previewColors: ['#000000', '#14b8a6'],
+    fontScale: 1.2,
     textAlign: 'center',
-    elementOrder: ['title', 'subtitle', 'content', 'media'],
+    elementOrder: ['title', 'content', 'media'],
     designStyle: 'modern'
   },
   {

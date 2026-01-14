@@ -261,7 +261,54 @@ export async function POST(request: NextRequest) {
     // --- CLIENT-SIDE IMAGE MODE ---
     // If frontend sent pre-rendered images (for 100% fidelity), just stitch them together
     if (mode === 'client-side-images') {
-        if (format === 'ppt') {
+        if (format === 'pdf') {
+            // PDF: Simply merge captured images into a PDF - guaranteed perfect rendering!
+            const pdfDoc = await PDFDocument.create();
+            
+            for (let index = 0; index < slides.length; index++) {
+                const slide = slides[index];
+                const imageKey = slide._attachedImageKey;
+                const imageBuffer = imageAttachments[imageKey];
+                
+                if (!imageBuffer) {
+                    console.warn(`Missing image buffer for slide ${index}, skipping...`);
+                    continue;
+                }
+                
+                try {
+                    // Detect image type
+                    const isPng = imageBuffer[0] === 0x89;
+                    
+                    let image;
+                    if (isPng) {
+                        image = await pdfDoc.embedPng(imageBuffer);
+                    } else {
+                        image = await pdfDoc.embedJpg(imageBuffer);
+                    }
+                    
+                    // Get image dimensions
+                    const imgWidth = image.width;
+                    const imgHeight = image.height;
+                    
+                    // Create page with exact image dimensions - no clipping!
+                    const page = pdfDoc.addPage([imgWidth, imgHeight]);
+                    
+                    // Draw image at full size (1:1 mapping)
+                    page.drawImage(image, {
+                        x: 0,
+                        y: 0,
+                        width: imgWidth,
+                        height: imgHeight,
+                    });
+                    
+                    console.log(`Added slide ${index + 1} to PDF: ${imgWidth}x${imgHeight}`);
+                } catch (error) {
+                    console.error(`Failed to add slide ${index} to PDF:`, error);
+                }
+            }
+            
+            buffer = Buffer.from(await pdfDoc.save());
+        } else if (format === 'ppt') {
             const pptxgen = (await import('pptxgenjs')).default;
             const pptx = new pptxgen();
             const layoutName = 'SQUARE';
@@ -433,34 +480,32 @@ export async function POST(request: NextRequest) {
                     const imageWidth = image.width;
                     const imageHeight = image.height;
                     
-                    // Calculate page dimensions to fit the image
-                    // Keep width at 1080, adjust height proportionally if image is taller
-                    const actualPageWidth = pageWidth;
-                    const actualPageHeight = Math.max(
-                        pageHeight, 
-                        (imageHeight / imageWidth) * actualPageWidth
-                    );
+                    // Scale image to fit 1080x1080 page while preserving aspect ratio
+                    // If image is taller than 1080px, scale it down to fit; otherwise use as-is
+                    let drawWidth = pageWidth;
+                    let drawHeight = pageHeight;
                     
-                    // Create a new page with calculated dimensions
-                    page = pdfDoc.addPage([actualPageWidth, actualPageHeight]);
+                    // Calculate scale to fit content within page
+                    const scaleX = pageWidth / imageWidth;
+                    const scaleY = pageHeight / imageHeight;
+                    const scale = Math.min(scaleX, scaleY, 1); // Never upscale, but downscale if needed
                     
-                    // Draw the image to fill the entire page, maintaining aspect ratio
-                    // If image is wider than tall, it will be centered vertically
-                    // If image is taller than wide, page height will accommodate it
-                    const scaleX = actualPageWidth / imageWidth;
-                    const scaleY = actualPageHeight / imageHeight;
-                    const scale = Math.min(scaleX, scaleY); // Maintain aspect ratio
+                    drawWidth = imageWidth * scale;
+                    drawHeight = imageHeight * scale;
                     
-                    const scaledWidth = imageWidth * scale;
-                    const scaledHeight = imageHeight * scale;
-                    const xOffset = (actualPageWidth - scaledWidth) / 2;
-                    const yOffset = (actualPageHeight - scaledHeight) / 2;
+                    // Center the image on the page if it doesn't fill the page
+                    const xOffset = (pageWidth - drawWidth) / 2;
+                    const yOffset = (pageHeight - drawHeight) / 2;
+                    
+                    // Create page with height matching the image (to avoid clipping)
+                    const actualPageHeight = Math.max(pageHeight, drawHeight);
+                    page = pdfDoc.addPage([pageWidth, actualPageHeight]);
                     
                     page.drawImage(image, {
                         x: xOffset,
                         y: yOffset,
-                        width: scaledWidth,
-                        height: scaledHeight,
+                        width: drawWidth,
+                        height: drawHeight,
                     });
                 } catch (imageError) {
                     console.error(`Failed to embed image for slide ${index}:`, imageError);
@@ -511,11 +556,18 @@ export async function POST(request: NextRequest) {
             buffer = Buffer.from(await pdfDoc.save());
         }
     } else {
-        // --- PUPPETEER SERVER-SIDE RENDERING MODE (Legacy/Fallback) ---
-        // Existing logic...
+        // --- FALLBACK: PUPPETEER SERVER-SIDE RENDERING MODE (for non-client-side-images requests) ---
+        // This is legacy - client-side-images mode is now preferred for PDF
         const browser = await launchBrowser();
 
     const page = await browser.newPage();
+    
+    // Set a larger viewport to prevent clipping of overflow content (like bullet points)
+    await page.setViewport({
+      width: 1200,
+      height: 1200,
+      deviceScaleFactor: 1,
+    });
 
     // SECURITY: Request Interception to block SSRF and local access
     await page.setRequestInterception(true);
@@ -785,8 +837,8 @@ export async function POST(request: NextRequest) {
               }
               case 'content': {
                   const contentStripped = slide.content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem; overflow: visible;">
-                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.6; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}; overflow: visible;">
+                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem; overflow: visible; min-height: 0; padding-bottom: 0.5rem;">
+                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.8; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}; overflow: visible; padding-bottom: 0.5rem;">
                         ${slide.content}
                       </div>
                   </div>` : '';
@@ -855,15 +907,22 @@ export async function POST(request: NextRequest) {
             .slide-content pre code::before, .slide-content pre code::after { content: none; }
             .slide-content ul { 
               list-style-type: disc; 
-              padding-left: 3rem; 
+              padding-left: 2.5rem; 
               margin: 1rem 0; 
-              list-style-position: outside;
+              margin-bottom: 1.5rem;
+              list-style-position: inside;
               overflow: visible;
+              padding-bottom: 0.5rem;
             }
             .slide-content li { 
-              margin-bottom: 0.5rem; 
-              list-style-position: outside;
-              padding-left: 0.5rem;
+              margin-bottom: 0.75rem; 
+              margin-top: 0.25rem;
+              list-style-position: inside;
+              padding-left: 0;
+              padding-bottom: 0.25rem;
+              line-height: 1.8;
+              overflow: visible;
+              display: list-item;
             }
             .slide-content p { margin-bottom: 1.5rem; }
             .slide-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; font-size: 0.75em; border: 1px solid #374151; border-radius: 0.5rem; overflow: hidden; }
@@ -885,7 +944,7 @@ export async function POST(request: NextRequest) {
           ${customBlocksHtml}
 
           <!-- Main Content -->
-          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; overflow: visible; ${isCover ? 'justify-content: center;' : ''}">
+          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; overflow: visible; min-height: 0; ${isCover ? 'justify-content: center;' : ''}">
              ${innerContent}
           </div>
 
@@ -914,8 +973,14 @@ export async function POST(request: NextRequest) {
           <link href="https://fonts.googleapis.com/css2?${fontQuery}&display=swap" rel="stylesheet">
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            body { margin: 0; padding: 0; }
-            @page { size: 1080px 1080px; margin: 0; }
+            body { margin: 0; padding: 0; overflow: visible; }
+            @page { 
+              size: 1080px 1080px; 
+              margin: 0; 
+            }
+            html {
+              overflow: visible;
+            }
             * {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
@@ -1073,10 +1138,19 @@ export async function POST(request: NextRequest) {
 
     } else {
       // Default to PDF
+      // Use preferCSSPageSize to respect @page CSS, but ensure content fits
+      // Add small margins to prevent text clipping
       buffer = await page.pdf({
         width: '1080px',
         height: '1080px',
         printBackground: true,
+        preferCSSPageSize: false,
+        margin: {
+          top: '0',
+          right: '0',
+          bottom: '10px',
+          left: '0',
+        },
       });
     }
 

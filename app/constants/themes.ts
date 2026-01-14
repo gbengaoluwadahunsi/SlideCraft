@@ -80,17 +80,17 @@ export const THEMES: Theme[] = [
     designStyle: 'modern'
   },
   {
-    id: 'twitter-dark',
-    name: 'Twitter Dark',
-    category: 'Dark Mode',
-    backgroundColor: '#000000',
-    textColor: '#ffffff',
-    accentColor: '#ffd700',
+    id: 'portfolio-minimal',
+    name: 'Portfolio Minimal',
+    category: 'Minimalist',
+    backgroundColor: '#ffffff',
+    textColor: '#1a1a1a',
+    accentColor: '#6b7280',
     fontFamily: 'var(--font-inter)',
-    previewColors: ['#000000', '#ffd700'],
-    fontScale: 1.0,
-    textAlign: 'left',
+    previewColors: ['#ffffff', '#6b7280'],
+    fontScale: 1.1,
+    textAlign: 'center',
     elementOrder: ['title', 'content', 'media'],
-    designStyle: 'modern'
+    designStyle: 'minimal'
   }
 ];

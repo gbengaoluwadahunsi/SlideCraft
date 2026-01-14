@@ -82,78 +82,9 @@ import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { BOLD_TEMPLATES } from '@/lib/templates';
 // Core feature components
 import { BrandKit } from '@/components/BrandKit';
+import { SlideData, InfographicData, ElementPosition, CustomBlock } from '@/lib/types';
 
-// Types matching Slide.tsx
-interface CustomBlock {
-  id: string;
-  html: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface InfographicData {
-  items: string[];
-  layout?: 'icon-grid' | 'process-flow' | 'comparison' | 'stats' | 'radial';
-}
-
-interface ElementPosition {
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-}
-
-interface SlideData {
-  id: string;
-  type: 'cover' | 'content' | 'chart' | 'visual';
-  title: string;
-  subtitle?: string;
-  content?: string;
-  emoji?: string;
-  icon?: string;
-  infographicData?: InfographicData;
-  category?: string;
-  accentColor?: string;
-  handle?: string;
-  fontFamily?: string;
-  fontScale?: number;
-  backgroundColor?: string;
-  textColor?: string;
-  backgroundImage?: string;
-  backgroundOverlayOpacity?: number;
-  backgroundImageFilter?: string; // e.g. "brightness(0.5) contrast(1.2)"
-  textAlign?: 'left' | 'center' | 'right';
-  chartType?: 'bar' | 'line' | 'pie';
-  chartData?: Array<{ name: string; value: number; }>;
-  mediaType?: 'video' | 'embed' | 'image' | null;
-  mediaUrl?: string;
-  mediaPosterUrl?: string; // Generated thumbnail for video files
-  embedHtml?: string;
-  mediaAspectRatio?: number;
-  mediaWidthPercent?: number;
-  mediaAlignment?: 'left' | 'center' | 'right';
-  elementOrder?: string[];
-  customBlocks?: CustomBlock[];
-  logoUrl?: string | null;
-  // Free positioning for main elements
-  elementPositions?: {
-    title?: ElementPosition;
-    subtitle?: ElementPosition;
-    content?: ElementPosition;
-    emoji?: ElementPosition;
-    media?: ElementPosition;
-  };
-  freePositioning?: boolean;
-  // Styling properties
-  textOpacity?: number; // 0-1
-  boxShadow?: string; // CSS box-shadow value
-  borderWidth?: number;
-  borderColor?: string;
-  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
-  borderRadius?: number;
-}
+// Types are now imported from lib/types.ts
 
 interface Version {
   id: string;
@@ -1906,7 +1837,7 @@ function DashboardContent() {
                 // Set infographic data for programmatic rendering
                 infographicData: {
                   items,
-                  layout: slide.infographicLayout || layout
+                  layout: slide.infographicData?.layout || layout
                 },
                 // Clear content so it doesn't render as text
                 content: undefined,
@@ -2739,45 +2670,117 @@ function DashboardContent() {
                   try {
                      // Calculate actual height to prevent content cut-off
                      const element = slideDownloadRef.current;
-                     // Wait a bit more for content to fully render (especially for bullet points and long text)
-                     await new Promise(r => setTimeout(r, 100));
+                     // Wait longer for content to fully render (especially for bullet points and long text)
+                     await new Promise(r => setTimeout(r, 200));
+                     
+                     // Force reflow to ensure layout is complete
+                     element.getBoundingClientRect();
+                     
+                     // Get all possible height measurements
+                     const scrollHeight = element.scrollHeight || 0;
+                     const offsetHeight = element.offsetHeight || 0;
+                     const clientHeight = element.clientHeight || 0;
+                     
+                     // Check all child elements for max height
+                     let maxChildHeight = 0;
+                     if (element.children && element.children.length > 0) {
+                         for (let i = 0; i < element.children.length; i++) {
+                             const child = element.children[i] as HTMLElement;
+                             // Recursively check deeper children if needed, but for now check direct
+                             const childHeight = Math.max(
+                                 child.scrollHeight || 0, 
+                                 child.offsetHeight || 0, 
+                                 child.getBoundingClientRect().height || 0
+                             );
+                             maxChildHeight = Math.max(maxChildHeight, childHeight);
+                         }
+                     }
                      
                      const actualHeight = Math.max(
-                         element.scrollHeight,
-                         element.offsetHeight,
+                         scrollHeight,
+                         offsetHeight,
+                         clientHeight,
+                         maxChildHeight,
                          1080 // Minimum height
                      );
                      
-                     // Ensure we capture full content, but cap at reasonable max to prevent memory issues
-                     const captureHeight = Math.min(actualHeight, 2160); // Max 2x height
+                     // Add generous buffer (200px) to ensure nothing is clipped and increase max to 4000px
+                     const captureHeight = Math.min(actualHeight + 200, 4000);
                      const captureWidth = 1080;
                      
-                     // Use JPEG with quality 0.85 for faster export and smaller payload
-                     // Add timeout wrapper to prevent hanging
-                     const capturePromise = toJpeg(slideDownloadRef.current, {
-                        cacheBust: true,
-                        width: captureWidth,
-                        height: captureHeight,
-                        pixelRatio: 1.5,
-                        skipAutoScale: false, // Allow scaling to ensure full content is captured
-                        quality: 0.85,
-                        backgroundColor: slide.backgroundColor || '#0B0F19',
-                        // Don't skip fonts - we need them for proper rendering
-                        skipFonts: false,
-                        // Add pixel ratio for better quality
-                        pixelRatio: attempts > 1 ? 1 : 1.5,
-                        // Ensure all styles are applied
-                        useCORS: true,
-                     });
+                     console.log(`Slide ${index + 1}: Capturing at ${captureWidth}x${captureHeight} (actual: ${actualHeight}px)`);
                      
-                     // Add 10 second timeout per slide
-                     const timeoutPromise = new Promise<string>((_, reject) => 
-                         setTimeout(() => reject(new Error('Capture timeout')), 10000)
+                     // Temporarily set the container to ensure all content is visible
+                     const originalMinHeight = element.style.minHeight;
+                     const originalHeight = element.style.height;
+                     const originalOverflow = element.style.overflow;
+                     const originalMaxHeight = element.style.maxHeight;
+                     
+                     // Remove all height restrictions and ensure overflow is visible
+                     element.style.minHeight = `${captureHeight}px`;
+                     element.style.height = 'auto';
+                     element.style.maxHeight = 'none';
+                     element.style.overflow = 'visible';
+                     
+                     // Also ensure all child elements can expand
+                     if (element.children && element.children.length > 0) {
+                         for (let i = 0; i < element.children.length; i++) {
+                             const child = element.children[i] as HTMLElement;
+                             child.style.overflow = 'visible';
+                             child.style.maxHeight = 'none';
+                         }
+                     }
+                     
+                     // Wait longer for layout to fully adjust
+                     await new Promise(r => setTimeout(r, 200));
+                     element.getBoundingClientRect();
+                     
+                     // Re-measure after layout adjustment
+                     const finalHeight = Math.max(
+                         element.scrollHeight,
+                         element.offsetHeight,
+                         captureHeight
                      );
+                     const finalCaptureHeight = Math.min(finalHeight + 100, 5000);
                      
-                     const dataUrl = await Promise.race([capturePromise, timeoutPromise]);
-                     capturedSlides.push({ id: slide.id, dataUrl, index });
-                     captured = true;
+                     try {
+                         // Use PNG for better quality and to preserve all content
+                         const capturePromise = toPng(slideDownloadRef.current, {
+                            cacheBust: true,
+                            width: captureWidth,
+                            height: finalCaptureHeight,
+                            pixelRatio: 1, // Use 1:1 to get exact dimensions
+                            skipAutoScale: false, // Allow auto-scale to ensure full content
+                            backgroundColor: slide.backgroundColor || '#0B0F19',
+                            // Don't skip fonts - we need them for proper rendering
+                            skipFonts: false,
+                         });
+                         
+                         const dataUrl = await Promise.race([
+                             capturePromise, 
+                             new Promise<string>((_, reject) => 
+                                 setTimeout(() => reject(new Error('Capture timeout')), 10000)
+                             )
+                         ]);
+                         
+                         capturedSlides.push({ id: slide.id, dataUrl, index });
+                         captured = true;
+                     } finally {
+                         // Restore original styles
+                         element.style.minHeight = originalMinHeight;
+                         element.style.height = originalHeight;
+                         element.style.overflow = originalOverflow;
+                         element.style.maxHeight = originalMaxHeight;
+                         
+                         // Restore child styles
+                         if (element.children && element.children.length > 0) {
+                             for (let i = 0; i < element.children.length; i++) {
+                                 const child = element.children[i] as HTMLElement;
+                                 child.style.overflow = '';
+                                 child.style.maxHeight = '';
+                             }
+                         }
+                     }
                   } catch (err) {
                       console.warn(`Failed to capture slide ${index} (attempt ${attempts}/${maxAttempts})`, err);
                       if (attempts < maxAttempts) {
@@ -4139,7 +4142,8 @@ function DashboardContent() {
         className="absolute"
         style={{ width: 1, height: 1, top: -9999, left: -9999, pointerEvents: 'none' }}
       >
-        <div ref={slideDownloadRef} className="w-[1080px] h-[1080px]">
+        <div ref={slideDownloadRef} className="w-[1080px] h-auto">
+
           {slideDownloadData && (
             <Slide
               {...slideDownloadData}
@@ -4357,8 +4361,8 @@ function DashboardContent() {
                                 </div>
                             </div>
                             {/* Mini Preview */}
-                            <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition flex items-center justify-center">
-                                <div className="transform scale-[0.15] origin-center pointer-events-none">
+                            <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition flex items-start justify-center pt-1">
+                                <div className="transform scale-[0.15] origin-top pointer-events-none">
                                     <Slide {...slide} />
                                 </div>
                             </div>
@@ -5586,12 +5590,20 @@ function DashboardContent() {
                             accentColor: templateFirst.accentColor,
                             fontFamily: templateFirst.fontFamily,
                           };
-                          setBrandSettings(newBrand);
+                          setBrandSettings({
+                            handle: newBrand.handle,
+                            category: newBrand.category,
+                            fontFamily: newBrand.fontFamily || 'var(--font-inter)',
+                            backgroundColor: newBrand.backgroundColor || '#0B0F19',
+                            textColor: newBrand.textColor || '#ffffff',
+                            accentColor: newBrand.accentColor || '#ffd700',
+                            logoUrl: newBrand.logoUrl,
+                          });
                           if (typeof window !== 'undefined' && status !== 'authenticated') {
                             localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
                           }
                           toast.success(`Applied "${theme.name}" styling to your slides!`);
-                          addToHistory();
+                          addToHistory(slides);
                         } else {
                           // Apply theme colors/fonts AND unique design properties to existing slides
                           // Use functional update to get current state (not stale closure)

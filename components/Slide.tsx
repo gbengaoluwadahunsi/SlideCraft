@@ -717,11 +717,20 @@ export const Slide: React.FC<SlideProps> = ({
   };
 
   const styles = `
+    .${scopeClass} { overflow: visible !important; }
+    .${scopeClass} * { overflow: visible !important; max-width: 100%; box-sizing: border-box; }
+    .${scopeClass} p, .${scopeClass} div, .${scopeClass} span { 
+      word-wrap: break-word !important; 
+      overflow-wrap: break-word !important; 
+      white-space: normal !important;
+      overflow: visible !important;
+      max-width: 100% !important;
+    }
     .${scopeClass} strong, .${scopeClass} b { color: ${activeAccentColor}; font-weight: 700; }
     .${scopeClass} em, .${scopeClass} i { background-color: ${activeAccentColor}33; color: ${activeAccentColor}; font-style: normal; padding: 0 4px; border-radius: 4px; }
     .${scopeClass} code { background-color: transparent; color: ${activeAccentColor}; padding: 0 2px; font-family: var(--font-roboto-mono), monospace; font-weight: bold; }
     .${scopeClass} ul, .${scopeClass} ol { 
-      margin: 1.5rem 0; 
+      margin: 1rem 0; 
       padding-left: 0;
       padding-right: 0;
       list-style-position: outside;
@@ -736,13 +745,26 @@ export const Slide: React.FC<SlideProps> = ({
       margin-right: 0;
     }
     .${scopeClass} ul li, .${scopeClass} ol li { 
-      margin: 0.75rem 0; 
-      line-height: 1.8; 
+      margin: 0.5rem 0; 
+      line-height: 1.6; 
       padding-left: 0.5rem;
       padding-right: 0;
       list-style-position: outside;
       position: relative;
       display: list-item;
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+      white-space: normal !important;
+      overflow: visible !important;
+    }
+    .${scopeClass} .slide-content, .${scopeClass} .slide-content p {
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
     }
     .${scopeClass} ul li::marker { 
       color: ${activeAccentColor} !important; 
@@ -967,7 +989,7 @@ export const Slide: React.FC<SlideProps> = ({
                 outerRadius={250}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
                 {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
@@ -1303,9 +1325,10 @@ export const Slide: React.FC<SlideProps> = ({
                     >
                         <div style={{ width: `${5 * fontScale}rem`, height: `${5 * fontScale}rem` }}>
                             {React.cloneElement(getIconComponent(icon) as React.ReactElement, {
-                                style: { width: '100%', height: '100%' },
+                                width: '100%',
+                                height: '100%',
                                 strokeWidth: 1.5,
-                            })}
+                            } as any)}
                         </div>
                     </div>
                 </div>
@@ -1318,7 +1341,7 @@ export const Slide: React.FC<SlideProps> = ({
             return isEditable ? (
                 <EditableText 
                     tagName="h1"
-                    className="font-bold leading-tight tracking-tight mb-6"
+                    className="font-bold leading-tight tracking-tight mb-2"
                     style={{ 
                         color: activeAccentColor, // Consistent color for simplicity in dynamic order
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
@@ -1337,7 +1360,7 @@ export const Slide: React.FC<SlideProps> = ({
                 />
             ) : titleStripped ? (
                 <h1 
-                    className="font-bold leading-tight tracking-tight mb-6" 
+                    className="font-bold leading-tight tracking-tight mb-2" 
                     style={{ 
                         color: activeAccentColor,
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
@@ -1359,7 +1382,7 @@ export const Slide: React.FC<SlideProps> = ({
                 isEditable ? (
                     <EditableText
                         tagName="div"
-                        className="font-light leading-relaxed opacity-80 mb-6"
+                        className="font-light leading-relaxed opacity-80 mb-4"
                         style={{ 
                             color: activeTextColor,
                             fontSize: `${2.25 * fontScale}rem`,
@@ -1378,7 +1401,7 @@ export const Slide: React.FC<SlideProps> = ({
                     />
                 ) : subtitleStripped ? (
                     <div 
-                        className="font-light leading-relaxed opacity-80 mb-6" 
+                        className="font-light leading-relaxed opacity-80 mb-4" 
                         style={{ 
                             color: activeTextColor,
                             fontSize: `${2.25 * fontScale}rem`,
@@ -1391,7 +1414,7 @@ export const Slide: React.FC<SlideProps> = ({
                             width: '100%',
                             // Removed boxShadow, borders, and borderRadius for cleaner text
                         }}
-                        dangerouslySetInnerHTML={{ __html: subtitle }}
+                        dangerouslySetInnerHTML={{ __html: subtitle || '' }}
                     />
                 ) : null
             ) : null;
@@ -1402,7 +1425,7 @@ export const Slide: React.FC<SlideProps> = ({
             const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
             const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
-                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word', minHeight: '600px', height: 'auto' }}>
                     {isEditable ? (
                         <EditableText 
                             tagName="div"
@@ -1415,7 +1438,7 @@ export const Slide: React.FC<SlideProps> = ({
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
                                 overflow: 'visible',
                                 width: '100%',
-                                paddingBottom: '1.5rem',
+                                paddingBottom: '0.75rem',
                                 wordWrap: 'break-word',
                                 overflowWrap: 'break-word',
                                 hyphens: 'auto',
@@ -1436,13 +1459,13 @@ export const Slide: React.FC<SlideProps> = ({
                                 opacity: textOpacity !== undefined ? textOpacity : 1,
                                 overflow: 'visible',
                                 width: '100%',
-                                paddingBottom: '1.5rem',
+                                paddingBottom: '0.75rem',
                                 wordWrap: 'break-word',
                                 overflowWrap: 'break-word',
                                 hyphens: 'auto',
                                 // Removed boxShadow, borders, and borderRadius for cleaner text
                             }}
-                            dangerouslySetInnerHTML={{ __html: content }}
+                            dangerouslySetInnerHTML={{ __html: content || '' }}
                         />
                     ) : null}
                  </div>
@@ -1486,6 +1509,7 @@ export const Slide: React.FC<SlideProps> = ({
         WebkitUserSelect: isEditable ? 'text' : 'none',
         height: 'auto', // Allow slide to expand to fit content
         maxHeight: 'none', // Remove any max height restrictions
+        minHeight: '1080px', // Minimum height but allow expansion
       }}
       initial={isDownloading ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -1613,8 +1637,8 @@ export const Slide: React.FC<SlideProps> = ({
                   handleElementPositionChange(itemId, {
                     x: position.x,
                     y: position.y,
-                    width: parseFloat(ref.style.width),
-                    height: isTextElement ? 'auto' : parseFloat(ref.style.height),
+                    width: parseFloat(ref.style.width) || 400,
+                    height: isTextElement ? undefined : (parseFloat(ref.style.height) || 100),
                   })
                 }
                 dragHandleClassName="free-drag-handle"
@@ -1679,7 +1703,7 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : (
         /* Flow Layout Mode - elements stack vertically and can be reordered */
-        <div className={`w-full px-16 pt-48 pb-24 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto', height: 'auto' }}>
+        <div className={`w-full px-16 pt-2 pb-2 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto', height: 'auto', flex: '1 1 auto' }}>
           {isEditable && isMounted ? (
               <DndContext 
                   sensors={sensors} 
@@ -1712,20 +1736,39 @@ export const Slide: React.FC<SlideProps> = ({
       {/* Footer / Handle */}
       <motion.div 
         className="absolute bottom-12 right-16 font-medium tracking-wide opacity-60 z-10"
-        style={{ fontSize: `${1.25 * fontScale}rem` }}
+        style={{ 
+          fontSize: `${1.25 * fontScale}rem`,
+          whiteSpace: 'nowrap',
+          overflow: 'visible',
+          maxWidth: 'none',
+          width: 'auto',
+          minWidth: 'auto'
+        }}
         initial={isDownloading ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 0.6, y: 0 }}
         transition={isDownloading ? { duration: 0 } : { duration: 0.5, delay: 0.3 }}
       >
          {isEditable ? (
-            <EditableText 
-               html={sanitizeHandle(handle) || ''}
-               onChange={(val) => onUpdate?.('handle', sanitizeHandle(val))}
-               tagName="div"
-               placeholder="@yourhandle"
-            />
+            <span 
+               contentEditable
+               suppressContentEditableWarning
+               onBlur={(e) => onUpdate?.('handle', sanitizeHandle(e.currentTarget.textContent || ''))}
+               onInput={(e) => onUpdate?.('handle', sanitizeHandle(e.currentTarget.textContent || ''))}
+               className="outline-none focus:ring-2 focus:ring-[#ffd700]/50 rounded px-1 -mx-1 transition-all cursor-text whitespace-nowrap"
+               style={{ 
+                 whiteSpace: 'nowrap', 
+                 overflowWrap: 'normal', 
+                 wordBreak: 'keep-all',
+                 display: 'inline',
+                 maxWidth: 'none',
+                 width: 'auto',
+                 minWidth: 'auto'
+               }}
+            >
+               {sanitizeHandle(handle) || ''}
+            </span>
          ) : (
-            sanitizeHandle(handle)
+            <span className="whitespace-nowrap" style={{ whiteSpace: 'nowrap', display: 'inline' }}>{sanitizeHandle(handle)}</span>
          )}
       </motion.div>
 

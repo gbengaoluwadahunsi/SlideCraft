@@ -8,67 +8,30 @@ import { useAppContextSafe } from '@/lib/hooks/useAppContext';
 import { 
   Layout, 
   Menu,
+  ChevronRight,
   Sparkles, 
   Palette, 
   Settings, 
   Pencil,
   Plus, 
   Download, 
-  MousePointer2, 
   Type, 
   SquarePen,
   Image as ImageIcon, 
   ChevronLeft,
-  ChevronUp,
-  ChevronDown,
   X,
   Loader2,
   BarChart3,
   LineChart,
   PieChart,
   Trash2,
-  Paperclip,
-  FileText,
-  Trash,
-  Upload,
   Undo2,
   Redo2,
   LogOut,
-  Wand2,
-  Search,
-  TrendingUp,
-  Lightbulb,
   Check,
-  Copy,
-  Clipboard,
-  CreditCard,
-  Send,
-  MessageSquare,
-  RefreshCw,
-  Eye,
   ExternalLink,
-  ZoomIn,
-  Link2,
-  Globe,
-  CheckCircle2,
-  History,
-  Layers,
-  AlignHorizontalJustifyCenter,
-  AlignVerticalJustifyCenter,
-  MoveHorizontal,
-  MoveVertical,
-  QrCode,
-  Grid,
-  Ruler,
-  Table,
-  Square,
-  Circle,
-  Minus as MinusIcon,
-  ArrowRight,
-  MessageSquare as MessageSquareIcon,
-  FileText as FileTextIcon,
-  Wand2 as Wand2Icon,
-  Sparkles as SparklesIcon
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Slide } from '@/components/Slide';
@@ -77,21 +40,21 @@ import { ProjectManager } from '@/components/ProjectManager';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
-import { toPng, toJpeg } from 'html-to-image';
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import type { EmojiClickData } from 'emoji-picker-react';
+const LazyEmojiPicker = React.lazy(() => import('emoji-picker-react'));
 import { BOLD_TEMPLATES } from '@/lib/templates';
 // Core feature components
-import { BrandKit } from '@/components/BrandKit';
+import { ExportModal } from '@/components/ExportModal';
+import { ImagePickerModal } from '@/components/ImagePickerModal';
+import { ThemeGalleryModal } from '@/components/ThemeGalleryModal';
+import { SettingsModal } from '@/components/SettingsModal';
+import { AIGenerateModal } from '@/components/AIGenerateModal';
+import { SlideListSidebar } from '@/components/SlideListSidebar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SlideData, InfographicData, ElementPosition, CustomBlock } from '@/lib/types';
 
-// Types are now imported from lib/types.ts
-
-interface Version {
-  id: string;
-  timestamp: Date;
-  name: string;
-  snapshot: { slides: SlideData[] };
-}
+const lazyToPng = (node: HTMLElement, options?: Record<string, unknown>) =>
+  import('html-to-image').then(m => m.toPng(node, options));
 
 const sanitizeEmoji = (value: string | undefined | null) => {
   if (!value) return '';
@@ -160,7 +123,7 @@ function ContentEditableDiv({
       onInput={handleInput}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
-      className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition min-h-[8rem] max-h-64 overflow-y-auto"
+      className="w-full bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition min-h-[8rem] max-h-64 overflow-y-auto"
       style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
     />
   );
@@ -212,8 +175,9 @@ function DashboardContent() {
   const [aiIncludeStats, setAiIncludeStats] = useState<boolean>(false);
   const [aiAccessibility, setAiAccessibility] = useState<boolean>(false);
   const [aiSmartColors, setAiSmartColors] = useState<boolean>(false);
+  const [aiFreshDesign, setAiFreshDesign] = useState<boolean>(false);
   const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState<boolean>(false);
-  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'image-all' | 'color' | 'shape' | 'table'>('select');
+  const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [showTextFormattingToolbar, setShowTextFormattingToolbar] = useState(false);
@@ -223,8 +187,7 @@ function DashboardContent() {
   const [showGuides, setShowGuides] = useState(false);
   
   // Core feature states
-  const [isBrandKitOpen, setIsBrandKitOpen] = useState(false);
-  const [currentVersionId, setCurrentVersionId] = useState<string>('');
+  const [showQuickExport, setShowQuickExport] = useState(false);
 
   // Calculate scale for Rnd
   const [currentScale, setCurrentScale] = useState(0.6);
@@ -262,15 +225,26 @@ function DashboardContent() {
   const [urlError, setUrlError] = useState<string | null>(null);
   const [urlOwnershipConfirmed, setUrlOwnershipConfirmed] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  const [useStreaming, setUseStreaming] = useState(false); // Streaming disabled - use regular endpoint
+  const [regeneratingSlideId, setRegeneratingSlideId] = useState<string | null>(null);
 
-  // AI Features state
-  const [isAiFeaturesOpen, setIsAiFeaturesOpen] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [isEnhancingContent, setIsEnhancingContent] = useState<string | null>(null); // tracks which action: 'seo-current', 'seo-all', 'tone-current', 'tone-all'
-  const [isResearching, setIsResearching] = useState(false);
-  const [isAnalyzingDesign, setIsAnalyzingDesign] = useState(false);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('slidecraft_onboarded')) {
+      setShowOnboarding(true);
+    }
+  }, []);
+  const dismissOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    if (typeof window !== 'undefined') localStorage.setItem('slidecraft_onboarded', '1');
+  }, []);
+  const handleOnboardingGenerate = useCallback(() => {
+    dismissOnboarding();
+    setAiPrompt('10 Productivity Hacks Every Remote Worker Needs');
+    setIsAiModalOpen(true);
+  }, [dismissOnboarding]);
   
   // Image Picker state (Unsplash search)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
@@ -282,27 +256,6 @@ function DashboardContent() {
   const [unsplashTotal, setUnsplashTotal] = useState(0);
   const [imageUrlInput, setImageUrlInput] = useState('');
   
-  // Version History state
-  const [versions, setVersions] = useState<Version[]>([]);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [historyEntries, setHistoryEntries] = useState<any[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [restoringHistoryId, setRestoringHistoryId] = useState<string | null>(null);
-  const [isPredictingPerformance, setIsPredictingPerformance] = useState(false);
-  const [enhancementResult, setEnhancementResult] = useState<string | null>(null);
-  const [researchResult, setResearchResult] = useState<any>(null);
-  const [designSuggestions, setDesignSuggestions] = useState<any>(null);
-  const [performancePrediction, setPerformancePrediction] = useState<any>(null);
-  const [researchTopic, setResearchTopic] = useState('');
-  const [researchRefinement, setResearchRefinement] = useState('');
-  const [researchHistory, setResearchHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-  
-  // Dedicated AI tool result modal state
-  const [activeAiToolResult, setActiveAiToolResult] = useState<{
-    tool: 'research' | 'design' | 'performance' | 'enhancement' | null;
-    data: any;
-    query?: string;
-  } | null>(null);
 
   // Brand settings state
   const [brandSettings, setBrandSettings] = useState({
@@ -316,9 +269,6 @@ function DashboardContent() {
   });
   const [isLoadingBrandSettings, setIsLoadingBrandSettings] = useState(false);
   const [isSavingBrandSettings, setIsSavingBrandSettings] = useState(false);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [canUploadLogo, setCanUploadLogo] = useState(false);
-  const logoUploadInputRef = useRef<HTMLInputElement>(null);
 
   // Load brand settings from API
   // Also load from localStorage for unauthenticated users
@@ -392,88 +342,6 @@ function DashboardContent() {
   }, [brandSettings, status]);
 
   // Handle logo upload
-  const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
-      return;
-    }
-    
-    // Validate file size (max 10MB for logos)
-    const maxSizeMB = 10;
-    if (file.size / 1024 / 1024 > maxSizeMB) {
-      toast.error(`Logo file too large. Please upload a file <= ${maxSizeMB} MB.`);
-      return;
-    }
-    
-    try {
-      setIsUploadingLogo(true);
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (uploadRes.ok) {
-        const data = await uploadRes.json();
-        setBrandSettings({ ...brandSettings, logoUrl: data.secure_url });
-      } else {
-        const errorData = await uploadRes.json();
-        toast.error(errorData.error || 'Failed to upload logo');
-      }
-    } catch (error) {
-      console.error('Failed to upload logo:', error);
-      toast.error('Failed to upload logo');
-    } finally {
-      setIsUploadingLogo(false);
-      if (logoUploadInputRef.current) {
-        logoUploadInputRef.current.value = '';
-      }
-    }
-  }, [brandSettings]);
-  
-  // Handle logo deletion
-  const handleLogoDelete = useCallback(async () => {
-    if (!brandSettings.logoUrl) return;
-    
-    const confirmed = await confirm({
-      title: 'Delete Logo',
-      message: 'Are you sure you want to delete your logo?',
-      confirmText: 'Delete',
-      variant: 'danger'
-    });
-    if (!confirmed) return;
-    
-    try {
-      setIsSavingBrandSettings(true);
-      const response = await fetch('/api/user/brand-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          settings: { ...brandSettings, logoUrl: null },
-          deleteLogo: true
-        })
-      });
-      
-      if (response.ok) {
-        setBrandSettings({ ...brandSettings, logoUrl: null });
-        toast.success('Logo deleted');
-      } else {
-        toast.error('Failed to delete logo');
-      }
-    } catch (error) {
-      console.error('Failed to delete logo:', error);
-      toast.error('Failed to delete logo');
-    } finally {
-      setIsSavingBrandSettings(false);
-    }
-  }, [brandSettings, confirm]);
 
   // Reset brand settings to defaults
   const resetBrandSettings = useCallback(async () => {
@@ -528,23 +396,6 @@ function DashboardContent() {
     }
   }, [status, loadBrandSettings]);
 
-  // Load subscription status to check logo upload permission
-  useEffect(() => {
-    const fetchSubscriptionStatus = async () => {
-      if (status !== 'authenticated') return;
-      try {
-        const response = await fetch('/api/subscription/status');
-        if (response.ok) {
-          const data = await response.json();
-          setCanUploadLogo(data.limits?.canUploadLogo ?? false);
-        }
-      } catch (error) {
-        // Default to false if error
-        setCanUploadLogo(false);
-      }
-    };
-    fetchSubscriptionStatus();
-  }, [status]);
 
   // Reload brand settings when settings modal opens
   useEffect(() => {
@@ -699,25 +550,18 @@ function DashboardContent() {
   const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
   const activeSlideIndex = Math.max(0, slides.findIndex(s => s.id === activeSlideId));
 
+  // Stable close callbacks for memoized modals
+  const closeExport = useCallback(() => setIsExportOpen(false), []);
+  const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
+  const closeTemplates = useCallback(() => setIsTemplatesOpen(false), []);
+  const closeAiModal = useCallback(() => setIsAiModalOpen(false), []);
+  const closeImagePicker = useCallback(() => { setIsImagePickerOpen(false); setActiveTool('select'); }, []);
+  const closePreview = useCallback(() => setPreviewImageUrl(null), []);
+
   // Feature handlers
 
-  const handleAddShape = (shape: any) => {
-    const newBlock: CustomBlock = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `shape-${Date.now()}`,
-      html: `<div style="width: ${shape.width}px; height: ${shape.height}px; background: ${shape.fill ? shape.color : 'transparent'}; border: ${shape.strokeWidth}px solid ${shape.color}; border-radius: ${shape.type === 'circle' ? '50%' : '0'};"></div>`,
-      x: shape.x,
-      y: shape.y,
-      width: shape.width,
-      height: shape.height,
-    };
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? {
-      ...s,
-      customBlocks: [...(s.customBlocks || []), newBlock]
-    } : s));
-    toast.success('Shape added');
-  };
 
-  const handleApplyBrand = (colors: any[], fonts: any[]) => {
+  const handleApplyBrand = useCallback((colors: any[], fonts: any[]) => {
     if (colors.length > 0) {
       setSlides(prevSlides => prevSlides.map(s => ({ ...s, accentColor: colors[0].value })));
     }
@@ -725,7 +569,7 @@ function DashboardContent() {
       setSlides(prevSlides => prevSlides.map(s => ({ ...s, fontFamily: fonts[0].value })));
     }
     toast.success('Brand applied to slides');
-  };
+  }, []);
 
 
   const createCustomBlock = (): CustomBlock => ({
@@ -737,7 +581,7 @@ function DashboardContent() {
     height: 140,
   });
 
-  const normalizeSlides = (incomingSlides: SlideData[]) => {
+  const normalizeSlides = useCallback((incomingSlides: SlideData[]) => {
     const timestamp = Date.now();
     const baseSlide = slides[0];
     
@@ -771,7 +615,7 @@ function DashboardContent() {
       customBlocks: Array.isArray(slide.customBlocks) ? slide.customBlocks : [],
       id: slide.id || `${timestamp}-${index}`,
     }));
-  };
+  }, [slides, brandSettings]);
 
   useEffect(() => {
     activeSlideIdRef.current = activeSlideId;
@@ -848,7 +692,7 @@ function DashboardContent() {
     }
   };
 
-  const addNewSlide = () => {
+  const addNewSlide = useCallback(() => {
     const newId = Date.now().toString();
     setSlides(prevSlides => [...prevSlides, {
       id: newId,
@@ -874,7 +718,7 @@ function DashboardContent() {
       customBlocks: [],
     }]);
     setActiveSlideId(newId);
-  };
+  }, [slides, activeSlideId, brandSettings, addToHistory]);
 
   const getSlideFilename = (slide: SlideData, index: number) => {
     const sanitized = (slide.title || '')
@@ -927,19 +771,15 @@ function DashboardContent() {
     }
   }, [slides, projectOptions, projectId, autoSaveProject]);
 
-  // Initialize version history
+  // Auto-open AI modal for new users (no existing project loaded)
+  const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
-    if (slides.length > 0 && !currentVersionId) {
-      const initialVersion: Version = {
-        id: 'initial',
-        timestamp: new Date(),
-        name: 'Initial Version',
-        snapshot: { slides },
-      };
-      setVersions([initialVersion]);
-      setCurrentVersionId('initial');
+    if (!projectId && !hasAutoOpenedRef.current) {
+      hasAutoOpenedRef.current = true;
+      const timer = setTimeout(() => setIsAiModalOpen(true), 400);
+      return () => clearTimeout(timer);
     }
-  }, [slides.length, currentVersionId]);
+  }, [projectId]);
 
   // Sync context with app state for AI assistant
   useEffect(() => {
@@ -954,8 +794,6 @@ function DashboardContent() {
     if (appContext) {
       if (isAiModalOpen) {
         appContext.setCurrentSection('ai-generate');
-      } else if (isAiFeaturesOpen) {
-        appContext.setCurrentSection('ai-tools');
       } else if (isSettingsOpen) {
         appContext.setCurrentSection('theme');
       } else if (isPropertiesPanelOpen) {
@@ -967,7 +805,7 @@ function DashboardContent() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAiModalOpen, isAiFeaturesOpen, isSettingsOpen, isPropertiesPanelOpen, isMobileSlidesOpen]);
+  }, [isAiModalOpen, isSettingsOpen, isPropertiesPanelOpen, isMobileSlidesOpen]);
 
   // Handle project load from ProjectManager - also apply brand settings
   const handleProjectLoad = useCallback((project: { id: string; name: string; slides: SlideData[]; options: any }) => {
@@ -1044,6 +882,47 @@ function DashboardContent() {
     }
     toast.success('Slide deleted');
   }, [slides, activeSlideId, commitSlidesImmediateHistory]);
+
+  // Regenerate a single slide with AI — supports optional refinement instruction
+  const handleRegenerateSlide = useCallback(async (id: string, instruction?: string) => {
+    const slideIndex = slides.findIndex(s => s.id === id);
+    if (slideIndex === -1) return;
+    const slide = slides[slideIndex];
+
+    setRegeneratingSlideId(id);
+    try {
+      const carouselTopic = slides[0]?.title?.replace(/<[^>]*>/g, '') || 'General';
+      const response = await fetch('/api/generate-slide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slideTitle: slide.title,
+          slideContent: slide.content,
+          slideLabel: slide.slideLabel,
+          slideIndex,
+          totalSlides: slides.length,
+          carouselTopic,
+          instruction,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        toast.error(data.error || 'Failed to regenerate slide');
+        return;
+      }
+
+      const updatedSlides = slides.map(s =>
+        s.id === id ? { ...s, title: data.title || s.title, content: data.content || s.content, slideLabel: data.slideLabel || s.slideLabel } : s
+      );
+      commitSlidesImmediateHistory(updatedSlides);
+      toast.success(instruction ? 'Slide refined!' : 'Slide regenerated!');
+    } catch {
+      toast.error('Failed to regenerate slide');
+    } finally {
+      setRegeneratingSlideId(null);
+    }
+  }, [slides, commitSlidesImmediateHistory]);
 
   // Duplicate a slide
   const handleDuplicateSlide = useCallback((id: string) => {
@@ -1198,20 +1077,6 @@ function DashboardContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [canUndo, canRedo, handleUndo, handleRedo, activeSlideId, slides, handleDuplicateSlide, handleDeleteSlide, handleMoveSlide, addNewSlide, saveProject, previewImageUrl]);
 
-  // Show loading state while checking authentication
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white flex items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-[#ffd700]" />
-      </div>
-    );
-  }
-
-  // Don't render if not authenticated (redirect is in progress)
-  if (status === 'unauthenticated') {
-    return null;
-  }
-
   // Reorder slides via drag and drop
   const handleReorderSlides = (activeId: string, overId: string) => {
     if (activeId === overId) return;
@@ -1227,10 +1092,9 @@ function DashboardContent() {
     updateSlides(newSlides);
   };
 
-  const handleDownloadSlideImage = async (slide: SlideData, index: number) => {
+  const handleDownloadSlideImage = useCallback(async (slide: SlideData, index: number) => {
     // Prevent multiple simultaneous downloads
     if (downloadingSlideId) {
-      console.log('Download already in progress, please wait...');
       return;
     }
 
@@ -1256,7 +1120,7 @@ function DashboardContent() {
         throw new Error('Slide canvas not available');
       }
 
-      const dataUrl = await toPng(slideDownloadRef.current, {
+      const dataUrl = await lazyToPng(slideDownloadRef.current, {
         cacheBust: true,
         width: 1080,
         height: 1080,
@@ -1292,10 +1156,10 @@ function DashboardContent() {
         setSlideDownloadData(null);
       }, 500);
     }
-  };
+  }, [projectName]);
 
   // Copy slide to clipboard as image
-  const handleCopySlideToClipboard = async (slide: SlideData, index: number) => {
+  const handleCopySlideToClipboard = useCallback(async (slide: SlideData, index: number) => {
     if (copyingSlideId) return;
     
     try {
@@ -1310,7 +1174,7 @@ function DashboardContent() {
         throw new Error('Slide canvas not available');
       }
       
-      const dataUrl = await toPng(slideDownloadRef.current, {
+      const dataUrl = await lazyToPng(slideDownloadRef.current, {
         cacheBust: true,
         width: 1080,
         height: 1080,
@@ -1338,7 +1202,7 @@ function DashboardContent() {
         setSlideDownloadData(null);
       }, 300);
     }
-  };
+  }, [projectName]);
 
   const adjustFontScale = (delta: number) => {
     if (!activeSlide) return;
@@ -1347,80 +1211,9 @@ function DashboardContent() {
     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: next } : s));
   };
 
-  // Fetch version history
-  const fetchHistory = async () => {
-    if (!projectId) {
-      toast.error('Save your project first to view history');
-      return;
-    }
-    
-    setHistoryLoading(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}/history?limit=30`);
-      if (!response.ok) throw new Error('Failed to fetch history');
-      
-      const data = await response.json();
-      setHistoryEntries(data.history || []);
-      setIsHistoryOpen(true);
-    } catch (error) {
-      console.error('History fetch error:', error);
-      toast.error('Failed to load version history');
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
 
-  // Restore from history
-  const restoreFromHistory = async (entry: any) => {
-    const confirmed = await confirm({
-      title: 'Restore Version',
-      message: 'This will replace your current slides with this version. Your current work will be added to history. Continue?',
-      confirmText: 'Restore',
-      variant: 'warning'
-    });
-    
-    if (!confirmed) return;
-    
-    try {
-      setRestoringHistoryId(entry.id);
-      
-      // Save current state to history first
-      if (projectId) {
-        await fetch(`/api/projects/${projectId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: projectName, 
-            slides, 
-            options: projectOptions, 
-            saveHistory: true 
-          })
-        });
-      }
-      
-      // Restore the selected version
-      const restoredSlides = entry.slides.map((slide: any) => ({
-        ...slide,
-        id: slide.id || Date.now().toString() + Math.random().toString(36).substr(2, 9)
-      }));
-      
-      setSlides(restoredSlides);
-      if (entry.options) {
-        setProjectOptions(entry.options);
-      }
-      
-      setIsHistoryOpen(false);
-      toast.success('Version restored successfully');
-      addToHistory(restoredSlides);
-    } catch (error) {
-      console.error('Restore error:', error);
-      toast.error('Failed to restore version');
-    } finally {
-      setRestoringHistoryId(null);
-    }
-  };
 
-  const handleAiGenerate = async () => {
+  const handleAiGenerate = useCallback(async () => {
     const combinedSource = [urlAttachment?.text, docAttachment?.text, aiPrompt.trim()].filter(Boolean).join('\n\n').trim();
     if (!combinedSource) {
       setDocUploadError('Add a prompt, attach a document, or import a URL to proceed.');
@@ -1429,50 +1222,25 @@ function DashboardContent() {
     
     setDocUploadError(null);
     setIsGenerating(true);
-    setStreamingText('');
 
-    // Try streaming first, fallback to regular
-    let useStream = useStreaming;
-    if (useStream) {
-      try {
-        const streamResponse = await fetch('/api/generate/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: combinedSource,
-            slideCount: aiSlideCount,
-            writingStyle: aiWritingStyle,
-            slideStyle: aiSlideStyle,
-            language: aiLanguage,
-            sections: docAttachment?.sections || [],
-            wordCount: aiWordCount || undefined,
-            tone: aiTone,
-            autoHashtags: aiAutoHashtags,
-            includeStats: aiIncludeStats,
-            accessibility: aiAccessibility,
-            smartColors: aiSmartColors,
-          }),
-        });
-
-        if (streamResponse.ok) {
-          // For now, use regular endpoint as streaming needs more complex handling
-          // This is a placeholder for future streaming UI
-          useStream = false;
-        }
-      } catch (error) {
-        console.error('Streaming check failed:', error);
-        useStream = false;
-      }
-    }
-
-    // Regular generation (streaming UI can be added later)
-    if (!useStream) {
-      try {
+    try {
         // Combine sections from document and URL
         const combinedSections = [
           ...(docAttachment?.sections || []),
           ...(urlAttachment?.sections || []),
         ];
+
+        // Load saved style unless user wants a fresh design
+        let savedPatternOrder: string[] | undefined;
+        let savedCreativeAngle: number | undefined;
+        if (!aiFreshDesign) {
+          try {
+            const stored = localStorage.getItem('slidecraft_pattern_order');
+            if (stored) savedPatternOrder = JSON.parse(stored);
+            const storedAngle = localStorage.getItem('slidecraft_creative_angle');
+            if (storedAngle) savedCreativeAngle = JSON.parse(storedAngle);
+          } catch { /* ignore */ }
+        }
 
         const response = await fetch('/api/generate', {
           method: 'POST',
@@ -1490,6 +1258,8 @@ function DashboardContent() {
             includeStats: aiIncludeStats,
             accessibility: aiAccessibility,
             smartColors: aiSmartColors,
+            patternOrder: savedPatternOrder,
+            creativeAngle: savedCreativeAngle,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,
@@ -1508,6 +1278,18 @@ function DashboardContent() {
         });
         
         const data = await response.json();
+
+        if (!response.ok || data.error) {
+          toast.error(data.error || 'Failed to generate slides. Please try again.');
+          setIsGenerating(false);
+          return;
+        }
+
+        // Save style for future "Keep My Style" generations
+        try {
+          if (data.patternOrder) localStorage.setItem('slidecraft_pattern_order', JSON.stringify(data.patternOrder));
+          if (typeof data.creativeAngle === 'number') localStorage.setItem('slidecraft_creative_angle', JSON.stringify(data.creativeAngle));
+        } catch { /* ignore */ }
         
         if (data.slides && Array.isArray(data.slides)) {
           // Helper function to extract colors from image (client-side)
@@ -1571,17 +1353,50 @@ function DashboardContent() {
             });
           };
 
-          // Reapply current brand/theme colors to AI-generated slides
-          let themedSlides = (data.slides as SlideData[]).map((s, idx) => ({
-            ...s,
-            backgroundColor: s.backgroundColor || brandSettings.backgroundColor,
-            textColor: s.textColor || brandSettings.textColor,
-            accentColor: s.accentColor || brandSettings.accentColor,
-            fontFamily: s.fontFamily || brandSettings.fontFamily,
-          }));
+          // Auto-apply the Dev Carousel template for a polished look
+          const devCarousel = BOLD_TEMPLATES.find(t => t.id === 'dev-carousel');
+          const fallbackTemplate = BOLD_TEMPLATES.find(t => t.slides.length >= 2);
+          const autoTemplate = devCarousel || fallbackTemplate || null;
+
+          let themedSlides = (data.slides as SlideData[]).map((s, idx) => {
+            if (!autoTemplate) return { ...s };
+            const templateSlide = autoTemplate.slides[idx % autoTemplate.slides.length];
+            return {
+              ...s,
+              backgroundColor: templateSlide.backgroundColor || s.backgroundColor || brandSettings.backgroundColor,
+              textColor: templateSlide.textColor || s.textColor || brandSettings.textColor,
+              accentColor: templateSlide.accentColor || s.accentColor || brandSettings.accentColor,
+              fontFamily: templateSlide.fontFamily || s.fontFamily || brandSettings.fontFamily,
+              fontScale: templateSlide.fontScale || s.fontScale,
+              titleColor: templateSlide.titleColor,
+              slideLabel: s.slideLabel || templateSlide.slideLabel,
+              slideLabelColor: templateSlide.slideLabelColor,
+              glowColor: templateSlide.glowColor,
+              glowPosition: templateSlide.glowPosition,
+              borderWidth: templateSlide.borderWidth,
+              borderColor: templateSlide.borderColor,
+              borderStyle: templateSlide.borderStyle,
+              borderRadius: templateSlide.borderRadius,
+              slidePadding: templateSlide.slidePadding,
+              showNoise: templateSlide.showNoise,
+              backgroundPattern: templateSlide.backgroundPattern,
+              slideNumber: undefined,
+              totalSlides: undefined,
+              elementOrder: templateSlide.elementOrder,
+              slideJustify: templateSlide.slideJustify,
+            };
+          });
+
+          // Filter out empty slides (no title and no content)
+          const nonEmpty = themedSlides.filter((s) => {
+            const hasTitle = s.title && s.title.trim().length > 0;
+            const hasContent = s.content && s.content.replace(/<[^>]*>/g, '').trim().length > 0;
+            const isCover = s.type === 'cover';
+            return hasTitle || hasContent || isCover;
+          });
 
           // Normalize slide IDs, element order etc.
-          const normalized = normalizeSlides(themedSlides.slice(0, aiSlideCount));
+          const normalized = normalizeSlides(nonEmpty.slice(0, aiSlideCount));
           
           // For Visual style: create programmatic infographics (Gamma-style)
           if (aiSlideStyle === 'visual' || aiSlideStyle === 'mixed') {
@@ -1654,7 +1469,6 @@ function DashboardContent() {
               // Extract text content for later analysis
               const contentText = rawContent.replace(/<[^>]*>/g, '') || '';
               
-              console.log(`📝 Extracted ${items.length} items from content for "${title}":`, items.slice(0, 3));
 
               
               // If no HTML list items found, try plain text extraction
@@ -1718,7 +1532,6 @@ function DashboardContent() {
                   return cleaned;
                 });
               
-              console.log(`🎨 Creating visual infographic for "${title}" with ${items.length} items:`, items);
               
               // Choose layout based on content type and slide position
               // 12 premium layouts for visual variety
@@ -1829,7 +1642,6 @@ function DashboardContent() {
                 layout = variedLayouts[index % variedLayouts.length];
               }
               
-              console.log(`🎨 Slide ${index + 1} "${title}" → Layout: ${layout}`);
               
               return {
                 ...slide,
@@ -1857,11 +1669,14 @@ function DashboardContent() {
             }
           }
           
-          // Clear inputs after successful generation
           setAiPrompt('');
           clearDocAttachment();
           clearUrlAttachment();
           setIsAiModalOpen(false);
+          setShowQuickExport(true);
+          toast.success('Carousel generated!', {
+            duration: 3000,
+          });
         }
       } catch (error) {
         console.error('Failed to generate slides:', error);
@@ -1869,14 +1684,12 @@ function DashboardContent() {
       } finally {
         setIsGenerating(false);
       }
-    }
-  };
+  }, [urlAttachment, docAttachment, aiPrompt, aiSlideCount, aiWritingStyle, aiSlideStyle, aiLanguage, aiWordCount, aiTone, aiAutoHashtags, aiIncludeStats, aiAccessibility, aiSmartColors, aiFreshDesign, normalizeSlides, brandSettings, addToHistory]);
 
-  const handleToolClick = (tool: 'select' | 'text' | 'image' | 'image-all' | 'color') => {
+  const handleToolClick = useCallback((tool: 'select' | 'text' | 'image' | 'color') => {
     setActiveTool(tool);
-    if (tool === 'image' || tool === 'image-all') {
-        // Open the image picker modal instead of directly triggering file input
-        setImagePickerMode(tool === 'image-all' ? 'all' : 'single');
+    if (tool === 'image') {
+        setImagePickerMode('single');
         setIsImagePickerOpen(true);
         setUnsplashQuery('');
         setUnsplashResults([]);
@@ -1893,10 +1706,10 @@ function DashboardContent() {
         colorInputRef.current?.click();
         setTimeout(() => setActiveTool('select'), 100);
     }
-  };
+  }, [activeTool]);
 
   // Unsplash search function
-  const searchUnsplash = async (query: string, page: number = 1) => {
+  const searchUnsplash = useCallback(async (query: string, page: number = 1) => {
     if (!query.trim()) return;
     
     setUnsplashLoading(true);
@@ -1931,10 +1744,10 @@ function DashboardContent() {
     } finally {
       setUnsplashLoading(false);
     }
-  };
+  }, []);
 
   // Apply image from Unsplash or URL
-  const applyBackgroundImage = async (imageUrl: string, downloadLink?: string) => {
+  const applyBackgroundImage = useCallback(async (imageUrl: string, downloadLink?: string) => {
     // Track download if from Unsplash (required by API guidelines)
     if (downloadLink) {
       fetch('/api/unsplash/search', {
@@ -1944,19 +1757,13 @@ function DashboardContent() {
       }).catch(() => {});
     }
 
-    if (imagePickerMode === 'all') {
-      // Reset overlay opacity to 0 when adding new background image (no color tint by default)
-      setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImage: imageUrl, backgroundOverlayOpacity: 0 })));
-      toast.success('Background applied to all slides');
-    } else {
-      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? { ...s, backgroundImage: imageUrl, backgroundOverlayOpacity: 0 } : s));
-      toast.success('Background applied to slide');
-    }
+    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlideId ? { ...s, backgroundImage: imageUrl, backgroundOverlayOpacity: 0 } : s));
+    toast.success('Background applied');
     
     setIsImagePickerOpen(false);
     setActiveTool('select');
     addToHistory(slides);
-  };
+  }, [slides, activeSlideId]);
 
   const handleBackgroundColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const color = e.target.value;
@@ -1986,13 +1793,7 @@ function DashboardContent() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const result = event.target?.result as string;
-            if (activeTool === 'image-all') {
-                 // Apply to ALL slides - reset overlay to 0 (no tint)
-                 setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImage: result, backgroundOverlayOpacity: 0 })));
-            } else {
-                 // Apply to CURRENT slide only - reset overlay to 0 (no tint)
-                 setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result, backgroundOverlayOpacity: 0 } : s));
-            }
+            setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImage: result, backgroundOverlayOpacity: 0 } : s));
             // Reset tool after applying
             setActiveTool('select');
         };
@@ -2101,12 +1902,12 @@ function DashboardContent() {
     }
   };
 
-  const clearUrlAttachment = () => {
+  const clearUrlAttachment = useCallback(() => {
     setUrlAttachment(null);
     setUrlError(null);
     setUrlInput('');
     setUrlOwnershipConfirmed(false);
-  };
+  }, []);
 
   // AI Image Generation
   const handleGenerateImage = async (slideId: string) => {
@@ -2156,392 +1957,13 @@ function DashboardContent() {
   };
 
   // Content Enhancement
-  const handleEnhanceContent = async (action: string, content: string) => {
-    setIsEnhancingContent(`${action}-current`);
-    setEnhancementResult(null);
-    try {
-      const response = await fetch('/api/ai/enhance-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          action,
-          targetAudience: 'LinkedIn professionals'
-        })
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setEnhancementResult(data.enhancedContent);
-        // Open dedicated modal with formatted result
-        setActiveAiToolResult({
-          tool: 'enhancement',
-          data: { enhancedContent: data.enhancedContent, originalContent: content },
-          query: `Enhance: ${action}`
-        });
-      }
-    } catch (error) {
-      console.error('Content enhancement failed:', error);
-      toast.error('Failed to enhance content');
-    } finally {
-      setIsEnhancingContent(null);
-    }
-  };
 
-  // Batch Content Enhancement (all slides)
-  const handleEnhanceAllSlides = async (action: string) => {
-    setIsEnhancingContent(`${action}-all`);
-    try {
-      // Prepare slides for analysis (strip large binary data)
-      const slidesForEnhancement = slides.map(slide => ({
-        id: slide.id,
-        type: slide.type,
-        title: slide.title,
-        subtitle: slide.subtitle,
-        content: slide.content,
-      }));
 
-      const response = await fetch('/api/ai/enhance-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slides: slidesForEnhancement,
-          action,
-          targetAudience: 'LinkedIn professionals'
-        })
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.batchMode && data.enhancedSlides) {
-          // Apply enhanced content to all slides
-          setSlides(prevSlides => prevSlides.map((slide, index) => {
-            const enhanced = data.enhancedSlides[index];
-            if (enhanced) {
-              return {
-                ...slide,
-                title: enhanced.title || slide.title,
-                subtitle: enhanced.subtitle || slide.subtitle,
-                content: enhanced.content || slide.content,
-              };
-            }
-            return slide;
-          }));
-          toast.success(`All ${slides.length} slides ${action === 'seo' ? 'optimized for SEO' : 'tone adjusted'}!`);
-          setIsAiFeaturesOpen(false);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Enhancement failed');
-      }
-    } catch (error) {
-      console.error('Batch enhancement failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to enhance slides');
-    } finally {
-      setIsEnhancingContent(null);
-    }
-  };
-
-  // Research Agent
-  const handleResearch = async (isRefinement = false) => {
-    const query = isRefinement ? researchRefinement.trim() : researchTopic.trim();
-    if (!query) return;
-    
-    setIsResearching(true);
-    
-    try {
-      // Build conversation history for refinements
-      const history = isRefinement ? [
-        ...researchHistory,
-        { role: 'user' as const, content: query }
-      ] : [];
-      
-      const response = await fetch('/api/ai/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: isRefinement ? researchTopic : query,
-          depth: 'comprehensive',
-          sources: 5,
-          refinement: isRefinement ? query : undefined,
-          history: isRefinement ? researchHistory : undefined,
-          previousResearch: isRefinement ? researchResult?.research : undefined
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResearchResult(data);
-        
-        // Update conversation history
-        if (isRefinement) {
-          setResearchHistory([
-            ...history,
-            { role: 'assistant', content: data.research }
-          ]);
-          setResearchRefinement('');
-        } else {
-          // Start fresh conversation
-          setResearchHistory([
-            { role: 'user', content: query },
-            { role: 'assistant', content: data.research }
-          ]);
-        }
-        
-        // Open/Update dedicated modal with formatted result
-        setActiveAiToolResult({
-          tool: 'research',
-          data: data,
-          query: researchTopic
-        });
-        
-        if (!isRefinement) {
-          setIsAiFeaturesOpen(false); // Close main modal only on initial research
-        }
-        
-        // Auto-fill AI prompt with research
-        setAiPrompt(data.research);
-      }
-    } catch (error) {
-      console.error('Research failed:', error);
-      toast.error('Failed to research topic');
-    } finally {
-      setIsResearching(false);
-    }
-  };
-
-  // Design Suggestions
-  const handleGetDesignSuggestions = async () => {
-    setIsAnalyzingDesign(true);
-    setDesignSuggestions(null);
-    try {
-      // Strip large binary data (images, videos) before sending - only text/design info needed
-      const slidesForAnalysis = slides.map(slide => ({
-        id: slide.id,
-        type: slide.type,
-        title: slide.title,
-        subtitle: slide.subtitle,
-        content: slide.content,
-        emoji: slide.emoji,
-        category: slide.category,
-        backgroundColor: slide.backgroundColor,
-        textColor: slide.textColor,
-        accentColor: slide.accentColor,
-        fontFamily: slide.fontFamily,
-        fontScale: slide.fontScale,
-        textAlign: slide.textAlign,
-        chartType: slide.chartType,
-        chartData: slide.chartData,
-        // Indicate if slide has background image without sending the data
-        hasBackgroundImage: !!slide.backgroundImage,
-        backgroundOverlayOpacity: slide.backgroundOverlayOpacity,
-      }));
-      
-      const response = await fetch('/api/ai/design-suggestions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slides: slidesForAnalysis,
-          currentSettings: brandSettings
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get design suggestions');
-      }
-
-      setDesignSuggestions(data.suggestions);
-      // Open dedicated modal with formatted result
-      setActiveAiToolResult({
-        tool: 'design',
-        data: data.suggestions,
-        query: 'Design Analysis'
-      });
-      setIsAiFeaturesOpen(false); // Close main modal
-    } catch (error) {
-      console.error('Design analysis failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to get design suggestions');
-    } finally {
-      setIsAnalyzingDesign(false);
-    }
-  };
-
-  // Performance Prediction
-  const handlePredictPerformance = async () => {
-    setIsPredictingPerformance(true);
-    setPerformancePrediction(null);
-    try {
-      // Strip large binary data (images, videos) before sending - only text is needed for analysis
-      const slidesForAnalysis = slides.map(slide => ({
-        id: slide.id,
-        type: slide.type,
-        title: slide.title,
-        subtitle: slide.subtitle,
-        content: slide.content,
-        emoji: slide.emoji,
-        category: slide.category,
-        chartType: slide.chartType,
-        chartData: slide.chartData,
-      }));
-      
-      const response = await fetch('/api/ai/predict-performance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slides: slidesForAnalysis,
-          platform: 'LinkedIn',
-          targetAudience: 'tech professionals'
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPerformancePrediction(data.prediction);
-        // Open dedicated modal with formatted result
-        setActiveAiToolResult({
-          tool: 'performance',
-          data: data.prediction,
-          query: 'Performance Analysis'
-        });
-        setIsAiFeaturesOpen(false); // Close main modal
-      }
-    } catch (error) {
-      console.error('Performance prediction failed:', error);
-      toast.error('Failed to predict performance');
-    } finally {
-      setIsPredictingPerformance(false);
-    }
-  };
-
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Optimistic: Show local blob immediately while uploading
-    const localUrl = URL.createObjectURL(file);
-    
-    // Generate thumbnail immediately
-    let posterUrl: string | undefined = undefined;
-    try {
-        posterUrl = await captureVideoFrame(localUrl) || undefined;
-    } catch (err) {
-        console.warn('Failed to generate video thumbnail', err);
-    }
-
-    // Set temporary state
-    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { 
-        ...s, 
-        mediaUrl: localUrl,
-        mediaPosterUrl: posterUrl 
-    } : s));
-
-    // Upload to Cloudinary via our server (bypasses browser CORS restrictions)
-    try {
-        const sizeMb = file.size / 1024 / 1024;
-        const MAX_FILE_MB = 100;
-        if (sizeMb > MAX_FILE_MB) {
-            console.error(`Upload blocked: file too large (${sizeMb.toFixed(1)} MB). Limit is ${MAX_FILE_MB} MB.`);
-            toast.error(`Video too large (${sizeMb.toFixed(1)} MB). Please upload a file ≤ ${MAX_FILE_MB} MB.`);
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        console.log('Uploading via server proxy to Cloudinary...');
-
-        const uploadRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (uploadRes.ok) {
-            const data = await uploadRes.json();
-            console.log('Upload successful:', data.secure_url);
-            if (data.secure_url) {
-                // Update with permanent public URL from Cloudinary
-                setSlides(currentSlides => currentSlides.map(s => s.id === activeSlide.id ? { 
-                    ...s, 
-                    mediaUrl: data.secure_url,
-                    // Cloudinary auto-generates video thumbnails
-                    mediaPosterUrl: data.resource_type === 'video' 
-                        ? data.secure_url.replace(/\.[^/.]+$/, ".jpg") 
-                        : undefined
-                } : s));
-            }
-        } else {
-            // Try to parse JSON error; fallback to text
-            let errMsg = uploadRes.statusText;
-            try {
-                const errorData = await uploadRes.json();
-                errMsg = errorData?.error || errMsg;
-            } catch {
-                const text = await uploadRes.text().catch(() => '');
-                errMsg = text || errMsg;
-            }
-            console.error('Upload failed:', errMsg);
-            toast.error(errMsg || 'Upload failed. Please try again.');
-        }
-    } catch (error) {
-        console.error('Upload error:', error);
-    }
-  };
-
-  // Helper: Capture a video frame to a base64 image
-  const captureVideoFrame = async (videoSrc: string): Promise<string | null> => {
-      return new Promise((resolve) => {
-        const video = document.createElement('video');
-        video.crossOrigin = 'anonymous'; 
-        video.src = videoSrc;
-        video.muted = true;
-        video.playsInline = true; // Important for iOS/mobile context if needed
-        video.currentTime = 0.5; // Capture at 0.5s to avoid black start frames
-        
-        // Timeout to prevent hanging
-        const timeout = setTimeout(() => {
-            console.warn('Video capture timed out');
-            resolve(null);
-            video.remove();
-        }, 3000);
-
-        video.onloadeddata = () => {
-             video.currentTime = 0.5; 
-        };
-
-        video.onseeked = () => {
-            clearTimeout(timeout);
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                try {
-                    const dataUrl = canvas.toDataURL('image/png');
-                    resolve(dataUrl);
-                } catch (e) {
-                    console.warn('Canvas taint error (CORS)', e);
-                    resolve(null); 
-                }
-            } else {
-                resolve(null);
-            }
-            video.remove();
-        };
-
-        video.onerror = () => {
-            clearTimeout(timeout);
-            console.warn('Video load error for capture');
-            resolve(null);
-            video.remove();
-        };
-      });
-  };
 
   // Export as Images (ZIP file)
-  const handleExportImages = async () => {
+  const handleExportImages = useCallback(async () => {
     setIsExporting(true);
     setExportProgress({ current: 0, total: slides.length, status: 'Preparing slides...' });
     
@@ -2569,7 +1991,7 @@ function DashboardContent() {
         if (slideDownloadRef.current) {
           try {
             // Use PNG for higher quality images
-            const dataUrl = await toPng(slideDownloadRef.current, {
+            const dataUrl = await lazyToPng(slideDownloadRef.current, {
               cacheBust: true,
               width: 1080,
               height: 1080,
@@ -2611,25 +2033,30 @@ function DashboardContent() {
       setSlideDownloadData(null);
       setExportProgress({ current: 0, total: 0, status: '' });
     }
-  };
+  }, [slides, projectName]);
 
   // Export as PDF
-  const handleExportPDF = async () => {
+  const handleExportPDF = useCallback(async () => {
     await handleExport('pdf');
-  };
+  }, [slides, projectName]);
+
+  // --- All hooks are above this line ---
+  // Early returns MUST come after all hook calls (Rules of Hooks)
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[var(--surface-1)] text-gray-900 dark:text-white flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
+      </div>
+    );
+  }
+  if (status === 'unauthenticated') {
+    return null;
+  }
 
   const handleExport = async (format: 'pdf' | 'ppt') => {
     // Use ref for fresh slides data (avoids stale closure issue)
     const currentSlides = slidesRef.current;
     
-    // Check for pending video uploads (blob URLs mean upload not complete)
-    const pendingVideos = currentSlides.filter(s => s.mediaType === 'video' && s.mediaUrl?.startsWith('blob:'));
-    if (pendingVideos.length > 0) {
-      toast.warning(`${pendingVideos.length} video(s) still uploading. Wait for upload to complete for video URLs to appear in export.`);
-    }
-    
-    // Debug: Log what we're sending
-    console.log('Export - Current slides mediaUrls:', currentSlides.map(s => ({ type: s.type, mediaType: s.mediaType, mediaUrl: s.mediaUrl?.substring(0, 50) })));
     
     setIsExporting(true);
     setExportProgress({ current: 0, total: currentSlides.length, status: 'Preparing slides...' });
@@ -2708,7 +2135,6 @@ function DashboardContent() {
                      const captureHeight = Math.min(actualHeight + 200, 4000);
                      const captureWidth = 1080;
                      
-                     console.log(`Slide ${index + 1}: Capturing at ${captureWidth}x${captureHeight} (actual: ${actualHeight}px)`);
                      
                      // Temporarily set the container to ensure all content is visible
                      const originalMinHeight = element.style.minHeight;
@@ -2745,7 +2171,7 @@ function DashboardContent() {
                      
                      try {
                          // Use PNG for better quality and to preserve all content
-                         const capturePromise = toPng(slideDownloadRef.current, {
+                         const capturePromise = lazyToPng(slideDownloadRef.current, {
                             cacheBust: true,
                             width: captureWidth,
                             height: finalCaptureHeight,
@@ -2901,107 +2327,13 @@ function DashboardContent() {
     }
   };
 
-  // Inline Shapes Panel Component for Properties Panel
-  const ShapesPanelInline = ({ onAddShape }: { onAddShape: (shape: any) => void }) => {
-    const [selectedType, setSelectedType] = useState<'rectangle' | 'circle' | 'line' | 'arrow'>('rectangle');
-    const [color, setColor] = useState('#ffd700');
-    const [strokeWidth, setStrokeWidth] = useState(2);
-    const [fill, setFill] = useState(false);
-
-    const shapes = [
-      { type: 'rectangle' as const, icon: Square, label: 'Rectangle' },
-      { type: 'circle' as const, icon: Circle, label: 'Circle' },
-      { type: 'line' as const, icon: MinusIcon, label: 'Line' },
-      { type: 'arrow' as const, icon: ArrowRight, label: 'Arrow' },
-    ];
-
-    const handleAdd = () => {
-      onAddShape({
-        type: selectedType,
-        x: 100,
-        y: 100,
-        width: selectedType === 'line' || selectedType === 'arrow' ? 200 : 150,
-        height: selectedType === 'line' || selectedType === 'arrow' ? 2 : 100,
-        color,
-        strokeWidth,
-        fill,
-      });
-    };
-
-    return (
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs text-gray-500 mb-2 block">Shape Type</label>
-          <div className="grid grid-cols-2 gap-2">
-            {shapes.map(({ type, icon: Icon, label }) => (
-              <button
-                key={type}
-                onClick={() => setSelectedType(type)}
-                className={`p-2 rounded-lg border-2 transition ${
-                  selectedType === type
-                    ? 'border-[#ffd700] bg-[#ffd700]/10'
-                    : 'border-gray-700 hover:border-gray-600'
-                }`}
-              >
-                <Icon size={18} className="text-white mx-auto mb-1" />
-                <div className="text-[10px] text-gray-300">{label}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">Color</label>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-full h-10 rounded-lg cursor-pointer border-2 border-gray-600 hover:border-[#ffd700] transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">Stroke Width: {strokeWidth}px</label>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={strokeWidth}
-            onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
-            className="w-full"
-            style={{ accentColor: '#ffd700' }}
-          />
-        </div>
-
-        {(selectedType === 'rectangle' || selectedType === 'circle') && (
-          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={fill}
-              onChange={(e) => setFill(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700]"
-            />
-            Fill shape
-          </label>
-        )}
-
-        <button
-          onClick={handleAdd}
-          className="w-full px-4 py-2 bg-[#ffd700] hover:bg-yellow-400 text-black rounded-lg font-semibold transition-colors text-sm"
-        >
-          Add Shape
-        </button>
-      </div>
-    );
-  };
-
   const renderPropertiesPanelContent = () => (
     <>
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700/50">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-hover)]/50">
         <h3 className="text-base font-bold text-white uppercase tracking-wider">Properties</h3>
         <button 
           onClick={() => setIsPropertiesPanelOpen(false)} 
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#ffd700] hover:bg-yellow-400 text-black transition-colors flex-shrink-0"
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black transition-colors flex-shrink-0"
           title="Close Properties Panel"
         >
           <X size={18} />
@@ -3010,11 +2342,11 @@ function DashboardContent() {
 
       <div className="space-y-4">
         {/* TEXT SECTION */}
-        <div className="space-y-3 pb-4 border-b border-gray-700/50">
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Text</h4>
+        <div className="space-y-3 pb-4 border-b border-[var(--border-hover)]/50">
+          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Text</h4>
           <div className="space-y-3">
             <div className="space-y-2">
-              <label className="text-xs text-gray-500">Title</label>
+              <label className="text-xs text-[var(--text-muted)]">Title</label>
               <input
                 type="text"
                 value={activeSlide.title || ''}
@@ -3022,12 +2354,12 @@ function DashboardContent() {
                   const newTitle = e.target.value;
                   setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, title: newTitle } : s));
                 }}
-                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                className="w-full bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-gray-500">Font Size</label>
+              <label className="text-xs text-[var(--text-muted)]">Font Size</label>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
@@ -3041,22 +2373,22 @@ function DashboardContent() {
                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, fontScale: newScale } : s));
                   }}
                   className="flex-1"
-                  style={{ accentColor: '#ffd700' }}
+                  style={{ accentColor: 'var(--accent)' }}
                 />
-                <span className="text-xs text-gray-300 w-12 text-right">
+                <span className="text-xs text-[var(--text-secondary)] w-12 text-right">
                   {Math.round((activeSlide.fontScale ?? 1) * 100)}%
                 </span>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => adjustFontScale(-0.05)}
-                  className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+                  className="flex-1 px-2 py-1 text-xs bg-[var(--surface-1)]/60 border border-[var(--border-hover)] rounded-lg hover:border-[var(--border-hover)] transition"
                 >
                   A-
                 </button>
                 <button
                   onClick={() => adjustFontScale(0.05)}
-                  className="flex-1 px-2 py-1 text-xs bg-gray-900/60 border border-gray-700 rounded-lg hover:border-gray-500 transition"
+                  className="flex-1 px-2 py-1 text-xs bg-[var(--surface-1)]/60 border border-[var(--border-hover)] rounded-lg hover:border-[var(--border-hover)] transition"
                 >
                   A+
                 </button>
@@ -3065,150 +2397,25 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* STYLING SECTION */}
-        <div className="space-y-3 pb-4 border-b border-gray-700/50">
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Styling</h4>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <label className="text-xs text-gray-500">Text Opacity</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={activeSlide.textOpacity ?? 1}
-                  onChange={(e) => {
-                    const opacity = parseFloat(e.target.value);
-                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, textOpacity: opacity } : s));
-                  }}
-                  className="flex-1"
-                  style={{ accentColor: '#ffd700' }}
-                />
-                <span className="text-xs text-gray-300 w-12 text-right">
-                  {Math.round((activeSlide.textOpacity ?? 1) * 100)}%
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-gray-500">Box Shadow</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={activeSlide.boxShadow || ''}
-                  onChange={(e) => {
-                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, boxShadow: e.target.value } : s));
-                  }}
-                  placeholder="0 4px 6px rgba(0,0,0,0.1)"
-                  className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                />
-                <button
-                  onClick={() => {
-                    const presets = [
-                      '0 2px 4px rgba(0,0,0,0.1)',
-                      '0 4px 6px rgba(0,0,0,0.1)',
-                      '0 10px 15px rgba(0,0,0,0.1)',
-                      '0 0 20px rgba(0,0,0,0.3)',
-                      'none'
-                    ];
-                    const current = activeSlide.boxShadow || 'none';
-                    const nextIndex = (presets.indexOf(current) + 1) % presets.length;
-                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, boxShadow: presets[nextIndex] === 'none' ? undefined : presets[nextIndex] } : s));
-                  }}
-                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs transition whitespace-nowrap"
-                >
-                  Presets
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-gray-500">Border</label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-gray-500 mb-1 block">Width</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={activeSlide.borderWidth || 0}
-                    onChange={(e) => {
-                      const width = parseInt(e.target.value) || 0;
-                      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderWidth: width } : s));
-                    }}
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 mb-1 block">Style</label>
-                  <select
-                    value={activeSlide.borderStyle || 'solid'}
-                    onChange={(e) => {
-                      setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderStyle: e.target.value as any } : s));
-                    }}
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                  >
-                    <option value="solid">Solid</option>
-                    <option value="dashed">Dashed</option>
-                    <option value="dotted">Dotted</option>
-                    <option value="none">None</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block">Color</label>
-                <input
-                  type="color"
-                  value={activeSlide.borderColor || '#ffffff'}
-                  onChange={(e) => {
-                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderColor: e.target.value } : s));
-                  }}
-                  className="w-full h-10 rounded-lg cursor-pointer border-2 border-gray-600 hover:border-[#ffd700] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block">Border Radius</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={50}
-                  value={activeSlide.borderRadius || 0}
-                  onChange={(e) => {
-                    const radius = parseInt(e.target.value) || 0;
-                    setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, borderRadius: radius } : s));
-                  }}
-                  className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SHAPES SECTION */}
-        <div className="space-y-3 pb-4 border-b border-gray-700/50">
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Shapes</h4>
-          <ShapesPanelInline onAddShape={handleAddShape} />
-        </div>
 
 
         {activeSlide.type === 'cover' && (
           <div className="space-y-2">
-            <label className="text-xs text-gray-600 dark:text-gray-400">Subtitle</label>
+            <label className="text-xs text-[var(--text-muted)]">Subtitle</label>
             <textarea
               value={activeSlide.subtitle || ''}
               onChange={(e) => {
                 const newSubtitle = e.target.value;
                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, subtitle: newSubtitle } : s));
               }}
-              className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition resize-none h-24"
+              className="w-full bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition resize-none h-24"
             />
           </div>
         )}
 
         {activeSlide.type === 'content' && (
           <div className="space-y-2">
-            <label className="text-xs text-gray-600 dark:text-gray-400">Content</label>
+            <label className="text-xs text-[var(--text-muted)]">Content</label>
             <ContentEditableDiv
               slideId={activeSlide.id}
               content={activeSlide.content || ''}
@@ -3216,62 +2423,18 @@ function DashboardContent() {
                 setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, content: newContent } : s));
               }}
             />
-            <p className="text-[10px] text-gray-500">
+            <p className="text-[10px] text-[var(--text-muted)]">
               Format with shortcuts: <strong>Ctrl+B</strong> bold, <em>Ctrl+I</em> italic.
             </p>
-            {/* AI Content Enhancement */}
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => handleEnhanceContent('rewrite', activeSlide.content || '')}
-                disabled={!!isEnhancingContent || !activeSlide.content}
-                className="flex-1 px-3 py-1.5 text-xs bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] rounded-lg hover:bg-[#ffd700]/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                title="Improve clarity and flow"
-              >
-                {isEnhancingContent === 'rewrite-current' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                Enhance
-              </button>
-              <button
-                onClick={() => handleEnhanceContent('hook', activeSlide.content || activeSlide.title || '')}
-                disabled={!!isEnhancingContent}
-                className="px-3 py-1.5 text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 transition disabled:opacity-50 flex items-center gap-1"
-                title="Create better hook"
-              >
-                <Lightbulb size={12} />
-              </button>
-            </div>
-            {enhancementResult && (
-              <div className="mt-2 p-2 bg-gray-800 rounded-lg border border-gray-700">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Enhanced:</span>
-                  <button
-                    onClick={() => {
-                      setSlides(slides.map(s => 
-                        s.id === activeSlide.id 
-                          ? { ...s, content: enhancementResult } 
-                          : s
-                      ));
-                      setEnhancementResult(null);
-                    }}
-                    className="text-xs text-[#ffd700] hover:text-yellow-400"
-                  >
-                    Apply
-                  </button>
-                </div>
-                <div 
-                  className="text-xs text-gray-300"
-                  dangerouslySetInnerHTML={{ __html: enhancementResult }}
-                />
-              </div>
-            )}
           </div>
         )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-600 dark:text-gray-400">Slide Emoji / Icon</label>
+            <label className="text-xs text-[var(--text-muted)]">Slide Emoji / Icon</label>
             {/* Toggle for all slides */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-500">All slides</span>
+              <span className="text-[10px] text-[var(--text-muted)]">All slides</span>
               <button
                 onClick={() => {
                   const hasAnyEmoji = slides.some(s => s.emoji && s.emoji.trim() !== '');
@@ -3290,8 +2453,8 @@ function DashboardContent() {
                 }}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
                   slides.some(s => s.emoji && s.emoji.trim() !== '')
-                    ? 'bg-[#ffd700]'
-                    : 'bg-gray-700'
+                    ? 'bg-[var(--accent)]'
+                    : 'bg-[var(--surface-3)]'
                 }`}
                 title={slides.some(s => s.emoji && s.emoji.trim() !== '') ? 'Click to remove all icons' : 'Click to add icons to all slides'}
               >
@@ -3317,14 +2480,14 @@ function DashboardContent() {
                   setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: cleaned } : s));
                 }}
                 placeholder="✨"
-                className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                className="flex-1 bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition"
               />
               <button
                 onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
                 className={`px-3 py-2 rounded-lg border text-lg transition ${
                   isEmojiPickerOpen 
-                    ? 'border-[#ffd700] bg-[#ffd700]/10' 
-                    : 'border-gray-700 hover:border-gray-500'
+                    ? 'border-[var(--accent)] bg-[var(--accent-subtle)]' 
+                    : 'border-[var(--border-hover)] hover:border-[var(--border-hover)]'
                 }`}
                 title="Open emoji picker"
               >
@@ -3334,7 +2497,7 @@ function DashboardContent() {
             {activeSlide.emoji && activeSlide.emoji.trim() !== '' && (
               <button
                 onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: '' } : s))}
-                className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition"
+                className="px-3 py-2 rounded-lg border border-[var(--border-hover)] text-xs text-[var(--text-secondary)] hover:text-white hover:border-[var(--border-hover)] transition"
                 title="Remove emoji"
               >
                 Clear
@@ -3347,70 +2510,58 @@ function DashboardContent() {
               <div className="relative">
                 <button
                   onClick={() => setIsEmojiPickerOpen(false)}
-                  className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-gray-800 border border-gray-600 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 transition"
+                  className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-3)] transition"
                 >
                   <X size={12} />
                 </button>
-                <EmojiPicker
-                  onEmojiClick={(emojiData: EmojiClickData) => {
-                    setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: emojiData.emoji } : s));
-                    setIsEmojiPickerOpen(false);
-                  }}
-                  theme={Theme.DARK}
-                  width={320}
-                  height={400}
-                  searchPlaceholder="Search emojis..."
-                  previewConfig={{ showPreview: false }}
-                />
+                <Suspense fallback={<div className="w-[320px] h-[400px] flex items-center justify-center bg-[var(--surface-1)]"><Loader2 size={24} className="animate-spin text-[var(--text-muted)]" /></div>}>
+                  <LazyEmojiPicker
+                    onEmojiClick={(emojiData: EmojiClickData) => {
+                      setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, emoji: emojiData.emoji } : s));
+                      setIsEmojiPickerOpen(false);
+                    }}
+                    theme={"dark" as any}
+                    width={320}
+                    height={400}
+                    searchPlaceholder="Search emojis..."
+                    previewConfig={{ showPreview: false }}
+                  />
+                </Suspense>
               </div>
             </div>
           )}
-          <p className="text-[10px] text-gray-500">Toggle above to add/remove icons from all slides, or pick an emoji.</p>
+          <p className="text-[10px] text-[var(--text-muted)]">Toggle above to add/remove icons from all slides, or pick an emoji.</p>
         </div>
 
 
 
-        <div className="space-y-3 pt-4 border-t border-gray-700 media-section-unique">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Media / Embeds</label>
-          <div className="flex bg-gray-900 rounded-lg p-1 gap-1 mb-2">
+        <div className="space-y-3 pt-4 border-t border-[var(--border-hover)] media-section-unique">
+          <label className="text-xs text-[var(--text-muted)]">Media</label>
+          <div className="flex bg-[var(--surface-1)] rounded-lg p-1 gap-1 mb-2">
             <button
               onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: null, mediaUrl: undefined, embedHtml: undefined } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${!activeSlide.mediaType ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${!activeSlide.mediaType ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               title="None"
             >
               None
             </button>
             <button
               onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'image' } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'image' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'image' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               title="Image"
             >
-              <ImageIcon size={14} /> Img
-            </button>
-            <button
-              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'video' } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'video' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-              title="Video"
-            >
-              <Upload size={14} /> Video
-            </button>
-            <button
-              onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaType: 'embed' } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.mediaType === 'embed' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-              title="Embed"
-            >
-              <MousePointer2 size={14} /> Embed
+              <ImageIcon size={14} /> Image
             </button>
           </div>
 
           {activeSlide.mediaType === 'image' && (
              <div className="space-y-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Image Source</label>
+                <label className="text-xs text-[var(--text-muted)]">Image Source</label>
                 {activeSlide.mediaUrl ? (
-                    <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40">
+                    <div className="relative group rounded-lg overflow-hidden border border-[var(--border-hover)] h-32 bg-black/40">
                         <img src={activeSlide.mediaUrl} className="w-full h-full object-contain" alt="Media Block" />
                         <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
-                            <label className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600 cursor-pointer">
+                            <label className="p-1.5 bg-[var(--surface-2)] rounded-md text-white hover:bg-[var(--surface-3)] border border-[var(--border-hover)] cursor-pointer">
                                 <ImageIcon size={14} />
                                 <input 
                                     type="file" 
@@ -3429,20 +2580,20 @@ function DashboardContent() {
                         </div>
                     </div>
                 ) : (
-                    <label className="flex items-center justify-center w-full px-3 py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group border-dashed">
+                    <label className="flex items-center justify-center w-full px-3 py-4 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] border border-[var(--border-hover)] rounded-lg cursor-pointer transition group border-dashed">
                         <input 
                             type="file" 
                             accept="image/*" 
                             className="hidden" 
                             onChange={handleMediaImageUpload}
                         />
-                        <div className="flex flex-col items-center gap-2 text-gray-600 dark:text-gray-400 group-hover:text-white">
+                        <div className="flex flex-col items-center gap-2 text-[var(--text-muted)] group-hover:text-white">
                             <ImageIcon size={20} />
                             <span className="text-xs">Upload Image Block</span>
                         </div>
                     </label>
                 )}
-                 <label className="text-xs text-gray-600 dark:text-gray-400 mt-2 block">Aspect ratio</label>
+                 <label className="text-xs text-[var(--text-muted)] mt-2 block">Aspect ratio</label>
                  <input
                     type="number"
                     min={0.5}
@@ -3453,198 +2604,17 @@ function DashboardContent() {
                         const value = parseFloat(e.target.value) || 16 / 9;
                         setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
                     }}
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+                    className="w-full bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition"
                 />
              </div>
           )}
 
-          {activeSlide.mediaType === 'video' && (
-            <div className="space-y-4">
-              {activeSlide.mediaUrl ? (
-                <div className="space-y-2">
-                    <label className="text-xs text-gray-600 dark:text-gray-400">Current Video (links preferred; uploads ≤100MB)</label>
-                    <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-32 bg-black/40 flex items-center justify-center">
-                        {/* Simple preview */}
-                        {activeSlide.mediaUrl.startsWith('blob:') ? (
-                            <video src={activeSlide.mediaUrl} className="w-full h-full object-contain" />
-                        ) : (
-                            <div className="text-center p-4">
-                                <div className="text-red-500 mb-2 flex justify-center"><Upload size={24} /></div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400 break-all line-clamp-2">{activeSlide.mediaUrl}</div>
-                            </div>
-                        )}
-                        
-                        {/* Overlay Controls */}
-                        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/60 backdrop-blur-sm">
-                            <label className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600 cursor-pointer" title="Replace Video (≤100MB recommended)">
-                                <Upload size={14} />
-                                <input 
-                                    type="file" 
-                                    accept="video/*" 
-                                    className="hidden" 
-                                    onChange={handleVideoUpload}
-                                />
-                            </label>
-                            <button 
-                                onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: undefined } : s))}
-                                className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 border border-red-500/50"
-                                title="Remove Video"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    </div>
-                    {/* URL Input for editing link directly */}
-                    {!activeSlide.mediaUrl.startsWith('blob:') && (
-                         <input
-                            type="text"
-                            value={activeSlide.mediaUrl || ''}
-                            onChange={(e) => {
-                              const newUrl = e.target.value;
-                              setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
-                            }}
-                            placeholder="https://www.youtube.com/watch?v=..."
-                            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ffd700] transition"
-                        />
-                    )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Preferred: paste video URL (YouTube/Vimeo/Cloudinary)</label>
-                      <span className="text-[10px] text-gray-500">Fastest & most reliable</span>
-                    </div>
-                    <input
-                        type="text"
-                        value={activeSlide.mediaUrl || ''}
-                        onChange={(e) => {
-                        const newUrl = e.target.value;
-                        setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaUrl: newUrl } : s));
-                        }}
-                        placeholder="Paste YouTube/Video URL..."
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                    />
-                    
-                    <div className="flex items-center gap-2 my-2">
-                        <div className="h-px bg-gray-700 flex-1"></div>
-                        <span className="text-[10px] text-gray-500 uppercase">OR</span>
-                        <div className="h-px bg-gray-700 flex-1"></div>
-                    </div>
-                    
-                    <label className="flex items-center justify-center w-full px-3 py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg cursor-pointer transition group border-dashed">
-                        <input 
-                        type="file" 
-                        accept="video/*" 
-                        className="hidden" 
-                        onChange={handleVideoUpload}
-                        />
-                        <div className="flex flex-col items-center gap-2 text-gray-600 dark:text-gray-400 group-hover:text-white">
-                            <Upload size={20} />
-                            <span className="text-xs text-center leading-tight">
-                              Upload video file (≤100MB).
-                              <br />Larger? Use a URL.
-                            </span>
-                        </div>
-                    </label>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Aspect Ratio</label>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  <button
-                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 0 } : s))}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      activeSlide.mediaAspectRatio === 0 || activeSlide.mediaAspectRatio === undefined
-                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
-                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
-                    }`}
-                  >
-                    Auto
-                  </button>
-                  <button
-                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 1 } : s))}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      activeSlide.mediaAspectRatio === 1
-                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
-                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
-                    }`}
-                  >
-                    1:1
-                  </button>
-                  <button
-                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 4/3 } : s))}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      Math.abs((activeSlide.mediaAspectRatio || 0) - 4/3) < 0.01
-                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
-                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
-                    }`}
-                  >
-                    4:3
-                  </button>
-                  <button
-                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 16/9 } : s))}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      Math.abs((activeSlide.mediaAspectRatio || 0) - 16/9) < 0.01
-                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
-                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
-                    }`}
-                  >
-                    16:9
-                  </button>
-                  <button
-                    onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: 9/16 } : s))}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      Math.abs((activeSlide.mediaAspectRatio || 0) - 9/16) < 0.01
-                        ? 'bg-[#ffd700] text-black border-[#ffd700]'
-                        : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-[#ffd700]'
-                    }`}
-                  >
-                    9:16
-                  </button>
-                </div>
-                {activeSlide.mediaAspectRatio !== 0 && (
-                  <input
-                    type="number"
-                    min={0.3}
-                    max={3}
-                    step={0.05}
-                    value={activeSlide.mediaAspectRatio || ''}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAspectRatio: value } : s));
-                    }}
-                    placeholder="Custom ratio"
-                    className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeSlide.mediaType === 'embed' && (
-            <div className="space-y-2">
-              <label className="text-xs text-gray-600 dark:text-gray-400">Embed HTML</label>
-              <textarea
-                value={activeSlide.embedHtml || ''}
-                onChange={(e) => {
-                  const newHtml = e.target.value;
-                  setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, embedHtml: newHtml } : s));
-                }}
-                placeholder='<iframe src="..." ></iframe>'
-                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition resize-none h-28 font-mono"
-              />
-              <p className="text-[10px] text-gray-500">
-                Paste trusted embed snippets (charts, maps, dashboards). Scripts are not executed.
-              </p>
-            </div>
-          )}
 
           {activeSlide.mediaType && (
-            <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-800">
+            <div className="space-y-3 pt-3 border-t border-[var(--border)]">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Media Width</label>
-                <span className="text-xs text-gray-500">
+                <label className="text-xs text-[var(--text-muted)]">Media Width</label>
+                <span className="text-xs text-[var(--text-muted)]">
                   {Math.round(activeSlide.mediaWidthPercent ?? 100)}%
                 </span>
               </div>
@@ -3660,7 +2630,7 @@ function DashboardContent() {
                     setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: value } : s));
                   }}
                   className="flex-1"
-                  style={{ accentColor: '#ffd700' }}
+                  style={{ accentColor: 'var(--accent)' }}
                 />
                 <input
                   type="number"
@@ -3671,7 +2641,7 @@ function DashboardContent() {
                     const value = Math.min(100, Math.max(10, parseInt(e.target.value, 10) || 10));
                     setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: value } : s));
                   }}
-                  className="w-16 bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:border-[#ffd700] transition"
+                  className="w-16 bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:border-[var(--accent)] transition"
                 />
               </div>
 
@@ -3682,8 +2652,8 @@ function DashboardContent() {
                     onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaWidthPercent: preset } : s))}
                     className={`px-3 py-1.5 rounded-lg text-xs border transition ${
                       Math.round(activeSlide.mediaWidthPercent ?? 100) === preset
-                        ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
-                        : 'border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-500 hover:text-white'
+                        ? 'border-[var(--accent)] text-white bg-[var(--accent-subtle)]'
+                        : 'border-[var(--border-hover)] text-[var(--text-muted)] hover:border-[var(--border-hover)] hover:text-white'
                     }`}
                   >
                     {preset}%
@@ -3692,7 +2662,7 @@ function DashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Alignment</label>
+                <label className="text-xs text-[var(--text-muted)]">Alignment</label>
                 <div className="flex gap-2">
                   {(['left', 'center', 'right'] as const).map(position => (
                     <button
@@ -3700,8 +2670,8 @@ function DashboardContent() {
                       onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, mediaAlignment: position } : s))}
                       className={`flex-1 px-3 py-2 rounded-lg text-xs uppercase tracking-wide border transition ${
                         (activeSlide.mediaAlignment || 'center') === position
-                          ? 'border-[#ffd700] text-white bg-[#ffd700]/10'
-                          : 'border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-500 hover:text-white'
+                          ? 'border-[var(--accent)] text-white bg-[var(--accent-subtle)]'
+                          : 'border-[var(--border-hover)] text-[var(--text-muted)] hover:border-[var(--border-hover)] hover:text-white'
                       }`}
                     >
                       {position}
@@ -3713,11 +2683,11 @@ function DashboardContent() {
           )}
         </div>
 
-        <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Background Image</label>
+        <div className="space-y-3 pt-4 border-t border-[var(--border-hover)]">
+          <label className="text-xs text-[var(--text-muted)]">Background Image</label>
           
           {activeSlide.backgroundImage ? (
-              <div className="relative group rounded-lg overflow-hidden border border-gray-700 h-24 bg-black/40">
+              <div className="relative group rounded-lg overflow-hidden border border-[var(--border-hover)] h-24 bg-black/40">
                   <img src={activeSlide.backgroundImage} className="w-full h-full object-cover opacity-60" alt="Background" />
                   <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition bg-black/40 backdrop-blur-sm">
                       <button 
@@ -3727,7 +2697,7 @@ function DashboardContent() {
                               setActiveTool('select'); 
                               fileInputRef.current?.click();
                           }}
-                          className="p-1.5 bg-gray-800 rounded-md text-white hover:bg-gray-700 border border-gray-600"
+                          className="p-1.5 bg-[var(--surface-2)] rounded-md text-white hover:bg-[var(--surface-3)] border border-[var(--border-hover)]"
                           title="Change Image"
                       >
                           <ImageIcon size={14} />
@@ -3759,7 +2729,7 @@ function DashboardContent() {
                     setActiveTool('select');
                     fileInputRef.current?.click();
                 }}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-gray-900/50 border border-gray-700 border-dashed rounded-lg text-gray-600 dark:text-gray-400 hover:text-white hover:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition group"
+                className="w-full flex items-center justify-center gap-2 p-3 bg-[var(--surface-1)]/50 border border-[var(--border-hover)] border-dashed rounded-lg text-[var(--text-muted)] hover:text-white hover:border-[var(--border-hover)] hover:bg-[var(--surface-2)] transition group"
             >
                 <ImageIcon size={16} className="group-hover:scale-110 transition" />
                 <span className="text-xs">Upload for This Slide</span>
@@ -3769,7 +2739,7 @@ function DashboardContent() {
           {activeSlide.backgroundImage && (
              <div className="space-y-4">
                 <div className="flex justify-between items-center gap-2">
-                    <span className="text-[10px] text-gray-500 font-medium">SETTINGS</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-medium">SETTINGS</span>
                     <div className="flex gap-1">
                         <button 
                             onClick={() => {
@@ -3798,11 +2768,11 @@ function DashboardContent() {
                 </div>
              
                 <div className="space-y-1">
-                   <div className="flex justify-between text-xs text-gray-500">
+                   <div className="flex justify-between text-xs text-[var(--text-muted)]">
                        <span>Color Tint</span>
                        <span>{Math.round((activeSlide.backgroundOverlayOpacity ?? 0) * 100)}%</span>
                    </div>
-                   <p className="text-[9px] text-gray-600 mb-1">Add theme color overlay on image</p>
+                   <p className="text-[9px] text-[var(--text-muted)] mb-1">Add theme color overlay on image</p>
                    <input
                        type="range"
                        min={0}
@@ -3820,160 +2790,16 @@ function DashboardContent() {
                                setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundOverlayOpacity: val } : s));
                            }
                        }}
-                       className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
+                       className="w-full h-1.5 bg-[var(--surface-3)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
                    />
                 </div>
 
-                <div className="pt-2 border-t border-gray-700 mt-2 space-y-2">
-                   <label className="text-xs text-gray-600 dark:text-gray-400">Image Filters</label>
-                   <div className="grid grid-cols-2 gap-2">
-                       {/* Brightness */}
-                       <div className="space-y-1">
-                          <label className="text-[10px] text-gray-500">Brightness</label>
-                          <input
-                             type="range"
-                             min={0}
-                             max={2}
-                             step={0.1}
-                             defaultValue={1}
-                             onChange={(e) => {
-                                 const val = e.target.value;
-                                 // Smart apply: if all slides have same background, apply to all
-                                 const currentBg = activeSlide.backgroundImage;
-                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
-                                 
-                                 const updateFilter = (existingFilter: string | undefined) => {
-                                     let newFilter = existingFilter || '';
-                                     if (newFilter.includes('brightness')) {
-                                         newFilter = newFilter.replace(/brightness\([0-9.]+\)/, `brightness(${val})`);
-                                     } else {
-                                         newFilter = `${newFilter} brightness(${val})`.trim();
-                                     }
-                                     return newFilter;
-                                 };
-                                 
-                                 if (allSameBackground) {
-                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
-                                 } else {
-                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
-                                 }
-                             }}
-                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                          />
-                       </div>
-                       
-                       {/* Contrast */}
-                       <div className="space-y-1">
-                          <label className="text-[10px] text-gray-500">Contrast</label>
-                          <input
-                             type="range"
-                             min={0}
-                             max={2}
-                             step={0.1}
-                             defaultValue={1}
-                             onChange={(e) => {
-                                 const val = e.target.value;
-                                 // Smart apply: if all slides have same background, apply to all
-                                 const currentBg = activeSlide.backgroundImage;
-                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
-                                 
-                                 const updateFilter = (existingFilter: string | undefined) => {
-                                     let newFilter = existingFilter || '';
-                                     if (newFilter.includes('contrast')) {
-                                         newFilter = newFilter.replace(/contrast\([0-9.]+\)/, `contrast(${val})`);
-                                     } else {
-                                         newFilter = `${newFilter} contrast(${val})`.trim();
-                                     }
-                                     return newFilter;
-                                 };
-                                 
-                                 if (allSameBackground) {
-                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
-                                 } else {
-                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
-                                 }
-                             }}
-                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                          />
-                       </div>
-
-                        {/* Blur */}
-                       <div className="space-y-1">
-                          <label className="text-[10px] text-gray-500">Blur</label>
-                          <input
-                             type="range"
-                             min={0}
-                             max={10}
-                             step={1}
-                             defaultValue={0}
-                             onChange={(e) => {
-                                 const val = e.target.value;
-                                 // Smart apply: if all slides have same background, apply to all
-                                 const currentBg = activeSlide.backgroundImage;
-                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
-                                 
-                                 const updateFilter = (existingFilter: string | undefined) => {
-                                     let newFilter = existingFilter || '';
-                                     if (newFilter.includes('blur')) {
-                                         newFilter = newFilter.replace(/blur\([0-9.]+px\)/, `blur(${val}px)`);
-                                     } else {
-                                         newFilter = `${newFilter} blur(${val}px)`.trim();
-                                     }
-                                     return newFilter;
-                                 };
-                                 
-                                 if (allSameBackground) {
-                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
-                                 } else {
-                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
-                                 }
-                             }}
-                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                          />
-                       </div>
-
-                       {/* Grayscale */}
-                       <div className="space-y-1">
-                          <label className="text-[10px] text-gray-500">Grayscale</label>
-                           <input
-                             type="range"
-                             min={0}
-                             max={1}
-                             step={0.1}
-                             defaultValue={0}
-                             onChange={(e) => {
-                                 const val = e.target.value;
-                                 // Smart apply: if all slides have same background, apply to all
-                                 const currentBg = activeSlide.backgroundImage;
-                                 const allSameBackground = slides.every(s => s.backgroundImage === currentBg);
-                                 
-                                 const updateFilter = (existingFilter: string | undefined) => {
-                                     let newFilter = existingFilter || '';
-                                     if (newFilter.includes('grayscale')) {
-                                         newFilter = newFilter.replace(/grayscale\([0-9.]+\)/, `grayscale(${val})`);
-                                     } else {
-                                         newFilter = `${newFilter} grayscale(${val})`.trim();
-                                     }
-                                     return newFilter;
-                                 };
-                                 
-                                 if (allSameBackground) {
-                                     setSlides(prevSlides => prevSlides.map(s => ({ ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) })));
-                                 } else {
-                                     setSlides(prevSlides => prevSlides.map(s => s.id === activeSlide.id ? { ...s, backgroundImageFilter: updateFilter(s.backgroundImageFilter) } : s));
-                                 }
-                             }}
-                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#ffd700]"
-                          />
-                       </div>
-                   </div>
-                </div>
              </div>
           )}
         </div>
 
-        <div className="space-y-3 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Handle / Tag</label>
+        <div className="space-y-3 pt-4 border-t border-[var(--border-hover)]">
+          <label className="text-xs text-[var(--text-muted)]">Handle / Tag</label>
           <input
             type="text"
             value={activeSlide.handle || ''}
@@ -3982,38 +2808,24 @@ function DashboardContent() {
               setSlides(slides.map(s => ({ ...s, handle: newHandle }))); // Update all slides
             }}
             placeholder="@yourhandle"
-            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
+            className="w-full bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition"
           />
-          <p className="text-[10px] text-gray-500">Updates across all slides</p>
+          <p className="text-[10px] text-[var(--text-muted)]">Updates across all slides</p>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600 dark:text-gray-400">Category / Series Tag</label>
-          <input
-            type="text"
-            value={activeSlide.category || ''}
-            onChange={(e) => {
-              const newCategory = e.target.value;
-              setSlides(slides.map(s => ({ ...s, category: newCategory }))); // Update all slides
-            }}
-            placeholder="UNDER THE HOOD"
-            className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-          />
-          <p className="text-[10px] text-gray-500">Updates across all slides</p>
-        </div>
 
-        <div className="pt-4 border-t border-gray-700">
+        <div className="pt-4 border-t border-[var(--border-hover)]">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400">Type</span>
+            <span className="text-xs text-[var(--text-muted)]">Type</span>
           </div>
-          <div className="flex bg-gray-900 rounded-lg p-1 gap-1">
+          <div className="flex bg-[var(--surface-1)] rounded-lg p-1 gap-1">
             <button
               onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { 
                   ...s, 
                   type: 'cover',
                   elementOrder: ['title', 'subtitle', 'media'] 
               } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'cover' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'cover' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               title="Cover Slide"
             >
               <Layout size={14} /> Cover
@@ -4024,7 +2836,7 @@ function DashboardContent() {
                   type: 'content',
                   elementOrder: ['emoji', 'title', 'content', 'media']
               } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'content' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'content' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               title="Content Slide"
             >
               <Type size={14} /> Content
@@ -4042,7 +2854,7 @@ function DashboardContent() {
                 ],
                 elementOrder: ['emoji', 'title', 'content', 'chart', 'media']
               } : s))}
-              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'chart' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 px-2 py-1.5 text-xs rounded-md transition flex items-center justify-center gap-1 ${activeSlide.type === 'chart' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               title="Chart Slide"
             >
               <BarChart3 size={14} /> Chart
@@ -4052,25 +2864,25 @@ function DashboardContent() {
 
 
         {activeSlide.type === 'chart' && (
-          <div className="space-y-4 pt-4 border-t border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="space-y-4 pt-4 border-t border-[var(--border-hover)] animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="space-y-2">
-              <label className="text-xs text-gray-600 dark:text-gray-400">Chart Type</label>
-              <div className="flex bg-gray-900 rounded-lg p-1 gap-1">
+              <label className="text-xs text-[var(--text-muted)]">Chart Type</label>
+              <div className="flex bg-[var(--surface-1)] rounded-lg p-1 gap-1">
                 <button
                   onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartType: 'bar' } : s))}
-                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'bar' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'bar' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                 >
                   <BarChart3 size={16} />
                 </button>
                 <button
                   onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartType: 'line' } : s))}
-                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'line' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'line' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                 >
                   <LineChart size={16} />
                 </button>
                 <button
                   onClick={() => setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartType: 'pie' } : s))}
-                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'pie' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  className={`flex-1 p-1.5 rounded transition flex justify-center ${activeSlide.chartType === 'pie' ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                 >
                   <PieChart size={16} />
                 </button>
@@ -4079,14 +2891,14 @@ function DashboardContent() {
 
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Data Points</label>
+                <label className="text-xs text-[var(--text-muted)]">Data Points</label>
                 <button
                   onClick={() => {
                     const newData = [...(activeSlide.chartData || [])];
                     newData.push({ name: 'New', value: 50 });
                     setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartData: newData } : s));
                   }}
-                  className="text-[10px] bg-gray-700 hover:bg-gray-600 text-white px-2 py-0.5 rounded"
+                  className="text-[10px] bg-[var(--surface-3)] hover:bg-[var(--surface-3)] text-white px-2 py-0.5 rounded"
                 >
                   + Add
                 </button>
@@ -4102,7 +2914,7 @@ function DashboardContent() {
                         newData[idx].name = e.target.value;
                         setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartData: newData } : s));
                       }}
-                      className="w-1/3 bg-gray-900/50 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-[#ffd700] outline-none"
+                      className="w-1/3 bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded px-2 py-1 text-xs text-white focus:border-[var(--accent)] outline-none"
                       placeholder="Label"
                     />
                     <input
@@ -4113,7 +2925,7 @@ function DashboardContent() {
                         newData[idx].value = parseInt(e.target.value) || 0;
                         setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartData: newData } : s));
                       }}
-                      className="w-1/3 bg-gray-900/50 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-[#ffd700] outline-none"
+                      className="w-1/3 bg-[var(--surface-1)]/50 border border-[var(--border-hover)] rounded px-2 py-1 text-xs text-white focus:border-[var(--accent)] outline-none"
                       placeholder="Value"
                     />
                     <button
@@ -4121,7 +2933,7 @@ function DashboardContent() {
                         const newData = [...(activeSlide.chartData || [])].filter((_, i) => i !== idx);
                         setSlides(slides.map(s => s.id === activeSlide.id ? { ...s, chartData: newData } : s));
                       }}
-                      className="text-gray-500 hover:text-red-400"
+                      className="text-[var(--text-muted)] hover:text-red-400"
                     >
                       <X size={14} />
                     </button>
@@ -4136,7 +2948,7 @@ function DashboardContent() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-[var(--surface-1)] text-gray-900 dark:text-white font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-x-hidden transition-colors duration-300">
       <div
         aria-hidden="true"
         className="absolute"
@@ -4153,20 +2965,20 @@ function DashboardContent() {
         </div>
       </div>
       {/* Header */}
-      <header className="h-14 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f1117] flex items-center px-4 justify-between shrink-0 z-20">
+      <header className="h-14 border-b border-[var(--border)] bg-[var(--surface-1)] flex items-center px-4 justify-between shrink-0 z-20">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-          <Link href="/" className="text-gray-600 dark:text-gray-400 hover:text-white transition shrink-0">
+          <Link href="/" className="text-[var(--text-muted)] hover:text-white transition shrink-0">
             <ChevronLeft size={20} />
           </Link>
           <div className="flex items-center gap-2 min-w-0">
-             <div className="w-6 h-6 bg-[#ffd700] rounded-md rotate-3 flex items-center justify-center shrink-0">
+             <div className="w-6 h-6 bg-[var(--accent)] rounded-md rotate-3 flex items-center justify-center shrink-0">
                 <span className="text-black font-bold text-xs">C</span>
              </div>
              <span className="font-bold tracking-tight text-sm sm:text-base truncate">
                 <span className="hidden sm:inline">Carouslk / </span>{projectName}
              </span>
           </div>
-          <div className="hidden lg:flex items-center gap-1 border-l border-gray-200 dark:border-gray-800 pl-4 ml-4">
+          <div className="hidden lg:flex items-center gap-1 border-l border-[var(--border)] pl-4 ml-4">
             <ProjectManager
               currentProjectId={projectId}
               projectName={projectName}
@@ -4178,33 +2990,38 @@ function DashboardContent() {
             <button
               onClick={handleUndo}
               disabled={!canUndo}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 hover:bg-[var(--surface-2)] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
               title="Undo (Ctrl+Z)"
             >
-              <Undo2 size={18} className="text-gray-600 dark:text-gray-400" />
+              <Undo2 size={18} className="text-[var(--text-muted)]" />
             </button>
             <button
               onClick={handleRedo}
               disabled={!canRedo}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 hover:bg-[var(--surface-2)] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition"
               title="Redo (Ctrl+Y)"
             >
-              <Redo2 size={18} className="text-gray-600 dark:text-gray-400" />
+              <Redo2 size={18} className="text-[var(--text-muted)]" />
             </button>
-            {projectId && (
-              <button
-                onClick={fetchHistory}
-                disabled={historyLoading}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition"
-                title="Version History"
-              >
-                {historyLoading ? (
-                  <Loader2 size={18} className="animate-spin text-gray-400" />
-                ) : (
-                  <History size={18} className="text-gray-600 dark:text-gray-400" />
-                )}
-              </button>
-            )}
+            {/* Auto-save indicator */}
+            <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-[var(--border)]">
+              {projectSaving ? (
+                <>
+                  <Loader2 size={14} className="text-[var(--accent)] animate-spin" />
+                  <span className="text-[11px] text-[var(--text-muted)]">Saving...</span>
+                </>
+              ) : projectId ? (
+                <>
+                  <Cloud size={14} className="text-green-400" />
+                  <span className="text-[11px] text-[var(--text-muted)]">Saved</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff size={14} className="text-[var(--text-muted)]" />
+                  <span className="text-[11px] text-[var(--text-muted)]">Local</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
         
@@ -4213,8 +3030,8 @@ function DashboardContent() {
           onClick={() => setShowTextFormattingToolbar(!showTextFormattingToolbar)}
           className={`hidden lg:flex px-3 py-1.5 text-sm font-medium rounded-lg transition items-center gap-2 border ${
             showTextFormattingToolbar 
-              ? 'bg-[#ffd700]/10 text-[#ffd700] border-[#ffd700]/30 hover:bg-[#ffd700]/20' 
-              : 'text-gray-400 border-gray-700 hover:text-white hover:bg-gray-800 hover:border-gray-600'
+              ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border-[var(--accent)]/30 hover:bg-[var(--accent)]/20' 
+              : 'text-[var(--text-muted)] border-[var(--border-hover)] hover:text-white hover:bg-[var(--surface-2)] hover:border-[var(--border-hover)]'
           }`}
           title={showTextFormattingToolbar ? 'Hide Text Editor' : 'Show Text Editor'}
         >
@@ -4223,222 +3040,95 @@ function DashboardContent() {
         </button>
         
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-             <button
+            <button
                 onClick={() => setIsMobileSidebarOpen(true)}
-                className="p-2 text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition flex items-center justify-center lg:hidden"
-             >
+                className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--surface-2)] rounded-lg transition flex items-center justify-center lg:hidden"
+            >
                 <Menu size={20} />
-             </button>
-             <button 
+            </button>
+            <button 
                 onClick={() => setIsAiModalOpen(true)}
-                className="hidden lg:flex px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition items-center gap-2"
-             >
-                <Sparkles size={16} /> AI Generate
-             </button>
-             <button 
-                onClick={() => setIsAiFeaturesOpen(true)}
-                className="hidden lg:flex px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg transition items-center gap-2"
-                title="AI Features"
-             >
+                className="hidden lg:flex px-4 py-1.5 bg-gradient-to-r from-[var(--accent)] to-amber-500 hover:from-[var(--accent-hover)] hover:to-amber-400 text-black text-sm font-bold rounded-lg transition items-center gap-2 shadow-lg shadow-[var(--accent)]/20"
+            >
                 <Sparkles size={16} />
-                AI Tools
-             </button>
-             <button 
+                Generate
+            </button>
+            <div className="hidden lg:block w-4"></div>
+            <button 
                 onClick={() => setIsExportOpen(true)}
-                className="hidden lg:flex px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-lg transition items-center gap-2"
-             >
-                Export <Download size={16} />
-             </button>
-             {session?.user?.email && (
-               <span className="hidden lg:block text-sm text-gray-400 px-3">{session.user.email}</span>
-             )}
-             <Link
-               href="/dashboard/billing"
-               className="p-2 hover:bg-gray-800 rounded-lg transition"
-               title="Billing & Subscription"
-             >
-               <CreditCard size={18} className="text-gray-400" />
-             </Link>
-             <button
-               onClick={async () => {
-                 const { signOut } = await import('next-auth/react');
-                 signOut({ callbackUrl: '/login' });
-               }}
-               className="p-2 hover:bg-gray-800 rounded-lg transition"
-               title="Sign out"
-             >
-               <LogOut size={18} className="text-gray-400" />
-             </button>
+                className="hidden lg:flex px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-white text-sm font-medium rounded-lg transition items-center gap-2 border border-[var(--border-hover)]"
+            >
+                <Download size={16} />
+                Export
+            </button>
+            <button
+                onClick={async () => {
+                    const { signOut } = await import('next-auth/react');
+                    signOut({ callbackUrl: '/login' });
+                }}
+                className="p-2 hover:bg-[var(--surface-2)] rounded-lg transition"
+                title="Sign out"
+            >
+                <LogOut size={18} className="text-[var(--text-muted)]" />
+            </button>
         </div>
       </header>
 
       {/* Main Workspace */}
+      <ErrorBoundary section="Editor">
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Navigation */}
-        <div className="hidden md:flex w-16 border-r border-gray-200 dark:border-gray-800 flex-col items-center py-6 gap-6 bg-white dark:bg-[#0f1117] shrink-0 z-10">
-            <button 
-                onClick={() => setIsTemplatesOpen(true)}
-                className="w-10 h-10 bg-[#ffd700]/10 text-[#ffd700] rounded-xl flex items-center justify-center border border-[#ffd700]/20 shadow-[0_0_15px_rgba(255,215,0,0.1)] cursor-pointer hover:bg-[#ffd700]/20 transition"
-                title="Templates"
-            >
-                <Layout size={20} />
-            </button>
+        {/* Left Sidebar */}
+        <div className="hidden md:flex w-16 border-r border-[var(--border)] flex-col items-center py-4 gap-2 bg-[var(--surface-1)] shrink-0 z-10">
             <button 
                 onClick={() => setIsAiModalOpen(true)}
-                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
-                title="AI Generate"
+                className="w-10 h-10 bg-gradient-to-br from-[var(--accent)] to-amber-500 text-black rounded-xl flex items-center justify-center shadow-lg shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/40 transition-all hover:scale-105"
+                title="AI Generate Carousel"
             >
                 <Sparkles size={20} />
             </button>
+            <div className="w-6 h-px bg-[var(--border)] my-1" />
             <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
-                title="Theme"
+                onClick={() => setIsTemplatesOpen(true)}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${isTemplatesOpen ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-2)]'}`}
+                title="Templates"
             >
-                <Palette size={20} />
+                <Layout size={18} />
             </button>
             <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="mt-auto w-10 h-10 text-gray-500 hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-2)] transition"
                 title="Settings"
             >
-                <Settings size={20} />
+                <Settings size={18} />
             </button>
+            <div className="mt-auto flex flex-col gap-2">
+                <button 
+                    onClick={() => setIsExportOpen(true)}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition"
+                    title="Export"
+                >
+                    <Download size={18} />
+                </button>
+            </div>
         </div>
 
-        {/* Slide List */}
-        <div className="hidden lg:flex w-72 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f1117] flex-col shrink-0">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Slides ({slides.length})</span>
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={addNewSlide}
-                        className="w-6 h-6 bg-gray-800 hover:bg-gray-700 rounded flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-white transition"
-                        title="Add new slide (Ctrl+Enter)"
-                    >
-                        <Plus size={14} />
-                    </button>
-                </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {slides.map((slide, index) => (
-                    <div 
-                        key={slide.id} 
-                        ref={(el) => { sidebarSlideRefs.current[slide.id] = el; }}
-                        onClick={() => setActiveSlideId(slide.id)}
-                        className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/50 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/30 hover:border-gray-700'}`}
-                    >
-                        <div className="p-3">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Slide {index + 1}</span>
-                                    {activeSlideId === slide.id && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
-                                </div>
-                                {/* Move buttons */}
-                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleMoveSlide(slide.id, 'up');
-                                        }}
-                                        disabled={index === 0}
-                                        className="p-1 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move up (Ctrl+Shift+↑)"
-                                    >
-                                        <ChevronUp size={12} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleMoveSlide(slide.id, 'down');
-                                        }}
-                                        disabled={index === slides.length - 1}
-                                        className="p-1 rounded text-gray-500 hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move down (Ctrl+Shift+↓)"
-                                    >
-                                        <ChevronDown size={12} />
-                                    </button>
-                                </div>
-                            </div>
-                            {/* Mini Preview */}
-                            <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition flex items-start justify-center pt-1">
-                                <div className="transform scale-[0.15] origin-top pointer-events-none">
-                                    <Slide {...slide} />
-                                </div>
-                            </div>
-                            <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                                <span className="uppercase tracking-wide text-[10px]">{slide.type}</span>
-                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDuplicateSlide(slide.id);
-                                        }}
-                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-[#ffd700] hover:border-[#ffd700] transition"
-                                        title="Duplicate slide (Ctrl+D)"
-                                    >
-                                        <Copy size={14} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleCopySlideToClipboard(slide, index);
-                                        }}
-                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-green-400 hover:border-green-500 transition disabled:opacity-40"
-                                        title="Copy slide to clipboard"
-                                        disabled={copyingSlideId !== null}
-                                    >
-                                        {copyingSlideId === slide.id ? (
-                                            <Loader2 size={14} className="animate-spin" />
-                                        ) : (
-                                            <Clipboard size={14} />
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDownloadSlideImage(slide, index);
-                                        }}
-                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition disabled:opacity-40"
-                                        title="Download slide as PNG"
-                                        disabled={downloadingSlideId !== null && downloadingSlideId !== slide.id}
-                                    >
-                                        {downloadingSlideId === slide.id ? (
-                                            <Loader2 size={14} className="animate-spin" />
-                                        ) : (
-                                            <Download size={14} />
-                                        )}
-                                    </button>
-                                    {slide.mediaUrl && slide.mediaType === 'image' && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setPreviewImageUrl(slide.mediaUrl || null);
-                                            }}
-                                            className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-[#ffd700] hover:border-[#ffd700] transition"
-                                            title="View infographic full size"
-                                        >
-                                            <ZoomIn size={14} />
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteSlide(slide.id);
-                                        }}
-                                        className="p-1.5 rounded-md border border-gray-700 text-gray-300 hover:text-red-300 hover:border-red-500 transition disabled:opacity-40"
-                                        title={slides.length === 1 ? 'You need at least one slide' : 'Delete slide (Del)'}
-                                        disabled={slides.length === 1}
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
+        <SlideListSidebar
+          slides={slides}
+          activeSlideId={activeSlideId}
+          onSelectSlide={setActiveSlideId}
+          onAddSlide={addNewSlide}
+          onMoveSlide={handleMoveSlide}
+          onDuplicateSlide={handleDuplicateSlide}
+          onCopySlide={handleCopySlideToClipboard}
+          onDownloadSlide={handleDownloadSlideImage}
+          onDeleteSlide={handleDeleteSlide}
+          onRegenerateSlide={handleRegenerateSlide}
+          regeneratingSlideId={regeneratingSlideId}
+          onPreviewImage={setPreviewImageUrl}
+          copyingSlideId={copyingSlideId}
+          downloadingSlideId={downloadingSlideId}
+          slideRefs={sidebarSlideRefs}
+        />
 
         {/* Canvas Area */}
         <div 
@@ -4451,50 +3141,39 @@ function DashboardContent() {
 
             {/* Toolbar - Two Rows */}
             {showTextFormattingToolbar && (
-            <div className="hidden lg:flex flex-col absolute top-4 left-1/2 -translate-x-1/2 bg-gray-800/95 backdrop-blur-md border border-gray-700/50 rounded-2xl shadow-2xl z-20 overflow-hidden">
+            <div className="hidden lg:flex flex-col absolute top-4 left-1/2 -translate-x-1/2 bg-[var(--surface-2)]/95 backdrop-blur-md border border-[var(--border-hover)]/50 rounded-2xl shadow-2xl z-20">
                 {/* Row 1: Main Tools */}
                 <div className="flex items-center gap-1 px-2 py-1.5">
-                    <div 
+                    <button 
                         onClick={() => handleToolClick('color')}
-                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[#ffd700]' : 'hover:ring-2 hover:ring-gray-500'}`}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl shadow-lg transition relative overflow-hidden ${activeTool === 'color' ? 'ring-2 ring-[var(--accent)]' : 'hover:ring-2 hover:ring-[var(--border-hover)]'}`}
                         title="Background Color"
+                        aria-label="Background Color"
                         style={{ backgroundColor: slides[0]?.backgroundColor || '#0B0F19' }}
                     >
                         <div className="absolute inset-0 bg-black/20" />
                         <Palette size={16} className="relative z-10 text-white drop-shadow-md" />
-                    </div>
-                    <div 
+                    </button>
+                    <button 
                         onClick={() => handleToolClick('text')}
-                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'text' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${activeTool === 'text' ? 'bg-[var(--accent)] text-black' : 'text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-3)]'}`}
                         title="Add Text"
+                        aria-label="Add Text"
                     >
                         <SquarePen size={16} />
-                    </div>
+                    </button>
                     <button 
                         onClick={() => handleToolClick('image')}
-                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'image' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${activeTool === 'image' ? 'bg-[var(--accent)] text-black' : 'text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-3)]'}`}
                         title="Background Image"
+                        aria-label="Background Image"
                     >
                         <ImageIcon size={16} />
-                    </button>
-                    <div 
-                        onClick={() => handleToolClick('image-all')}
-                        className={`w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition ${activeTool === 'image-all' ? 'bg-[#ffd700] text-black' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                        title="Image All Slides"
-                    >
-                        <div className="relative">
-                            <ImageIcon size={16} />
-                            <div className="absolute -bottom-1.5 -right-2 text-[6px] font-bold bg-blue-500 text-white px-0.5 rounded">ALL</div>
-                        </div>
-                    </div>
-                    <div className="w-px h-6 bg-gray-700 mx-0.5"></div>
-                    <button onClick={() => setIsPropertiesPanelOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition" title="Shapes">
-                        <Square size={16} />
                     </button>
                 </div>
                 
                 {/* Row 2 & 3: Text Formatting (2 rows from TextToolbar) */}
-                <div className="px-2 py-1 border-t border-gray-700/50 bg-gray-800/50">
+                <div className="px-2 py-1 border-t border-[var(--border-hover)]/50 bg-[var(--surface-2)]/50" onMouseDown={(e) => { if (!(e.target as HTMLElement).closest('input')) e.preventDefault(); }}>
                     <TextToolbar inline />
                 </div>
 
@@ -4506,7 +3185,7 @@ function DashboardContent() {
             {/* Text Toolbar Sidebar - appears when button is clicked */}
             {isTextToolbarOpen && (
               <div 
-                className="fixed left-16 top-16 bottom-0 w-72 bg-gray-900/95 backdrop-blur-md border-r border-gray-700 shadow-2xl z-[100]"
+                className="fixed left-16 top-16 bottom-0 w-72 bg-[var(--surface-1)]/95 backdrop-blur-md border-r border-[var(--border-hover)] shadow-2xl z-[100]"
                 style={{ 
                   top: '72px',
                   maxHeight: 'calc(100vh - 72px)',
@@ -4514,13 +3193,13 @@ function DashboardContent() {
                 }}
               >
                 <div className="h-full overflow-y-auto" style={{ overflowX: 'visible' }}>
-                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                  <div className="p-4 border-b border-[var(--border-hover)] flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Text Editor</h3>
                     <button
                       onClick={() => setIsTextToolbarOpen(false)}
-                      className="p-1 hover:bg-gray-800 rounded transition-colors"
+                      className="p-1 hover:bg-[var(--surface-2)] rounded transition-colors"
                     >
-                      <X size={18} className="text-gray-400" />
+                      <X size={18} className="text-[var(--text-muted)]" />
                     </button>
                   </div>
                   <div style={{ position: 'relative', overflow: 'visible' }}>
@@ -4559,7 +3238,7 @@ function DashboardContent() {
                                         transition: 'transform 0.3s ease-out'
                                     }}
                                     className={`absolute top-0 left-0 shadow-2xl rounded-none ring-1 ring-white/10 transition-transform duration-300 origin-top-left ${
-                                        slide.id === activeSlideId ? 'ring-[#ffd700]/70' : ''
+                                        slide.id === activeSlideId ? 'ring-[var(--accent)]/70' : ''
                                     }`}
                                 >
                                     <div 
@@ -4581,8 +3260,8 @@ function DashboardContent() {
                                         {/* Guide Lines */}
                                         {showGuides && (
                                             <>
-                                                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-[#ffd700]/50 z-[61] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
-                                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[#ffd700]/50 z-[61] pointer-events-none" style={{ transform: 'translateY(-50%)' }} />
+                                                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-[var(--accent-subtle)]0 z-[61] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
+                                                <div className="absolute top-1/2 left-0 right-0 h-px bg-[var(--accent-subtle)]0 z-[61] pointer-events-none" style={{ transform: 'translateY(-50%)' }} />
                                             </>
                                         )}
                                         <Slide
@@ -4621,7 +3300,7 @@ function DashboardContent() {
                                             e.stopPropagation();
                                             setIsPropertiesPanelOpen(true);
                                         }}
-                                        className="lg:hidden absolute top-4 right-4 z-50 bg-[#ffd700] text-black p-3 rounded-full shadow-xl animate-in fade-in zoom-in duration-300 hover:bg-yellow-400 active:scale-90 transition-all border-2 border-black/10"
+                                        className="lg:hidden absolute top-4 right-4 z-50 bg-[var(--accent)] text-black p-3 rounded-full shadow-xl animate-in fade-in zoom-in duration-300 hover:bg-[var(--accent-hover)] active:scale-90 transition-all border-2 border-black/10"
                                         title="Edit Slide Properties"
                                     >
                                         <Pencil size={20} />
@@ -4638,7 +3317,7 @@ function DashboardContent() {
                 <button
                     onClick={() => goToSlideByIndex(activeSlideIndex - 1)}
                     disabled={activeSlideIndex <= 0}
-                    className="w-12 h-12 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-12 h-12 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]/60 flex items-center justify-center text-[var(--text-secondary)] transition disabled:opacity-30 disabled:cursor-not-allowed"
                     aria-label="Previous slide"
                 >
                     <ChevronLeft size={20} />
@@ -4647,16 +3326,16 @@ function DashboardContent() {
                 <div className="flex-1 flex gap-2">
                     <button
                         onClick={() => setIsMobileSlidesOpen(true)}
-                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg"
+                        className="flex-1 px-2 py-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]/80 text-sm font-medium text-[var(--text-secondary)] flex flex-col items-center justify-center gap-1 shadow-lg"
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-gray-500">Slides</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Slides</span>
                         <span className="text-sm font-semibold text-white">#{activeSlideIndex + 1} / {slides.length}</span>
                     </button>
                     <button
                         onClick={() => setIsPropertiesPanelOpen(true)}
-                        className="flex-1 px-2 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/80 text-sm font-medium text-gray-200 flex flex-col items-center justify-center gap-1 shadow-lg active:bg-gray-800"
+                        className="flex-1 px-2 py-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]/80 text-sm font-medium text-[var(--text-secondary)] flex flex-col items-center justify-center gap-1 shadow-lg active:bg-[var(--surface-2)]"
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-gray-500">Edit</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Edit</span>
                         <Settings size={18} className="text-white" />
                     </button>
                 </div>
@@ -4664,7 +3343,7 @@ function DashboardContent() {
                 <button
                     onClick={() => goToSlideByIndex(activeSlideIndex + 1)}
                     disabled={activeSlideIndex >= slides.length - 1}
-                    className="w-12 h-12 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-900/60 flex items-center justify-center text-gray-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-12 h-12 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]/60 flex items-center justify-center text-[var(--text-secondary)] transition disabled:opacity-30 disabled:cursor-not-allowed"
                     aria-label="Next slide"
                 >
                     <ChevronLeft size={20} className="rotate-180" />
@@ -4681,7 +3360,7 @@ function DashboardContent() {
                     />
 
                     <div className="pointer-events-none absolute top-0 right-6 hidden xl:block z-30">
-                        <div className="pointer-events-auto mt-6 w-[26rem] bg-gray-800/90 backdrop-blur-md border border-gray-700/70 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto hide-scrollbar animate-in fade-in duration-200">
+                        <div className="pointer-events-auto mt-6 w-[26rem] bg-[var(--surface-2)]/90 backdrop-blur-md border border-[var(--border-hover)]/70 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto hide-scrollbar animate-in fade-in duration-200">
                             {renderPropertiesPanelContent()}
                         </div>
                     </div>
@@ -4690,7 +3369,7 @@ function DashboardContent() {
                             className="absolute inset-0 bg-black/70"
                             onClick={() => setIsPropertiesPanelOpen(false)}
                         />
-                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-white dark:bg-[#0f1117] border-l border-gray-200 dark:border-gray-800 rounded-l-3xl p-6 overflow-y-auto hide-scrollbar shadow-2xl animate-in slide-in-from-right duration-300">
+                        <div className="relative z-10 w-full max-w-md ml-auto h-full bg-[var(--surface-1)] border-l border-[var(--border)] rounded-l-3xl p-6 overflow-y-auto hide-scrollbar shadow-2xl animate-in slide-in-from-right duration-300">
                             {renderPropertiesPanelContent()}
                         </div>
                     </div>
@@ -4699,589 +3378,35 @@ function DashboardContent() {
 
         </div>
       </div>
+      </ErrorBoundary>
       
-      {/* Export Modal */}
-      {isExportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <h3 className="font-bold text-white text-lg">Export Carousel</h3>
-              <button 
-                onClick={() => setIsExportOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {isExporting ? (
-                // Progress view during export
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Loader2 size={24} className="animate-spin text-[#ffd700]" />
-                    <div>
-                      <div className="font-medium text-white">{exportProgress.status}</div>
-                      {exportProgress.total > 0 && (
-                        <div className="text-xs text-gray-500">
-                          {exportProgress.current} / {exportProgress.total} slides
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {exportProgress.total > 0 && (
-                    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-[#ffd700] to-[#ffed4a] h-full transition-all duration-300 ease-out"
-                        style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Export options - PDF and Images
-                <div className="space-y-3">
-                  <p className="text-gray-400 text-sm">Choose your export format</p>
-                  
-                  {/* PDF Export */}
-                  <button
-                    onClick={() => handleExportPDF()}
-                    disabled={!!isExporting}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center text-red-500 group-hover:scale-110 transition">
-                        <Download size={20} />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-white">Export as PDF</div>
-                        <div className="text-xs text-gray-500">Best for LinkedIn & Printing</div>
-                      </div>
-                    </div>
-                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
-                  </button>
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={closeExport}
+        isExporting={isExporting}
+        exportProgress={exportProgress}
+        onExportPDF={handleExportPDF}
+        onExportImages={handleExportImages}
+        slideCount={slides.length}
+      />
 
-                  {/* Images Export */}
-                  <button
-                    onClick={() => handleExportImages()}
-                    disabled={!!isExporting}
-                    className="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 group-hover:scale-110 transition">
-                        <Download size={20} />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-white">Export as Images</div>
-                        <div className="text-xs text-gray-500">ZIP file with PNG images</div>
-                      </div>
-                    </div>
-                    <ChevronLeft size={18} className="rotate-180 text-gray-500 group-hover:translate-x-1 transition" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={closeSettings}
+        projectName={projectName}
+        onProjectNameChange={setProjectName}
+        brandSettings={brandSettings}
+        onBrandSettingsChange={setBrandSettings}
+        canUploadLogo={false}
+        isUploadingLogo={false}
+        isSaving={isSavingBrandSettings}
+        onLogoUpload={() => {}}
+        onLogoDelete={() => {}}
+        onSave={saveBrandSettings}
+        onReset={resetBrandSettings}
+      />
 
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Settings size={20} className="text-gray-600 dark:text-gray-400" />
-                <h3 className="font-bold text-white text-lg">General Settings</h3>
-              </div>
-              <button 
-                onClick={() => setIsSettingsOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Project Name</label>
-                <input 
-                  type="text" 
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                  placeholder="Untitled Project"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Author Handle</label>
-                <input 
-                  type="text" 
-                  value={brandSettings.handle}
-                  onChange={(e) => setBrandSettings({ ...brandSettings, handle: e.target.value })}
-                  className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                  placeholder="@handle"
-                />
-                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Category / Series</label>
-                <input 
-                  type="text" 
-                  value={brandSettings.category}
-                  onChange={(e) => setBrandSettings({ ...brandSettings, category: e.target.value })}
-                  className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#ffd700] transition"
-                  placeholder="Category"
-                />
-                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Brand Logo</label>
-                  {!canUploadLogo && (
-                    <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-medium">PRO</span>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {brandSettings.logoUrl ? (
-                    <div className="relative">
-                      <div className="w-full h-32 bg-gray-900/50 border border-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={brandSettings.logoUrl} 
-                          alt="Brand Logo" 
-                          className="max-w-full max-h-full object-contain"
-                        />
-                      </div>
-                      <button
-                        onClick={handleLogoDelete}
-                        disabled={isSavingBrandSettings}
-                        className="mt-2 w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-500 font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        <Trash2 size={16} />
-                        Delete Logo
-                      </button>
-                    </div>
-                  ) : canUploadLogo ? (
-                    <div className="w-full">
-                      <input
-                        ref={logoUploadInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => logoUploadInputRef.current?.click()}
-                        disabled={isUploadingLogo}
-                        className="w-full px-4 py-3 bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isUploadingLogo ? (
-                          <>
-                            <Loader2 size={16} className="animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={16} />
-                            Upload Logo
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="w-full">
-                      <Link 
-                        href="/pricing"
-                        className="w-full px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg transition flex items-center justify-center gap-2 text-purple-300 hover:text-purple-200"
-                      >
-                        <Upload size={16} />
-                        <span>Upgrade to Upload Logo</span>
-                      </Link>
-                      <p className="text-xs text-gray-500 mt-2">Logo upload is available on Starter, Pro, and Enterprise plans.</p>
-                    </div>
-                  )}
-                </div>
-                {canUploadLogo && (
-                  <p className="text-xs text-gray-500">Upload your brand logo (max 10MB). Applies to all slides and persists across sessions.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Font Family</label>
-                <div className="grid grid-cols-2 gap-2">
-                    {[
-                        { name: 'Inter', value: 'var(--font-inter)' },
-                        { name: 'Playfair', value: 'var(--font-playfair)' },
-                        { name: 'Oswald', value: 'var(--font-oswald)' },
-                        { name: 'Roboto Mono', value: 'var(--font-roboto-mono)' }
-                    ].map(font => (
-                        <button
-                            key={font.name}
-                            onClick={() => setBrandSettings({ ...brandSettings, fontFamily: font.value })}
-                            className={`px-3 py-2 rounded-lg text-sm border transition ${brandSettings.fontFamily === font.value ? 'border-[#ffd700] bg-[#ffd700]/10 text-[#ffd700]' : 'border-gray-700 hover:border-gray-500 text-gray-300'}`}
-                            style={{ fontFamily: font.value }}
-                        >
-                            {font.name}
-                        </button>
-                    ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                   <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Colors</label>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Background</label>
-                                <div className="flex items-center gap-2">
-                                    <div className="relative w-full h-8">
-                                        <input 
-                                            type="color"
-                                            value={brandSettings.backgroundColor}
-                                            onChange={(e) => setBrandSettings({ ...brandSettings, backgroundColor: e.target.value })}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        />
-                                        <div 
-                                            className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: brandSettings.backgroundColor }}
-                                        >
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Text</label>
-                                <div className="flex items-center gap-2">
-                                    <div className="relative w-full h-8">
-                                        <input 
-                                            type="color"
-                                            value={brandSettings.textColor}
-                                            onChange={(e) => setBrandSettings({ ...brandSettings, textColor: e.target.value })}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        />
-                                        <div 
-                                            className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: brandSettings.textColor }}
-                                        >
-                                            <span className="text-xs font-bold mix-blend-difference text-white">Aa</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                             <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Accent</label>
-                                <div className="flex items-center gap-2">
-                                    <div className="relative w-full h-8">
-                                        <input 
-                                            type="color"
-                                            value={brandSettings.accentColor}
-                                            onChange={(e) => setBrandSettings({ ...brandSettings, accentColor: e.target.value })}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        />
-                                        <div 
-                                            className="w-full h-full rounded-lg border border-gray-700 flex items-center justify-center"
-                                            style={{ backgroundColor: brandSettings.accentColor }}
-                                        >
-                                            <Palette size={14} className="text-black mix-blend-difference" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                   </div>
-
-                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Accent Presets</label>
-                    <div className="flex gap-2 items-center">
-                    {['#ffd700', '#ff4d4d', '#4dff4d', '#4da6ff', '#ff4dff'].map(color => (
-                        <button
-                            key={color}
-                            onClick={() => setBrandSettings({ ...brandSettings, accentColor: color })}
-                            className={`w-8 h-8 rounded-full border-2 transition ${brandSettings.accentColor === color ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
-                            style={{ backgroundColor: color }}
-                        />
-                    ))}
-                </div>
-                <p className="text-xs text-gray-500">Applies to all slides and persists across sessions</p>
-              </div>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <button
-                onClick={resetBrandSettings}
-                disabled={isSavingBrandSettings}
-                className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <X size={16} />
-                Reset to Defaults
-              </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    await saveBrandSettings();
-                    setIsSettingsOpen(false);
-                  }}
-                  disabled={isSavingBrandSettings}
-                  className="px-6 py-2.5 bg-[#ffd700] hover:bg-yellow-400 text-black font-bold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSavingBrandSettings ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Features Modal */}
-      {isAiFeaturesOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <div className="flex items-center gap-2 text-purple-400">
-                <Sparkles size={24} />
-                <h3 className="font-bold text-white text-xl">AI Features</h3>
-              </div>
-              <button 
-                onClick={() => setIsAiFeaturesOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-              {/* Research Agent */}
-              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Search size={18} className="text-purple-400" />
-                  <h4 className="font-semibold text-white">Research Agent</h4>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Research any topic and get comprehensive insights</p>
-                <input
-                  type="text"
-                  value={researchTopic}
-                  onChange={(e) => setResearchTopic(e.target.value)}
-                  placeholder="Enter topic to research..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition"
-                />
-                <button
-                  onClick={() => handleResearch(false)}
-                  disabled={isResearching || !researchTopic.trim()}
-                  className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isResearching ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Researching...
-                    </>
-                  ) : (
-                    <>
-                      <Search size={16} />
-                      Research
-                    </>
-                  )}
-                </button>
-                {researchResult && (
-                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
-                    <p className="text-xs text-green-400 mb-2">✓ Research completed</p>
-                    <button
-                      onClick={() => {
-                        setActiveAiToolResult({
-                          tool: 'research',
-                          data: researchResult,
-                          query: researchTopic
-                        });
-                        setIsAiFeaturesOpen(false);
-                      }}
-                      className="text-xs text-purple-400 hover:text-purple-300 underline"
-                    >
-                      View full results →
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Design Suggestions */}
-              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Lightbulb size={18} className="text-yellow-400" />
-                  <h4 className="font-semibold text-white">Design Suggestions</h4>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Get AI-powered design recommendations</p>
-                <button
-                  onClick={handleGetDesignSuggestions}
-                  disabled={isAnalyzingDesign}
-                  className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isAnalyzingDesign ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Lightbulb size={16} />
-                      Get Suggestions
-                    </>
-                  )}
-                </button>
-                {designSuggestions && (
-                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
-                    <p className="text-xs text-green-400 mb-2">✓ Analysis completed</p>
-                    <button
-                      onClick={() => {
-                        setActiveAiToolResult({
-                          tool: 'design',
-                          data: designSuggestions,
-                          query: 'Design Analysis'
-                        });
-                        setIsAiFeaturesOpen(false);
-                      }}
-                      className="text-xs text-yellow-400 hover:text-yellow-300 underline"
-                    >
-                      View full results →
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Performance Prediction */}
-              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={18} className="text-green-400" />
-                  <h4 className="font-semibold text-white">Performance Prediction</h4>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Predict how your carousel will perform</p>
-                <button
-                  onClick={handlePredictPerformance}
-                  disabled={isPredictingPerformance || slides.length === 0}
-                  className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isPredictingPerformance ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp size={16} />
-                      Predict Performance
-                    </>
-                  )}
-                </button>
-                {performancePrediction && (
-                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-green-400">✓ Prediction completed</p>
-                      <span className="text-sm font-bold text-green-400">{performancePrediction.engagementScore}/100</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setActiveAiToolResult({
-                          tool: 'performance',
-                          data: performancePrediction,
-                          query: 'Performance Analysis'
-                        });
-                        setIsAiFeaturesOpen(false);
-                      }}
-                      className="text-xs text-green-400 hover:text-green-300 underline"
-                    >
-                      View full results →
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Actions */}
-              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Wand2 size={18} className="text-blue-400" />
-                  <h4 className="font-semibold text-white">Quick Actions</h4>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">AI-powered content improvements</p>
-                
-                {/* SEO Optimization */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-gray-500 uppercase tracking-wide">Optimize for SEO</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
-                        if (content) handleEnhanceContent('seo', content);
-                      }}
-                      disabled={!!isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
-                      className="flex-1 px-3 py-2 text-xs bg-blue-600/20 border border-blue-600/50 hover:bg-blue-600/30 text-blue-400 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                    >
-                      {isEnhancingContent === 'seo-current' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                      Current Slide
-                    </button>
-                    <button
-                      onClick={() => handleEnhanceAllSlides('seo')}
-                      disabled={!!isEnhancingContent || slides.length === 0}
-                      className="flex-1 px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                    >
-                      {isEnhancingContent === 'seo-all' ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                      All {slides.length} Slides
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tone Adjustment */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-gray-500 uppercase tracking-wide">Adjust Tone</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const content = activeSlide.content || activeSlide.title || activeSlide.subtitle || '';
-                        if (content) handleEnhanceContent('tone', content);
-                      }}
-                      disabled={!!isEnhancingContent || !(activeSlide.content || activeSlide.title || activeSlide.subtitle)}
-                      className="flex-1 px-3 py-2 text-xs bg-gray-700/50 border border-gray-600 hover:bg-gray-700 text-gray-300 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                    >
-                      {isEnhancingContent === 'tone-current' ? <Loader2 size={12} className="animate-spin" /> : null}
-                      Current Slide
-                    </button>
-                    <button
-                      onClick={() => handleEnhanceAllSlides('tone')}
-                      disabled={!!isEnhancingContent || slides.length === 0}
-                      className="flex-1 px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                    >
-                      {isEnhancingContent === 'tone-all' ? <Loader2 size={12} className="animate-spin" /> : null}
-                      All {slides.length} Slides
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end">
-              <button
-                onClick={() => setIsAiFeaturesOpen(false)}
-                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Mobile Slides Drawer */}
       {isMobileSlidesOpen && (
@@ -5290,22 +3415,22 @@ function DashboardContent() {
             className="absolute inset-0 bg-black/70"
             onClick={() => setIsMobileSlidesOpen(false)}
           />
-          <div className="relative z-10 w-full bg-white dark:bg-[#0f1117] border-t border-gray-200 dark:border-gray-800 rounded-t-3xl p-4 max-h-[80vh]">
+          <div className="relative z-10 w-full bg-[var(--surface-1)] border-t border-[var(--border)] rounded-t-3xl p-4 max-h-[80vh]">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-[var(--text-muted)]">
                 <Layout size={18} />
                 <span className="text-sm font-bold uppercase tracking-wider">Slides ({slides.length})</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={addNewSlide}
-                  className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-gray-300 transition"
+                  className="w-8 h-8 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] rounded-full flex items-center justify-center text-[var(--text-secondary)] transition"
                 >
                   <Plus size={16} />
                 </button>
                 <button
                   onClick={() => setIsMobileSlidesOpen(false)}
-                  className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-gray-300 transition"
+                  className="w-8 h-8 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] rounded-full flex items-center justify-center text-[var(--text-secondary)] transition"
                 >
                   <X size={16} />
                 </button>
@@ -5319,15 +3444,15 @@ function DashboardContent() {
                     setActiveSlideId(slide.id);
                     setIsMobileSlidesOpen(false);
                   }}
-                  className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-gray-800/60 border-[#ffd700]/50 shadow-lg' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/40 hover:border-gray-700'}`}
+                  className={`group cursor-pointer rounded-xl transition-all duration-200 border ${activeSlideId === slide.id ? 'bg-[var(--surface-2)]/60 border-[var(--accent)]/50 shadow-lg' : 'border-transparent hover:bg-[var(--surface-2)]/40 hover:border-[var(--border-hover)]'}`}
                 >
                   <div className="p-3 flex items-center gap-3">
-                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 w-12">#{index + 1}</div>
+                    <div className="text-xs font-medium text-[var(--text-muted)] w-12">#{index + 1}</div>
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-white truncate">{slide.title}</div>
-                      <div className="text-xs text-gray-500">{slide.type === 'cover' ? 'Cover slide' : 'Content slide'}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{slide.type === 'cover' ? 'Cover slide' : 'Content slide'}</div>
                     </div>
-                    <div className="w-16 h-16 bg-gray-900 rounded-lg border border-gray-700/50 overflow-hidden flex items-center justify-center">
+                    <div className="w-16 h-16 bg-[var(--surface-1)] rounded-lg border border-[var(--border-hover)]/50 overflow-hidden flex items-center justify-center">
                       <div className="transform scale-[0.12] origin-center pointer-events-none">
                         <Slide {...slide} />
                       </div>
@@ -5336,9 +3461,19 @@ function DashboardContent() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleRegenerateSlide(slide.id);
+                        }}
+                        className="px-3 py-1 rounded-lg border border-[var(--border-hover)] text-yellow-300 text-xs hover:border-yellow-500 transition disabled:opacity-40"
+                        disabled={regeneratingSlideId !== null}
+                      >
+                        {regeneratingSlideId === slide.id ? 'Refining…' : 'Refine'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDownloadSlideImage(slide, index);
                         }}
-                        className="px-3 py-1 rounded-lg border border-gray-700 text-gray-200 text-xs hover:text-white hover:border-gray-500 transition disabled:opacity-40"
+                        className="px-3 py-1 rounded-lg border border-[var(--border-hover)] text-[var(--text-secondary)] text-xs hover:text-white hover:border-[var(--border-hover)] transition disabled:opacity-40"
                         disabled={downloadingSlideId !== null && downloadingSlideId !== slide.id}
                       >
                         {downloadingSlideId === slide.id ? 'Downloading…' : 'Download'}
@@ -5348,7 +3483,7 @@ function DashboardContent() {
                           e.stopPropagation();
                           handleDeleteSlide(slide.id);
                         }}
-                        className="px-3 py-1 rounded-lg border border-gray-700 text-red-300 text-xs hover:border-red-500 transition disabled:opacity-40"
+                        className="px-3 py-1 rounded-lg border border-[var(--border-hover)] text-red-300 text-xs hover:border-red-500 transition disabled:opacity-40"
                         disabled={slides.length === 1}
                       >
                         Delete
@@ -5369,14 +3504,14 @@ function DashboardContent() {
             className="absolute inset-0 bg-black/70"
             onClick={() => setIsMobileSidebarOpen(false)}
           />
-          <div className="relative z-10 w-64 bg-white dark:bg-[#0f1117] border-r border-gray-200 dark:border-gray-800 h-full p-5 flex flex-col gap-4 shadow-2xl">
+          <div className="relative z-10 w-64 bg-[var(--surface-1)] border-r border-[var(--border)] h-full p-5 flex flex-col gap-4 shadow-2xl">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                 Tools
               </span>
               <button
                 onClick={() => setIsMobileSidebarOpen(false)}
-                className="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 transition"
+                className="w-8 h-8 rounded-full bg-[var(--surface-2)] hover:bg-[var(--surface-3)] flex items-center justify-center text-[var(--text-secondary)] transition"
               >
                 <X size={16} />
               </button>
@@ -5389,43 +3524,30 @@ function DashboardContent() {
                     handleToolClick('text');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-hover)] hover:bg-[var(--surface-3)] transition"
                 >
-                    <Type size={20} className="text-[#ffd700]" />
-                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Text</span>
+                    <Type size={20} className="text-[var(--accent)]" />
+                    <span className="text-[10px] font-medium text-[var(--text-muted)]">Text</span>
                 </button>
                 <button
                   onClick={() => {
                     handleToolClick('image');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-hover)] hover:bg-[var(--surface-3)] transition"
                 >
                     <ImageIcon size={20} className="text-blue-400" />
-                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Image</span>
-                </button>
-                 <button
-                  onClick={() => {
-                    handleToolClick('image-all');
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
-                >
-                    <div className="relative">
-                        <ImageIcon size={20} className="text-purple-400" />
-                        <div className="absolute -bottom-1 -right-2 text-[8px] font-bold bg-purple-500 text-white px-1 rounded">ALL</div>
-                    </div>
-                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">All</span>
+                    <span className="text-[10px] font-medium text-[var(--text-muted)]">Image</span>
                 </button>
                 <button
                   onClick={() => {
                     handleToolClick('color');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition"
+                  className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-hover)] hover:bg-[var(--surface-3)] transition"
                 >
                     <Palette size={20} className="text-pink-400" />
-                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">Color</span>
+                    <span className="text-[10px] font-medium text-[var(--text-muted)]">Color</span>
                 </button>
             </div>
 
@@ -5436,20 +3558,20 @@ function DashboardContent() {
                     handleUndo();
                   }}
                   disabled={!canUndo}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border-hover)] hover:bg-[var(--surface-3)] transition disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                    <Undo2 size={18} className="text-gray-300" />
-                    <span className="text-xs font-medium text-gray-300">Undo</span>
+                    <Undo2 size={18} className="text-[var(--text-secondary)]" />
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">Undo</span>
                 </button>
                 <button
                   onClick={() => {
                     handleRedo();
                   }}
                   disabled={!canRedo}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border-hover)] hover:bg-[var(--surface-3)] transition disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                    <Redo2 size={18} className="text-gray-300" />
-                    <span className="text-xs font-medium text-gray-300">Redo</span>
+                    <Redo2 size={18} className="text-[var(--text-secondary)]" />
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">Redo</span>
                 </button>
             </div>
 
@@ -5458,7 +3580,7 @@ function DashboardContent() {
                 setIsExportOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#ffd700] text-black font-bold border border-[#ffd700] hover:bg-yellow-400 transition mb-2"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--accent)] text-black font-bold border border-[var(--accent)] hover:bg-[var(--accent-hover)] transition mb-2"
             >
               <Download size={18} />
               Export Carousel
@@ -5468,7 +3590,7 @@ function DashboardContent() {
                 setIsTemplatesOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-800 text-gray-200 border border-gray-700 hover:border-gray-600 transition"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--surface-2)] text-[var(--text-secondary)] border border-[var(--border-hover)] hover:border-[var(--border-hover)] transition"
             >
               <Layout size={18} />
               Templates
@@ -5478,27 +3600,17 @@ function DashboardContent() {
                 setIsAiModalOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-800 text-gray-200 border border-gray-700 hover:border-gray-600 transition"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--surface-2)] text-[var(--text-secondary)] border border-[var(--border-hover)] hover:border-[var(--border-hover)] transition"
             >
               <Sparkles size={18} />
               AI Generate
             </button>
             <button
               onClick={() => {
-                setIsAiFeaturesOpen(true);
-                setIsMobileSidebarOpen(false);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 transition"
-            >
-              <Sparkles size={18} />
-              AI Tools
-            </button>
-            <button
-              onClick={() => {
                 setIsSettingsOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-800 text-gray-200 border border-gray-700 hover:border-gray-600 transition"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--surface-2)] text-[var(--text-secondary)] border border-[var(--border-hover)] hover:border-[var(--border-hover)] transition"
             >
               <Palette size={18} />
               Theme & Settings
@@ -5508,7 +3620,7 @@ function DashboardContent() {
                 setIsMobileSlidesOpen(true);
                 setIsMobileSidebarOpen(false);
               }}
-              className="mt-auto px-4 py-3 rounded-2xl bg-gray-900 text-white border border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition flex items-center justify-between"
+              className="mt-auto px-4 py-3 rounded-2xl bg-[var(--surface-1)] text-white border border-[var(--border-hover)] hover:bg-[var(--surface-2)] transition flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
                 <Layout size={18} />
@@ -5520,245 +3632,16 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Templates Modal */}
-      {isTemplatesOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <Layout size={20} className="text-[#ffd700]" />
-                <div>
-                  <h3 className="font-bold text-white text-lg">Theme Gallery</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Choose from 5 carefully curated themes</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsTemplatesOpen(false)}
-                className="text-gray-400 hover:text-white transition p-2 hover:bg-gray-800 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 flex-1 flex items-center justify-center overflow-hidden">
-              {/* Horizontal layout: All 5 themes in a single row */}
-              <div className="w-full max-w-6xl">
-                <div className="grid grid-cols-5 gap-4">
-                  {THEMES.map((theme) => {
-                  // Find matching template from BOLD_TEMPLATES if it's a full template
-                  const fullTemplate = theme.isFullTemplate 
-                    ? BOLD_TEMPLATES.find(t => t.id === theme.id.replace('-template', ''))
-                    : null;
-
-                  // Get category display name
-                  const categoryLabels: Record<string, string> = {
-                    'Professional': 'Professional',
-                    'Minimalist': 'Minimalist',
-                    'Dark Mode': 'Dark Mode',
-                    'Bold': 'Bold',
-                    'Premium': 'Premium',
-                    'Educational Templates': 'Template'
-                  };
-
-                  return (
-                    <div 
-                      key={theme.id}
-                      onClick={async () => {
-                        if (theme.isFullTemplate && fullTemplate) {
-                          // Apply template STYLING to existing slides (preserve user content)
-                          const templateFirst = fullTemplate.slides[0];
-                          // Use functional update to get current state (not stale closure)
-                          setSlides(prevSlides => prevSlides.map((s, idx) => {
-                            // Get matching template slide for styling (cycle if fewer template slides)
-                            const templateSlide = fullTemplate.slides[idx % fullTemplate.slides.length];
-                            return {
-                              ...s,
-                              // Apply template styling
-                              backgroundColor: templateSlide.backgroundColor,
-                              textColor: templateSlide.textColor,
-                              accentColor: templateSlide.accentColor,
-                              fontFamily: templateSlide.fontFamily,
-                              fontScale: templateSlide.fontScale,
-                              // Keep user's content: title, subtitle, content, media, customBlocks, etc.
-                            };
-                          }));
-                          // Update brand settings to match template colors/fonts
-                          const newBrand = {
-                            ...brandSettings,
-                            backgroundColor: templateFirst.backgroundColor,
-                            textColor: templateFirst.textColor,
-                            accentColor: templateFirst.accentColor,
-                            fontFamily: templateFirst.fontFamily,
-                          };
-                          setBrandSettings({
-                            handle: newBrand.handle,
-                            category: newBrand.category,
-                            fontFamily: newBrand.fontFamily || 'var(--font-inter)',
-                            backgroundColor: newBrand.backgroundColor || '#0B0F19',
-                            textColor: newBrand.textColor || '#ffffff',
-                            accentColor: newBrand.accentColor || '#ffd700',
-                            logoUrl: newBrand.logoUrl,
-                          });
-                          if (typeof window !== 'undefined' && status !== 'authenticated') {
-                            localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
-                          }
-                          toast.success(`Applied "${theme.name}" styling to your slides!`);
-                          addToHistory(slides);
-                        } else {
-                          // Apply theme colors/fonts AND unique design properties to existing slides
-                          // Use functional update to get current state (not stale closure)
-                          setSlides(prevSlides => prevSlides.map(s => {
-                            const updatedSlide = {
-                              ...s,
-                              backgroundColor: theme.backgroundColor,
-                              textColor: theme.textColor,
-                              accentColor: theme.accentColor,
-                              fontFamily: theme.fontFamily,
-                              // Apply unique design properties
-                              fontScale: theme.fontScale ?? s.fontScale ?? 1,
-                              textAlign: theme.textAlign ?? s.textAlign ?? 'left',
-                              elementOrder: theme.elementOrder ?? s.elementOrder
-                            };
-                            
-                            // Only update category if the theme specifically defines one
-                            if (theme.defaultCategory) {
-                              updatedSlide.category = theme.defaultCategory;
-                            }
-                            
-                            return updatedSlide;
-                          }));
-                          // Update brand settings state and persist for non-auth users
-                          const newBrand = {
-                            ...brandSettings,
-                            backgroundColor: theme.backgroundColor,
-                            textColor: theme.textColor,
-                            accentColor: theme.accentColor,
-                            fontFamily: theme.fontFamily
-                          };
-                          setBrandSettings(newBrand);
-                          if (typeof window !== 'undefined' && status !== 'authenticated') {
-                            localStorage.setItem('carouslk_brand_settings', JSON.stringify(newBrand));
-                          }
-                          toast.success(`Applied "${theme.name}" theme with unique design!`);
-                        }
-                        setIsTemplatesOpen(false);
-                      }}
-                      className="group cursor-pointer relative bg-gray-900 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-[#ffd700] transition-all hover:shadow-xl hover:shadow-[#ffd700]/20 hover:scale-[1.02]"
-                    >
-                      {/* Preview Card */}
-                      <div className="aspect-[3/4] p-3 flex flex-col justify-center items-center gap-1.5 relative overflow-hidden" style={{ backgroundColor: theme.backgroundColor }}>
-                        {/* Category Badge */}
-                        <div className="absolute top-1.5 right-1.5">
-                          <span className="px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider rounded-full bg-black/20 backdrop-blur-sm text-white border border-white/10">
-                            {categoryLabels[theme.category] || theme.category}
-                          </span>
-                        </div>
-                        
-                        <div className={`w-full h-full flex flex-col ${theme.textAlign === 'center' ? 'items-center justify-center text-center' : theme.textAlign === 'right' ? 'items-end justify-center text-right' : 'items-start justify-center text-left'} space-y-1 px-2`}>
-                          {theme.isFullTemplate ? (
-                            <>
-                              <div className="text-2xl mb-0.5">{theme.name.split(' ')[0]}</div>
-                              <div className="text-xs font-bold px-1.5" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                {fullTemplate?.slides[0]?.title || 'Template'}
-                              </div>
-                              <div className="text-[9px] opacity-70 px-1.5" style={{ color: theme.textColor }}>
-                                {fullTemplate?.slides.length} slides
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              {/* Unique preview layouts for each theme */}
-                              {theme.id === 'nordic-frost' && (
-                                <>
-                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
-                                    Title
-                                  </div>
-                                  <div className="text-[9px] opacity-80 leading-tight" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Clean minimal design<br/>with left alignment
-                                  </div>
-                                </>
-                              )}
-                              {theme.id === 'clean-studio' && (
-                                <>
-                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
-                                    Title
-                                  </div>
-                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Elegant centered<br/>professional style
-                                  </div>
-                                </>
-                              )}
-                              {theme.id === 'corporate-blue' && (
-                                <>
-                                  <div className="text-[8px] mb-0.5 opacity-60" style={{ color: theme.accentColor }}>💼</div>
-                                  <div className="text-xs font-bold mb-1" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
-                                    Title
-                                  </div>
-                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Bold corporate<br/>with emoji support
-                                  </div>
-                                </>
-                              )}
-                              {theme.id === 'midnight-gold' && (
-                                <>
-                                  <div className="text-xs font-bold mb-0.5" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
-                                    Title
-                                  </div>
-                                  <div className="text-[8px] opacity-70 mb-0.5" style={{ color: theme.textColor }}>
-                                    Subtitle
-                                  </div>
-                                  <div className="text-[9px] opacity-80" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Modern centered<br/>with subtitle
-                                  </div>
-                                </>
-                              )}
-                              {theme.id === 'deep-ocean' && (
-                                <>
-                                  <div className="text-[9px] opacity-80 mb-1 text-right w-full" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Content first<br/>approach
-                                  </div>
-                                  <div className="text-xs font-bold text-right w-full" style={{ color: theme.textColor, fontFamily: theme.fontFamily, fontSize: `${(theme.fontScale || 1) * 0.875}rem` }}>
-                                    Title
-                                  </div>
-                                </>
-                              )}
-                              {!['nordic-frost', 'clean-studio', 'corporate-blue', 'midnight-gold', 'deep-ocean'].includes(theme.id) && (
-                                <>
-                                  <div className="text-sm font-bold" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Title
-                                  </div>
-                                  <div className="text-[10px] opacity-90" style={{ color: theme.textColor, fontFamily: theme.fontFamily }}>
-                                    Subtitle <span style={{ color: theme.accentColor, fontWeight: 'bold' }}>Accent</span>
-                                  </div>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Footer */}
-                      <div className="p-2 bg-gray-900 border-t border-gray-700">
-                        <div className="text-center">
-                          <span className="text-[10px] font-semibold text-white block truncate">{theme.name}</span>
-                          <span className="text-[9px] text-gray-400 mt-0.5 block truncate">{categoryLabels[theme.category] || theme.category}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1 mt-1.5">
-                          <span className="text-[9px] text-[#ffd700] opacity-0 group-hover:opacity-100 transition font-medium">
-                            {theme.isFullTemplate ? 'Use' : 'Apply'}
-                          </span>
-                          <ArrowRight size={12} className="text-[#ffd700] opacity-0 group-hover:opacity-100 transition transform group-hover:translate-x-0.5" />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ThemeGalleryModal
+        isOpen={isTemplatesOpen}
+        onClose={closeTemplates}
+        setSlides={setSlides}
+        brandSettings={brandSettings}
+        setBrandSettings={setBrandSettings}
+        authStatus={status}
+        addToHistory={addToHistory}
+        slides={slides}
+      />
 
       {/* Image Preview Modal */}
       {previewImageUrl && (
@@ -5769,7 +3652,7 @@ function DashboardContent() {
           <div className="relative max-w-[90vw] max-h-[90vh]">
             <button
               onClick={() => setPreviewImageUrl(null)}
-              className="absolute -top-12 right-0 text-white hover:text-[#ffd700] transition flex items-center gap-2"
+              className="absolute -top-12 right-0 text-white hover:text-[var(--accent)] transition flex items-center gap-2"
             >
               <span className="text-sm">Press ESC or click anywhere to close</span>
               <X size={24} />
@@ -5786,7 +3669,7 @@ function DashboardContent() {
                 download="infographic.png"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 bg-[#ffd700] text-black font-semibold rounded-lg hover:bg-yellow-400 transition flex items-center gap-2"
+                className="px-4 py-2 bg-[var(--accent)] text-black font-semibold rounded-lg hover:bg-[var(--accent-hover)] transition flex items-center gap-2"
                 onClick={(e) => e.stopPropagation()}
               >
                 <Download size={18} />
@@ -5797,7 +3680,7 @@ function DashboardContent() {
                   e.stopPropagation();
                   window.open(previewImageUrl, '_blank');
                 }}
-                className="px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition flex items-center gap-2"
+                className="px-4 py-2 bg-[var(--surface-3)] text-white font-semibold rounded-lg hover:bg-[var(--surface-3)] transition flex items-center gap-2"
               >
                 <ExternalLink size={18} />
                 Open in New Tab
@@ -5807,1390 +3690,170 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* AI Modal - Horizontal Layout */}
-      {isAiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-6xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[95vh] flex flex-col">
-            <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2 text-[#ffd700]">
-                <Sparkles size={18} />
-                <h3 className="font-bold text-white text-base">Generate with AI</h3>
-              </div>
-              <button 
-                onClick={() => setIsAiModalOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="p-4 flex-1 overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
-                {/* Left Column: Input & Sources */}
-                <div className="space-y-3 flex flex-col min-h-0">
-              {/* Input Source Tabs */}
-              <div className="flex gap-1 p-1 bg-gray-900/50 rounded-xl shrink-0">
-                <button
-                  onClick={() => setAiInputTab('prompt')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    aiInputTab === 'prompt'
-                      ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <Type size={16} />
-                  <span className="hidden sm:inline">Topic</span>
-                </button>
-                <button
-                  onClick={() => setAiInputTab('document')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    aiInputTab === 'document'
-                      ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <FileText size={16} />
-                  <span className="hidden sm:inline">Document</span>
-                </button>
-                <button
-                  onClick={() => setAiInputTab('url')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    aiInputTab === 'url'
-                      ? 'bg-[#ffd700] text-black'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <Link2 size={16} />
-                  <span className="hidden sm:inline">URL</span>
-                </button>
-              </div>
-
-              {/* Tab Content: Topic/Prompt */}
-              {aiInputTab === 'prompt' && (
-                <div className="flex-1 flex flex-col min-h-0">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-                    What&apos;s your carousel about?
-                  </label>
-                  <textarea
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="e.g., 5 tips for better sleep, How to learn React in 2024..."
-                    className="w-full flex-1 min-h-[80px] bg-gray-900/50 border border-gray-700 rounded-xl p-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] resize-none transition"
-                    autoFocus
-                  />
-                </div>
-              )}
-
-              {/* Tab Content: Document Upload */}
-              {aiInputTab === 'document' && (
-                <div className="space-y-2 flex-1 flex flex-col min-h-0">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                    Upload your document
-                  </label>
-                  <input
-                    ref={docUploadInputRef}
-                    type="file"
-                    accept=".md,.markdown,.docx,.txt,.pdf"
-                    className="hidden"
-                    onChange={handleDocUpload}
-                  />
-                  {docAttachment ? (
-                    <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-2.5 space-y-2 flex-1 min-h-0 overflow-y-auto">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 text-white font-medium text-xs">
-                            <FileText size={14} className="text-[#ffd700] shrink-0" />
-                            <span className="truncate">{docAttachment.name}</span>
-                          </div>
-                          <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-                            {docAttachment.wordCount ?? '—'} words
-                            {docAttachment.truncated ? ' • trimmed' : ''}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={clearDocAttachment}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition shrink-0"
-                          title="Remove attachment"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                      {docAttachment.sections && docAttachment.sections.length > 0 && (
-                        <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5 max-h-20 overflow-y-auto">
-                          <p className="font-semibold text-gray-300">Sections</p>
-                          <ul className="list-disc pl-3 space-y-0.5">
-                            {docAttachment.sections.slice(0, 4).map((section, idx) => (
-                              <li key={idx} className="truncate">{section}</li>
-                            ))}
-                            {docAttachment.sections.length > 4 && (
-                              <li>+ {docAttachment.sections.length - 4} more…</li>
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => docUploadInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition"
-                    >
-                      {isUploadingDoc ? (
-                        <>
-                          <Loader2 size={14} className="animate-spin" />
-                          Reading...
-                        </>
-                      ) : (
-                        <>
-                          <Paperclip size={14} />
-                          Upload Document
-                        </>
-                      )}
-                    </button>
-                  )}
-                  {docUploadError && (
-                    <p className="text-xs text-red-400">{docUploadError}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Tab Content: URL Import */}
-              {aiInputTab === 'url' && (
-                <div className="space-y-2 flex-1 flex flex-col min-h-0">
-                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-2 shrink-0">
-                    <div className="flex items-start gap-2">
-                      <RefreshCw size={14} className="text-purple-400 shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-white text-xs">Repurpose Your Content</h4>
-                        <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-                          Turn blog posts into engaging carousels
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {urlAttachment ? (
-                    <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-2.5 space-y-2 flex-1 min-h-0 overflow-y-auto">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 text-white font-medium text-xs">
-                            <Globe size={14} className="text-[#ffd700] shrink-0" />
-                            <span className="truncate">{urlAttachment.title}</span>
-                          </div>
-                          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-                            {urlAttachment.sourceDomain}
-                          </p>
-                          <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-                            {urlAttachment.wordCount ?? '—'} words
-                            {urlAttachment.truncated ? ' • trimmed' : ''}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={clearUrlAttachment}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-400 transition shrink-0"
-                          title="Remove URL"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                      {urlAttachment.sections && urlAttachment.sections.length > 0 && (
-                        <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5 max-h-20 overflow-y-auto">
-                          <p className="font-semibold text-gray-300">Sections</p>
-                          <ul className="list-disc pl-3 space-y-0.5">
-                            {urlAttachment.sections.slice(0, 4).map((section, idx) => (
-                              <li key={idx} className="truncate">{section}</li>
-                            ))}
-                            {urlAttachment.sections.length > 4 && (
-                              <li>+ {urlAttachment.sections.length - 4} more…</li>
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col gap-2 min-h-0">
-                      <div className="shrink-0">
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Paste your content URL
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="url"
-                            value={urlInput}
-                            onChange={(e) => {
-                              setUrlInput(e.target.value);
-                              setUrlError(null);
-                            }}
-                            placeholder="https://yourblog.com/your-article"
-                            className="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] transition"
-                          />
-                          <button
-                            onClick={handleParseUrl}
-                            disabled={isParsingUrl || !urlInput.trim() || !urlOwnershipConfirmed}
-                            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition flex items-center gap-1.5 shrink-0"
-                          >
-                            {isParsingUrl ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Download size={14} />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Ownership Confirmation */}
-                      <label className="flex items-start gap-2 p-2 bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-lg cursor-pointer hover:bg-gray-900/50 transition shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={urlOwnershipConfirmed}
-                          onChange={(e) => {
-                            setUrlOwnershipConfirmed(e.target.checked);
-                            setUrlError(null);
-                          }}
-                          className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0"
-                        />
-                        <div className="flex-1">
-                          <span className="text-xs text-gray-300 font-medium flex items-center gap-1.5">
-                            <CheckCircle2 size={12} className={urlOwnershipConfirmed ? 'text-green-400' : 'text-gray-500'} />
-                            This is my own content
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-                  {urlError && (
-                    <p className="text-xs text-red-400">{urlError}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Show active sources summary */}
-              {(aiInputTab !== 'prompt' && aiPrompt.trim()) || 
-               (aiInputTab !== 'document' && docAttachment) || 
-               (aiInputTab !== 'url' && urlAttachment) ? (
-                <div className="bg-gray-900/30 border border-gray-200 dark:border-gray-800 rounded-lg p-1.5 shrink-0">
-                  <div className="flex flex-wrap gap-1">
-                    {aiPrompt.trim() && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300">
-                        <Type size={10} /> Topic
-                      </span>
-                    )}
-                    {docAttachment && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 truncate max-w-[120px]">
-                        <FileText size={10} /> <span className="truncate">{docAttachment.name}</span>
-                      </span>
-                    )}
-                    {urlAttachment && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-300 truncate max-w-[120px]">
-                        <Globe size={10} /> <span className="truncate">{urlAttachment.sourceDomain}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              {docUploadError && aiInputTab === 'prompt' && (
-                <p className="text-xs text-red-400">{docUploadError}</p>
-              )}
-
-
-                </div>
-
-                {/* Right Column: Settings & Options */}
-                <div className="space-y-3 flex flex-col min-h-0 overflow-y-auto">
-                  {/* Slide Style Options */}
-                  <div className="shrink-0">
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-                      Slide Style
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {/* Text Style - Active */}
-                      <button
-                        onClick={() => setAiSlideStyle('text')}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition ${
-                          aiSlideStyle === 'text'
-                            ? 'border-[#ffd700] bg-[#ffd700]/10'
-                            : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
-                        }`}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-400'}>
-                          <path d="M4 7V4h16v3" />
-                          <path d="M9 20h6" />
-                          <path d="M12 4v16" />
-                        </svg>
-                        <div className="text-center">
-                          <span className={`text-[10px] font-medium ${aiSlideStyle === 'text' ? 'text-[#ffd700]' : 'text-gray-300'}`}>Text</span>
-                        </div>
-                      </button>
-
-                      {/* Graphics Style - Coming Soon */}
-                      <button
-                        disabled
-                        className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
-                        title="Coming Soon"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <circle cx="9" cy="9" r="2" />
-                          <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                        </svg>
-                        <div className="text-center">
-                          <span className="text-[10px] font-medium text-gray-500">Graphics</span>
-                          <p className="text-[9px] text-gray-600 mt-0.5">Soon</p>
-                        </div>
-                      </button>
-
-                      {/* Mixed Style - Coming Soon */}
-                      <button
-                        disabled
-                        className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-700 bg-gray-900/30 opacity-60 cursor-not-allowed relative"
-                        title="Coming Soon"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
-                          <path d="M12 2v20M2 12h20" />
-                          <circle cx="12" cy="12" r="2" />
-                        </svg>
-                        <div className="text-center">
-                          <span className="text-[10px] font-medium text-gray-500">Mixed</span>
-                          <p className="text-[9px] text-gray-600 mt-0.5">Soon</p>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 shrink-0">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Writing Style
-                      </label>
-                      <select
-                        value={aiWritingStyle}
-                        onChange={(e) => setAiWritingStyle(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                      >
-                        <option value="Professional">Professional</option>
-                        <option value="Funny">Funny</option>
-                        <option value="Storytelling">Storytelling</option>
-                        <option value="Inspirational">Inspirational</option>
-                        <option value="Educational">Educational</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Language
-                      </label>
-                      <select
-                        value={aiLanguage}
-                        onChange={(e) => setAiLanguage(e.target.value)}
-                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#ffd700] transition"
-                      >
-                        <option value="en">English</option>
-                        <option value="es">Spanish</option>
-                        <option value="fr">French</option>
-                        <option value="de">German</option>
-                        <option value="it">Italian</option>
-                        <option value="pt">Portuguese</option>
-                        <option value="zh">Chinese</option>
-                        <option value="ja">Japanese</option>
-                        <option value="ko">Korean</option>
-                        <option value="ar">Arabic</option>
-                        <option value="hi">Hindi</option>
-                        <option value="ru">Russian</option>
-                        <option value="nl">Dutch</option>
-                        <option value="sv">Swedish</option>
-                        <option value="pl">Polish</option>
-                      </select>
-                    </div>
-                  </div>
-
-
-                  <div className="shrink-0">
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Target slide count
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={3}
-                        max={50}
-                        step={1}
-                        value={aiSlideCount}
-                        onChange={(e) => setAiSlideCount(parseInt(e.target.value, 10))}
-                        className="flex-1"
-                        style={{ accentColor: '#ffd700' }}
-                      />
-                      <input
-                        type="number"
-                        min={3}
-                        max={50}
-                        value={aiSlideCount}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value, 10);
-                          if (Number.isNaN(value)) return;
-                          setAiSlideCount(Math.min(50, Math.max(3, value)));
-                        }}
-                        className="w-14 bg-gray-900/50 border border-gray-700 rounded-lg px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[#ffd700] transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Words per slide settings */}
-                  <div className="shrink-0">
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Words per slide
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={25}
-                        max={200}
-                        step={5}
-                        value={aiWordCount || 75}
-                        onChange={(e) => setAiWordCount(parseInt(e.target.value, 10))}
-                        className="flex-1"
-                        style={{ accentColor: '#ffd700' }}
-                      />
-                      <input
-                        type="number"
-                        min={25}
-                        max={200}
-                        value={aiWordCount || 75}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value, 10);
-                          if (Number.isNaN(value)) {
-                            setAiWordCount(null);
-                            return;
-                          }
-                          setAiWordCount(Math.min(200, Math.max(25, value)));
-                        }}
-                        className="w-16 bg-gray-900/50 border border-gray-700 rounded-lg px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[#ffd700] transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Advanced Options - Collapsible */}
-                  <div className="shrink-0">
-                    <button
-                      onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
-                      className="w-full flex items-center justify-between p-2 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition"
-                    >
-                      <span className="text-xs font-medium text-gray-300">Advanced Options</span>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform ${isAdvancedOptionsOpen ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {isAdvancedOptionsOpen && (
-                      <div className="mt-2 space-y-2 border-t border-gray-700 pt-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                            Tone
-                          </label>
-                          <select
-                            value={aiTone}
-                            onChange={(e) => setAiTone(e.target.value)}
-                            className="bg-gray-900/50 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#ffd700] transition"
-                          >
-                            <option value="neutral">Neutral</option>
-                            <option value="formal">Formal</option>
-                            <option value="casual">Casual</option>
-                            <option value="friendly">Friendly</option>
-                            <option value="professional">Professional</option>
-                            <option value="conversational">Conversational</option>
-                            <option value="authoritative">Authoritative</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="flex items-center justify-between cursor-pointer">
-                            <span className="text-xs text-gray-300">Auto-hashtags</span>
-                            <input
-                              type="checkbox"
-                              checked={aiAutoHashtags}
-                              onChange={(e) => setAiAutoHashtags(e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-
-                          <label className="flex items-center justify-between cursor-pointer">
-                            <span className="text-xs text-gray-300">Include statistics</span>
-                            <input
-                              type="checkbox"
-                              checked={aiIncludeStats}
-                              onChange={(e) => setAiIncludeStats(e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-
-                          <label className="flex items-center justify-between cursor-pointer">
-                            <span className="text-xs text-gray-300">Accessibility mode</span>
-                            <input
-                              type="checkbox"
-                              checked={aiAccessibility}
-                              onChange={(e) => setAiAccessibility(e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-
-                          <label className="flex items-center justify-between cursor-pointer">
-                            <span className="text-xs text-gray-300">Smart colors</span>
-                            <input
-                              type="checkbox"
-                              checked={aiSmartColors}
-                              onChange={(e) => setAiSmartColors(e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#ffd700] focus:ring-[#ffd700] focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-              
-            {/* Action Buttons at Bottom - Fixed */}
-            <div className="p-3 border-t border-gray-200 dark:border-gray-800 flex justify-start gap-2 shrink-0">
-              <button
-                onClick={() => setIsAiModalOpen(false)}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-white font-medium transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAiGenerate}
-                disabled={(!docAttachment && !aiPrompt.trim() && !urlAttachment) || isGenerating}
-                className="px-4 py-1.5 bg-[#ffd700] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg transition flex items-center gap-2 text-sm"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={16} />
-                    Generate Magic
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dedicated AI Tool Result Modal */}
-      {activeAiToolResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-5xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8 max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                {activeAiToolResult.tool === 'research' && <Search size={24} className="text-purple-400" />}
-                {activeAiToolResult.tool === 'design' && <Lightbulb size={24} className="text-yellow-400" />}
-                {activeAiToolResult.tool === 'performance' && <TrendingUp size={24} className="text-green-400" />}
-                {activeAiToolResult.tool === 'enhancement' && <Wand2 size={24} className="text-blue-400" />}
-                <div>
-                  <h3 className="font-bold text-white text-xl">
-                    {activeAiToolResult.tool === 'research' && 'Research Agent'}
-                    {activeAiToolResult.tool === 'design' && 'Design Suggestions'}
-                    {activeAiToolResult.tool === 'performance' && 'Performance Prediction'}
-                    {activeAiToolResult.tool === 'enhancement' && 'Content Enhancement'}
-                  </h3>
-                  {activeAiToolResult.query && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{activeAiToolResult.query}</p>
-                  )}
-                </div>
-              </div>
-              <button 
-                onClick={() => setActiveAiToolResult(null)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {activeAiToolResult.tool === 'research' && (
-                <div className="space-y-6">
-                  {/* Conversation History */}
-                  {researchHistory.length > 2 && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
-                        <MessageSquare size={14} />
-                        Conversation History
-                      </h4>
-                      <div className="space-y-3 max-h-40 overflow-y-auto">
-                        {researchHistory.slice(0, -2).map((msg, idx) => (
-                          <div key={idx} className={`text-sm ${msg.role === 'user' ? 'text-purple-400' : 'text-gray-500'}`}>
-                            <span className="font-medium">{msg.role === 'user' ? 'You: ' : 'AI: '}</span>
-                            <span className="line-clamp-2">{msg.content.slice(0, 200)}...</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Research Content */}
-                  <div className="prose prose-invert max-w-none">
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <Search size={18} className="text-purple-400" />
-                        Research Results
-                      </h4>
-                      <div 
-                        className="text-gray-300 whitespace-pre-wrap leading-relaxed"
-                        dangerouslySetInnerHTML={{ 
-                          __html: formatMarkdown(activeAiToolResult.data.research || '') 
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Key Points */}
-                  {activeAiToolResult.data.keyPoints && activeAiToolResult.data.keyPoints.length > 0 && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Key Points</h4>
-                      <ul className="space-y-3">
-                        {activeAiToolResult.data.keyPoints.map((point: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-3 text-gray-300">
-                            <span className="text-purple-400 font-bold mt-1">{idx + 1}.</span>
-                            <span className="flex-1">{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Refine Research */}
-                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
-                    <h4 className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
-                      <MessageSquare size={14} />
-                      Refine or Continue Research
-                    </h4>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                      Ask follow-up questions, request more details, or ask to focus on specific aspects.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={researchRefinement}
-                        onChange={(e) => setResearchRefinement(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && researchRefinement.trim()) {
-                            handleResearch(true);
-                          }
-                        }}
-                        placeholder="e.g., Tell me more about..., Focus on..., What about...?"
-                        className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
-                      />
-                      <button
-                        onClick={() => handleResearch(true)}
-                        disabled={isResearching || !researchRefinement.trim()}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {isResearching ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <Send size={16} />
-                        )}
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {['Tell me more details', 'Add statistics', 'Focus on practical examples', 'Simplify this'].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => setResearchRefinement(suggestion)}
-                          className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-full transition"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
-                    <button
-                      onClick={() => {
-                        setResearchHistory([]);
-                        setResearchResult(null);
-                        setActiveAiToolResult(null);
-                        setIsAiFeaturesOpen(true);
-                      }}
-                      className="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:text-white transition flex items-center gap-2"
-                    >
-                      <RefreshCw size={16} />
-                      Start New Research
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAiPrompt(activeAiToolResult.data.research);
-                        setActiveAiToolResult(null);
-                        setIsAiModalOpen(true);
-                      }}
-                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl transition flex items-center gap-2"
-                    >
-                      <Sparkles size={16} />
-                      Use for Generation
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {activeAiToolResult.tool === 'design' && (
-                <div className="space-y-5">
-                  {/* Overall Score Card */}
-                  {activeAiToolResult.data.overallScore && (
-                    <div className="bg-gradient-to-br from-yellow-500/10 via-orange-500/10 to-yellow-600/10 border border-yellow-500/30 rounded-2xl p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 bg-yellow-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <span className="text-2xl font-black text-yellow-400">
-                            {String(activeAiToolResult.data.overallScore).match(/\d+/)?.[0] || '?'}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-semibold text-yellow-400 uppercase tracking-wide mb-1">Design Score</h4>
-                          <p className="text-gray-300 text-sm leading-relaxed">
-                            {String(activeAiToolResult.data.overallScore).replace(/^\d+\/\d+[,.]?\s*/, '')}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Two Column Grid for Colors & Fonts */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Color Suggestions */}
-                    {activeAiToolResult.data.colorSuggestions && (
-                      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                          <Palette size={16} className="text-purple-400" />
-                          Colors
-                        </h4>
-                        <div className="space-y-3">
-                          {activeAiToolResult.data.colorSuggestions.accentColor && (
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex-shrink-0 shadow-inner" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Accent</p>
-                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.accentColor).split(',')[0]}</p>
-                              </div>
-                            </div>
-                          )}
-                          {activeAiToolResult.data.colorSuggestions.backgroundColor && (
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex-shrink-0 shadow-inner border border-gray-600" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Background</p>
-                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.backgroundColor).split(',')[0]}</p>
-                              </div>
-                            </div>
-                          )}
-                          {activeAiToolResult.data.colorSuggestions.textColor && (
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-white flex-shrink-0 shadow-inner border border-gray-300" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Text</p>
-                                <p className="text-gray-200 text-sm truncate">{String(activeAiToolResult.data.colorSuggestions.textColor).split(',')[0]}</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Font Suggestions */}
-                    {activeAiToolResult.data.fontSuggestions && (
-                      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                          <Type size={16} className="text-blue-400" />
-                          Typography
-                        </h4>
-                        <div className="space-y-2">
-                          {activeAiToolResult.data.fontSuggestions.recommendedFont && (
-                            <div>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mb-1">Recommended Font</p>
-                              <p className="text-white font-semibold">{activeAiToolResult.data.fontSuggestions.recommendedFont}</p>
-                            </div>
-                          )}
-                          {activeAiToolResult.data.fontSuggestions.reason && (
-                            <p className="text-gray-600 dark:text-gray-400 text-xs leading-relaxed">{activeAiToolResult.data.fontSuggestions.reason}</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Layout Suggestions */}
-                  {activeAiToolResult.data.layoutSuggestions && Array.isArray(activeAiToolResult.data.layoutSuggestions) && activeAiToolResult.data.layoutSuggestions.length > 0 && (
-                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                        <Layout size={16} className="text-green-400" />
-                        Layout Tips
-                      </h4>
-                      <div className="space-y-3">
-                        {activeAiToolResult.data.layoutSuggestions.slice(0, 3).map((item: { slideIndex?: number; suggestion?: string; reason?: string }, idx: number) => (
-                          <div key={idx} className="flex items-start gap-3 p-3 bg-gray-900/50 rounded-lg">
-                            <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-xs font-bold text-green-400">{idx + 1}</span>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              {item.slideIndex !== undefined && (
-                                <span className="inline-block px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full mb-1">
-                                  Slide {item.slideIndex + 1}
-                                </span>
-                              )}
-                              {item.suggestion && (
-                                <p className="text-gray-200 text-sm">{item.suggestion}</p>
-                              )}
-                              {item.reason && (
-                                <p className="text-gray-500 text-xs mt-1">{item.reason}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Accessibility */}
-                  {activeAiToolResult.data.accessibility && (
-                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                        <Eye size={16} className="text-cyan-400" />
-                        Accessibility
-                      </h4>
-                      <div className="space-y-3">
-                        {activeAiToolResult.data.accessibility.contrastScore && (
-                          <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
-                            <span className="text-gray-300 text-sm">Contrast Score</span>
-                            <span className="text-lg font-bold text-cyan-400">{activeAiToolResult.data.accessibility.contrastScore}</span>
-                          </div>
-                        )}
-                        {activeAiToolResult.data.accessibility.fixes && activeAiToolResult.data.accessibility.fixes.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Improvements</p>
-                            {activeAiToolResult.data.accessibility.fixes.slice(0, 3).map((fix: string, idx: number) => (
-                              <div key={idx} className="flex items-start gap-2 text-sm">
-                                <span className="text-cyan-400 mt-0.5">→</span>
-                                <span className="text-gray-300">{fix}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeAiToolResult.tool === 'performance' && (
-                <div className="space-y-6">
-                  {/* Engagement Score */}
-                  <div className="bg-gradient-to-r from-green-600/20 to-green-500/20 border border-green-500/50 rounded-xl p-6">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-lg font-semibold text-white">Engagement Score</h4>
-                      <div className="text-4xl font-bold text-green-400">{activeAiToolResult.data.engagementScore || 0}/100</div>
-                    </div>
-                  </div>
-
-                  {/* Predicted Metrics */}
-                  {activeAiToolResult.data.predictedMetrics && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Predicted Metrics</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {Object.entries(activeAiToolResult.data.predictedMetrics).map(([key, value]: [string, any]) => (
-                          <div key={key} className="text-center">
-                            <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">{key}</p>
-                            <p className="text-xl font-bold text-green-400">{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Strengths */}
-                  {activeAiToolResult.data.strengths && activeAiToolResult.data.strengths.length > 0 && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <Check size={18} className="text-green-400" />
-                        Strengths
-                      </h4>
-                      <ul className="space-y-2">
-                        {activeAiToolResult.data.strengths.map((strength: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-2 text-gray-300">
-                            <span className="text-green-400 mt-1">✓</span>
-                            <span>{strength}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Recommendations */}
-                  {activeAiToolResult.data.recommendations && activeAiToolResult.data.recommendations.length > 0 && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Recommendations</h4>
-                      <ul className="space-y-2">
-                        {activeAiToolResult.data.recommendations.map((rec: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-2 text-gray-300">
-                            <span className="text-yellow-400 mt-1">•</span>
-                            <span>{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Hashtags */}
-                  {activeAiToolResult.data.hashtagSuggestions && activeAiToolResult.data.hashtagSuggestions.length > 0 && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-white mb-4">Suggested Hashtags</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {activeAiToolResult.data.hashtagSuggestions.map((tag: string, idx: number) => (
-                          <span key={idx} className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:border-green-500 transition">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeAiToolResult.tool === 'enhancement' && (
-                <div className="space-y-6">
-                  {/* Original Content */}
-                  {activeAiToolResult.data.originalContent && (
-                    <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-6">
-                      <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Original Content</h4>
-                      <div 
-                        className="text-gray-600 dark:text-gray-400 bg-gray-800/50 p-4 rounded-lg leading-relaxed"
-                        dangerouslySetInnerHTML={{ 
-                          __html: activeAiToolResult.data.originalContent 
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Enhanced Content */}
-                  <div className="bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-blue-500/20 border border-blue-500/40 rounded-xl p-6">
-                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                      <Wand2 size={18} className="text-blue-400" />
-                      Enhanced Content
-                    </h4>
-                    <div 
-                      className="text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ 
-                        __html: formatMarkdown(activeAiToolResult.data.enhancedContent || '') 
-                      }}
-                    />
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-800">
-                    <p className="text-xs text-gray-500">
-                      Click "Apply" to replace the current slide content
-                    </p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          if (activeAiToolResult.data.enhancedContent) {
-                            navigator.clipboard.writeText(
-                              activeAiToolResult.data.enhancedContent.replace(/<[^>]*>/g, '')
-                            );
-                            toast.success('Copied to clipboard!');
-                          }
-                        }}
-                        className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl transition flex items-center gap-2"
-                      >
-                        <Copy size={16} />
-                        Copy
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (activeAiToolResult.data.enhancedContent && activeSlide) {
-                            setSlides(slides.map(s => 
-                              s.id === activeSlideId 
-                                ? { ...s, content: activeAiToolResult.data.enhancedContent }
-                                : s
-                            ));
-                            toast.success('Content applied to slide!', {
-                              description: 'Your slide content has been updated with the enhanced version.'
-                            });
-                            setActiveAiToolResult(null);
-                          }
-                        }}
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition flex items-center gap-2"
-                      >
-                        <Check size={16} />
-                        Apply to Slide
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Version History Modal */}
-      {isHistoryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2">
-                <History className="text-[#ffd700]" size={20} />
-                <h2 className="text-lg font-semibold text-white">Version History</h2>
-              </div>
-              <button 
-                onClick={() => setIsHistoryOpen(false)}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              {historyEntries.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <History size={40} className="mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">No version history yet</p>
-                  <p className="text-sm mt-1">Save your project to create history snapshots</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {historyEntries.map((entry, index) => {
-                    const date = new Date(entry.createdAt);
-                    const isRecent = Date.now() - date.getTime() < 3600000; // Less than 1 hour
-                    
-                    return (
-                      <div
-                        key={entry.id}
-                        className="p-4 bg-gray-900/50 border border-gray-800 hover:border-gray-700 rounded-xl transition group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-white">
-                                {index === 0 ? 'Latest Save' : `Version ${historyEntries.length - index}`}
-                              </span>
-                              {isRecent && (
-                                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
-                                  Recent
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {entry.slides?.length || 0} slides
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => restoreFromHistory(entry)}
-                            disabled={restoringHistoryId === entry.id}
-                            className="px-4 py-2 bg-[#ffd700]/10 hover:bg-[#ffd700]/20 border border-[#ffd700]/50 text-[#ffd700] text-sm font-medium rounded-lg transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                          >
-                            {restoringHistoryId === entry.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              'Restore'
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
-              <p className="text-xs text-gray-500 text-center">
-                History is saved automatically when you save your project
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Picker Modal (Unsplash Search) */}
-      {isImagePickerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-white dark:bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="text-[#ffd700]" size={20} />
-                <h2 className="text-lg font-semibold text-white">
-                  {imagePickerMode === 'all' ? 'Set Background (All Slides)' : 'Set Background Image'}
-                </h2>
-              </div>
-              <button 
-                onClick={() => { setIsImagePickerOpen(false); setActiveTool('select'); }}
-                className="text-gray-600 dark:text-gray-400 hover:text-white transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4 overflow-y-auto flex-1">
-              {/* Upload & URL Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Upload from device */}
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                    setIsImagePickerOpen(false);
-                  }}
-                  className="flex items-center gap-3 p-4 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 rounded-xl transition group"
-                >
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 group-hover:scale-110 transition">
-                    <Upload size={20} />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium text-white">Upload from Device</div>
-                    <div className="text-xs text-gray-500">JPG, PNG, GIF, WebP</div>
-                  </div>
-                </button>
-
-                {/* Paste URL */}
-                <div className="flex items-center gap-2 p-2 bg-gray-900/50 border border-gray-700 rounded-xl">
-                  <input
-                    type="text"
-                    value={imageUrlInput}
-                    onChange={(e) => setImageUrlInput(e.target.value)}
-                    placeholder="Paste image URL..."
-                    className="flex-1 bg-transparent border-none outline-none text-white text-sm px-2"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && imageUrlInput.trim()) {
-                        applyBackgroundImage(imageUrlInput.trim());
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      if (imageUrlInput.trim()) {
-                        applyBackgroundImage(imageUrlInput.trim());
-                      }
-                    }}
-                    disabled={!imageUrlInput.trim()}
-                    className="px-3 py-2 bg-[#ffd700] text-black rounded-lg text-sm font-medium hover:bg-[#ffed4a] disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-
-              {/* Unsplash Search */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 flex items-center gap-2 bg-gray-900/50 border border-gray-700 rounded-xl px-3 py-2">
-                    <Search size={16} className="text-gray-500" />
-                    <input
-                      type="text"
-                      value={unsplashQuery}
-                      onChange={(e) => setUnsplashQuery(e.target.value)}
-                      placeholder="Search free photos on Unsplash..."
-                      className="flex-1 bg-transparent border-none outline-none text-white text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          searchUnsplash(unsplashQuery, 1);
-                        }
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => searchUnsplash(unsplashQuery, 1)}
-                    disabled={unsplashLoading || !unsplashQuery.trim()}
-                    className="px-4 py-2 bg-[#ffd700] text-black rounded-xl text-sm font-medium hover:bg-[#ffed4a] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                  >
-                    {unsplashLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                    Search
-                  </button>
-                </div>
-
-                {/* Quick search tags */}
-                <div className="flex flex-wrap gap-2">
-                  {['business', 'technology', 'nature', 'abstract', 'gradient', 'minimal', 'office', 'creative'].map(tag => (
-                    <button
-                      key={tag}
-                      onClick={() => {
-                        setUnsplashQuery(tag);
-                        searchUnsplash(tag, 1);
-                      }}
-                      className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-full transition capitalize"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Results Grid */}
-              {unsplashResults.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-xs text-gray-500">
-                    {unsplashTotal.toLocaleString()} photos found • Photos by <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="text-[#ffd700] hover:underline">Unsplash</a>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {unsplashResults.map((photo) => (
-                      <button
-                        key={photo.id}
-                        onClick={() => applyBackgroundImage(photo.urls.regular, photo.downloadLink)}
-                        className="group relative aspect-square rounded-lg overflow-hidden border border-gray-700 hover:border-[#ffd700] transition"
-                        style={{ backgroundColor: photo.color }}
-                      >
-                        <img
-                          src={photo.urls.small}
-                          alt={photo.alt}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center">
-                          <Check size={24} className="text-white opacity-0 group-hover:opacity-100 transition" />
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition">
-                          <div className="text-[10px] text-white truncate">
-                            by {photo.user.name}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Load more */}
-                  {unsplashResults.length < unsplashTotal && (
-                    <div className="flex justify-center pt-2">
-                      <button
-                        onClick={() => searchUnsplash(unsplashQuery, unsplashPage + 1)}
-                        disabled={unsplashLoading}
-                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition flex items-center gap-2"
-                      >
-                        {unsplashLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                        Load More
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!unsplashLoading && unsplashResults.length === 0 && unsplashQuery && (
-                <div className="text-center py-8 text-gray-500">
-                  <ImageIcon size={40} className="mx-auto mb-2 opacity-50" />
-                  <p>No photos found for "{unsplashQuery}"</p>
-                  <p className="text-xs mt-1">Try a different search term</p>
-                </div>
-              )}
-
-              {/* Initial state */}
-              {!unsplashQuery && unsplashResults.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Search size={40} className="mx-auto mb-2 opacity-50" />
-                  <p>Search millions of free photos</p>
-                  <p className="text-xs mt-1">Powered by Unsplash</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Core Feature Components */}
-      <BrandKit
-        isOpen={isBrandKitOpen}
-        onClose={() => setIsBrandKitOpen(false)}
-        onApplyBrand={handleApplyBrand}
+      <AIGenerateModal
+        isOpen={isAiModalOpen}
+        onClose={closeAiModal}
+        aiInputTab={aiInputTab}
+        onInputTabChange={setAiInputTab}
+        aiPrompt={aiPrompt}
+        onPromptChange={setAiPrompt}
+        docAttachment={docAttachment}
+        onDocUpload={handleDocUpload}
+        onClearDoc={clearDocAttachment}
+        isUploadingDoc={isUploadingDoc}
+        docUploadError={docUploadError}
+        docUploadInputRef={docUploadInputRef}
+        urlAttachment={urlAttachment}
+        urlInput={urlInput}
+        onUrlInputChange={setUrlInput}
+        urlError={urlError}
+        onUrlErrorChange={setUrlError}
+        urlOwnershipConfirmed={urlOwnershipConfirmed}
+        onOwnershipChange={setUrlOwnershipConfirmed}
+        onParseUrl={handleParseUrl}
+        isParsingUrl={isParsingUrl}
+        onClearUrl={clearUrlAttachment}
+        aiSlideStyle={aiSlideStyle}
+        onSlideStyleChange={setAiSlideStyle}
+        aiWritingStyle={aiWritingStyle}
+        onWritingStyleChange={setAiWritingStyle}
+        aiLanguage={aiLanguage}
+        onLanguageChange={setAiLanguage}
+        aiSlideCount={aiSlideCount}
+        onSlideCountChange={(v) => { if (v !== null) setAiSlideCount(v); }}
+        aiWordCount={aiWordCount}
+        onWordCountChange={setAiWordCount}
+        isAdvancedOpen={isAdvancedOptionsOpen}
+        onAdvancedToggle={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
+        aiTone={aiTone}
+        onToneChange={setAiTone}
+        aiAutoHashtags={aiAutoHashtags}
+        onAutoHashtagsChange={setAiAutoHashtags}
+        aiIncludeStats={aiIncludeStats}
+        onIncludeStatsChange={setAiIncludeStats}
+        aiAccessibility={aiAccessibility}
+        onAccessibilityChange={setAiAccessibility}
+        aiSmartColors={aiSmartColors}
+        onSmartColorsChange={setAiSmartColors}
+        freshDesign={aiFreshDesign}
+        onFreshDesignChange={setAiFreshDesign}
+        onGenerate={handleAiGenerate}
+        isGenerating={isGenerating}
       />
+
+
+      <ImagePickerModal
+        isOpen={isImagePickerOpen}
+        onClose={closeImagePicker}
+        mode={imagePickerMode}
+        imageUrlInput={imageUrlInput}
+        onImageUrlChange={setImageUrlInput}
+        onApplyUrl={applyBackgroundImage}
+        onUploadClick={() => fileInputRef.current?.click()}
+        unsplashQuery={unsplashQuery}
+        onUnsplashQueryChange={setUnsplashQuery}
+        onSearch={searchUnsplash}
+        unsplashResults={unsplashResults}
+        unsplashTotal={unsplashTotal}
+        unsplashPage={unsplashPage}
+        unsplashLoading={unsplashLoading}
+      />
+
+      {/* Quick Export Bar — appears after AI generation */}
+      {showQuickExport && slides.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[var(--surface-1)] border border-[var(--accent)]/30 rounded-2xl shadow-2xl shadow-black/50 px-6 py-3.5 flex items-center gap-5 animate-in slide-in-from-bottom duration-300">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center">
+              <Check size={14} className="text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm text-white font-medium">Carousel ready!</p>
+              <p className="text-[11px] text-[var(--text-muted)]">{slides.length} slides</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { handleExportPDF(); setShowQuickExport(false); }}
+            className="px-5 py-2 bg-[var(--accent)] hover:brightness-110 text-black font-bold rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-[var(--accent)]/20"
+          >
+            <Download size={15} />
+            Download for LinkedIn
+          </button>
+          <button
+            onClick={() => { setIsExportOpen(true); setShowQuickExport(false); }}
+            className="text-xs text-[var(--text-muted)] hover:text-white transition whitespace-nowrap"
+          >
+            More options
+          </button>
+          <button
+            onClick={() => setShowQuickExport(false)}
+            className="text-[var(--text-muted)] hover:text-white transition ml-1"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Onboarding overlay for first-time users */}
+      {showOnboarding && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8 text-center relative overflow-hidden">
+            <div className="absolute -top-16 -right-16 w-40 h-40 bg-[var(--accent)]/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
+
+            <div className="relative">
+              <div className="w-14 h-14 bg-[var(--accent)] rounded-2xl rotate-3 flex items-center justify-center mx-auto mb-4">
+                <Sparkles size={28} className="text-black" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">Welcome to Carouslk</h2>
+              <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">
+                Create stunning carousels in seconds. Type a topic, paste a URL, or upload a document — our AI handles the rest.
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleOnboardingGenerate}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[var(--accent)] text-black font-semibold text-sm hover:opacity-90 transition"
+                >
+                  <Sparkles size={16} />
+                  Try it — Generate a Sample Carousel
+                </button>
+                <button
+                  onClick={dismissOnboarding}
+                  className="w-full px-5 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm hover:bg-[var(--surface-2)] transition"
+                >
+                  Skip — I know what I&apos;m doing
+                </button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-3 text-[11px] text-[var(--text-muted)]">
+                <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-[var(--surface-2)]/50">
+                  <Sparkles size={14} className="text-[var(--accent)]" />
+                  AI Content
+                </div>
+                <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-[var(--surface-2)]/50">
+                  <Palette size={14} className="text-purple-400" />
+                  Brand Kit
+                </div>
+                <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-[var(--surface-2)]/50">
+                  <Download size={14} className="text-green-400" />
+                  Export All
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
 }
 
-// Helper function to format markdown-like text
-function formatMarkdown(text: string): string {
-  if (!text) return '';
-  
-  // First, handle markdown headers
-  let formatted = text
-    // Headers with markdown syntax
-    .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-purple-400 mt-6 mb-3">$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-purple-400 mt-8 mb-4">$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-purple-400 mt-10 mb-5">$1</h1>')
-    // Bold text with **
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-yellow-400 font-semibold">$1</strong>')
-    // Lists
-    .replace(/^\d+\.\s+(.*$)/gim, '<li class="ml-4 mb-2 list-decimal">$1</li>')
-    .replace(/^[-*]\s+(.*$)/gim, '<li class="ml-4 mb-2 list-disc">$1</li>');
-
-  // Detect and style section headers (lines that look like titles)
-  // Pattern: Short lines (< 60 chars) that end without punctuation or end with colon
-  // and are followed by longer content
-  const lines = formatted.split('\n');
-  const processedLines = lines.map((line, index) => {
-    const trimmedLine = line.trim();
-    
-    // Skip if already has HTML tags
-    if (trimmedLine.startsWith('<')) return line;
-    
-    // Skip empty lines
-    if (!trimmedLine) return line;
-    
-    // Check if this looks like a section header:
-    // - Short line (less than 80 characters)
-    // - Doesn't end with common sentence punctuation (. ! ?)
-    // - Or ends with colon
-    // - Contains keywords like "Overview", "Key", "Points", "Trends", "Summary", etc.
-    const isShortLine = trimmedLine.length < 80 && trimmedLine.length > 3;
-    const endsWithColon = trimmedLine.endsWith(':');
-    const noSentenceEnd = !trimmedLine.match(/[.!?]$/);
-    const hasHeaderKeywords = /^(Overview|Key|Main|Summary|Introduction|Conclusion|Recent|Trends|Points|Insights|Benefits|Features|Examples|Steps|Tips|How|What|Why|When|Where|The\s|A\s)/i.test(trimmedLine);
-    const isTitleCase = trimmedLine.split(' ').filter(w => w.length > 2).every(word => /^[A-Z]/.test(word));
-    
-    // Next line exists and is longer (indicating this is a header)
-    const nextLine = lines[index + 1]?.trim() || '';
-    const nextLineIsContent = nextLine.length > trimmedLine.length * 1.5 || nextLine.length > 100;
-    
-    if (isShortLine && (endsWithColon || (noSentenceEnd && (hasHeaderKeywords || isTitleCase || nextLineIsContent)))) {
-      // Remove trailing colon for cleaner display
-      const headerText = endsWithColon ? trimmedLine.slice(0, -1) : trimmedLine;
-      return `<h4 class="text-lg font-bold text-purple-400 mt-6 mb-2">${headerText}</h4>`;
-    }
-    
-    return line;
-  });
-
-  // Rejoin and handle paragraphs
-  return processedLines.join('\n')
-    .split('\n\n')
-    .map(para => {
-      const trimmed = para.trim();
-      // Don't wrap if already has block-level HTML
-      if (trimmed.startsWith('<h') || trimmed.startsWith('<li') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol')) {
-        return trimmed;
-      }
-      return trimmed ? `<p class="mb-4 leading-relaxed">${trimmed}</p>` : '';
-    })
-    .join('');
-}
 
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white flex items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-[#ffd700]" />
+      <div className="min-h-screen bg-gray-50 dark:bg-[var(--surface-1)] text-gray-900 dark:text-white flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
       </div>
     }>
       <DashboardContent />

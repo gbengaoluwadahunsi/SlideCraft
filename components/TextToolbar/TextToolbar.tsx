@@ -27,32 +27,20 @@ export const TextToolbar = ({
   const [toolbarPosition, setToolbarPosition] = useState<{ top: string | number; left: string | number; position: 'fixed' } | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // Picker states
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
-  const [showFontPicker, setShowFontPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [showLineHeightPicker, setShowLineHeightPicker] = useState(false);
-  const [showLetterSpacingPicker, setShowLetterSpacingPicker] = useState(false);
-  const [showTextEffectsPicker, setShowTextEffectsPicker] = useState(false);
   const [showBulletStylePicker, setShowBulletStylePicker] = useState(false);
   
-  // Form states
   const [linkUrl, setLinkUrl] = useState('');
   const [fontSizeInput, setFontSizeInput] = useState('16');
-  const [lineHeight, setLineHeight] = useState('1.5');
-  const [letterSpacing, setLetterSpacing] = useState('0');
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const [copiedFormat, setCopiedFormat] = useState<any>(null);
   
-  // Refs
   const savedSelectionRef = useRef<Range | null>(null);
   const savedElementRef = useRef<HTMLElement | null>(null);
   const emojiPickerOpenRef = useRef(false);
   
-  // Active state tracking
   const [activeStates, setActiveStates] = useState({
     bold: false,
     italic: false,
@@ -66,7 +54,6 @@ export const TextToolbar = ({
     subscript: false,
   });
 
-  // Detect mobile devices
   useEffect(() => {
     const checkMobile = () => {
       const isSmallScreen = window.innerWidth < 768;
@@ -78,14 +65,12 @@ export const TextToolbar = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Keep ref in sync with state
   useEffect(() => {
     emojiPickerOpenRef.current = showEmojiPicker;
   }, [showEmojiPicker]);
 
-  // Close all pickers when clicking outside
   useEffect(() => {
-    const anyPickerOpen = showEmojiPicker || showColorPicker || showFontPicker || showHighlightPicker || showMoreOptions || showBulletStylePicker;
+    const anyPickerOpen = showEmojiPicker || showColorPicker || showBulletStylePicker;
     if (!anyPickerOpen) return;
     
     const handleClickOutside = (e: MouseEvent) => {
@@ -93,9 +78,6 @@ export const TextToolbar = ({
       if (toolbarRef.current?.contains(target)) return;
       setShowEmojiPicker(false);
       setShowColorPicker(false);
-      setShowFontPicker(false);
-      setShowHighlightPicker(false);
-      setShowMoreOptions(false);
       setShowBulletStylePicker(false);
     };
 
@@ -107,9 +89,8 @@ export const TextToolbar = ({
       clearTimeout(timer);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [showEmojiPicker, showColorPicker, showFontPicker, showHighlightPicker, showMoreOptions, showBulletStylePicker]);
+  }, [showEmojiPicker, showColorPicker, showBulletStylePicker]);
 
-  // Update toolbar position
   const updateToolbarPosition = useCallback(() => {
     if (isMobile) {
       setToolbarPosition({
@@ -129,7 +110,6 @@ export const TextToolbar = ({
     } as any);
   }, [isMobile]);
 
-  // Update active states
   const updateActiveStates = useCallback(() => {
     const element = savedElementRef.current;
     if (!element) return;
@@ -184,14 +164,12 @@ export const TextToolbar = ({
     }
   }, []);
 
-  // Initialize toolbar position
   useEffect(() => {
     if (externalIsOpen && !toolbarPosition) {
       updateToolbarPosition();
     }
   }, [externalIsOpen, toolbarPosition, updateToolbarPosition]);
 
-  // Listen for hover changes
   useEffect(() => {
     const handleHoverChange = (element: HTMLElement | null) => {
       setCurrentHoveredElement(element);
@@ -208,7 +186,7 @@ export const TextToolbar = ({
       } else if (!element && externalIsOpen === undefined) {
         const selection = window.getSelection();
         const hasSelection = selection && !selection.isCollapsed;
-        const anyPickerOpen = showEmojiPicker || showColorPicker || showFontPicker || showHighlightPicker || showMoreOptions || showBulletStylePicker;
+        const anyPickerOpen = showEmojiPicker || showColorPicker || showBulletStylePicker;
         
         if (!hasSelection && !anyPickerOpen) {
           setTimeout(() => {
@@ -226,9 +204,8 @@ export const TextToolbar = ({
     return () => {
       globalHoverListeners.delete(handleHoverChange);
     };
-  }, [externalIsOpen, showEmojiPicker, showColorPicker, showFontPicker, showHighlightPicker, showMoreOptions, showBulletStylePicker, updateActiveStates, updateToolbarPosition]);
+  }, [externalIsOpen, showEmojiPicker, showColorPicker, showBulletStylePicker, updateActiveStates, updateToolbarPosition]);
 
-  // Selection change handler
   useEffect(() => {
     let showTimeoutId: NodeJS.Timeout | null = null;
     let hideTimeoutId: NodeJS.Timeout | null = null;
@@ -244,7 +221,7 @@ export const TextToolbar = ({
           showTimeoutId = null;
         }
         
-        const anyPickerOpen = showEmojiPicker || showColorPicker || showFontPicker || showHighlightPicker || showMoreOptions || showBulletStylePicker;
+        const anyPickerOpen = showEmojiPicker || showColorPicker || showBulletStylePicker;
         
         if (!getGlobalHoveredElement() && !anyPickerOpen) {
           if (hideTimeoutId) clearTimeout(hideTimeoutId);
@@ -276,15 +253,15 @@ export const TextToolbar = ({
           if (editableElement) {
             savedElementRef.current = editableElement;
             const range = selection.getRangeAt(0);
-            savedSelectionRef.current = range;
+            savedSelectionRef.current = range.cloneRange();
             setTimeout(() => {
               updateActiveStates();
               updateToolbarPosition();
             }, 50);
           } else if (!element && externalIsOpen === undefined) {
-            const selection = window.getSelection();
-            const hasSelection = selection && !selection.isCollapsed;
-            const anyPickerOpen = showEmojiPicker || showColorPicker || showFontPicker || showHighlightPicker || showMoreOptions || showBulletStylePicker;
+            const sel = window.getSelection();
+            const hasSelection = sel && !sel.isCollapsed;
+            const anyPickerOpen = showEmojiPicker || showColorPicker || showBulletStylePicker;
             
             if (!hasSelection && !anyPickerOpen) {
               setTimeout(() => {
@@ -306,17 +283,11 @@ export const TextToolbar = ({
       if (showTimeoutId) clearTimeout(showTimeoutId);
       if (hideTimeoutId) clearTimeout(hideTimeoutId);
     };
-  }, [externalIsOpen, showEmojiPicker, showColorPicker, showFontPicker, showHighlightPicker, showMoreOptions, showBulletStylePicker, updateActiveStates, updateToolbarPosition]);
+  }, [externalIsOpen, showEmojiPicker, showColorPicker, showBulletStylePicker, updateActiveStates, updateToolbarPosition]);
 
   const closeAllPickers = () => {
     setShowColorPicker(false);
-    setShowFontPicker(false);
     setShowEmojiPicker(false);
-    setShowHighlightPicker(false);
-    setShowMoreOptions(false);
-    setShowLineHeightPicker(false);
-    setShowLetterSpacingPicker(false);
-    setShowTextEffectsPicker(false);
     setShowBulletStylePicker(false);
   };
 
@@ -358,7 +329,6 @@ export const TextToolbar = ({
     }
   };
 
-  // All the function implementations (keeping them here for now, can be extracted later if needed)
   const insertEmoji = (emoji: string) => {
     if (savedElementRef.current) {
       savedElementRef.current.focus();
@@ -367,7 +337,7 @@ export const TextToolbar = ({
     const selection = window.getSelection();
     if (selection && savedSelectionRef.current) {
       selection.removeAllRanges();
-      selection.addRange(savedSelectionRef.current);
+      selection.addRange(savedSelectionRef.current.cloneRange());
       
       const range = selection.getRangeAt(0);
       range.deleteContents();
@@ -378,6 +348,8 @@ export const TextToolbar = ({
       range.setEndAfter(textNode);
       selection.removeAllRanges();
       selection.addRange(range);
+
+      savedSelectionRef.current = range.cloneRange();
 
       if (savedElementRef.current) {
         savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
@@ -457,326 +429,6 @@ export const TextToolbar = ({
     saveSelection();
   };
 
-  const applyFontFamily = (fontFamily: string) => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    wrapper.style.fontFamily = fontFamily;
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-    setShowFontPicker(false);
-  };
-
-  const applyHighlight = (color: string) => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    wrapper.style.backgroundColor = color;
-    wrapper.style.padding = '0 2px';
-    wrapper.style.borderRadius = '2px';
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
-    saveSelection();
-    setShowHighlightPicker(false);
-  };
-
-  const applyLineHeight = (value: string) => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    const range = selection.getRangeAt(0);
-    let element = range.commonAncestorContainer;
-    if (element.nodeType === Node.TEXT_NODE) element = element.parentElement!;
-
-    let blockElement = element as HTMLElement;
-    while (blockElement && !['DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'SPAN'].includes(blockElement.tagName)) {
-      blockElement = blockElement.parentElement as HTMLElement;
-    }
-
-    if (blockElement) {
-      blockElement.style.lineHeight = value;
-      setLineHeight(value);
-      if (savedElementRef.current) {
-        savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-    saveSelection();
-    setShowLineHeightPicker(false);
-  };
-
-  const applyLetterSpacing = (value: string) => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    wrapper.style.letterSpacing = value;
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    setLetterSpacing(value);
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-    setShowLetterSpacingPicker(false);
-  };
-
-  const applyTextTransform = (transform: 'uppercase' | 'lowercase' | 'capitalize' | 'none') => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    wrapper.style.textTransform = transform;
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-  };
-
-  const copyFormat = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    let element = range.commonAncestorContainer;
-    if (element.nodeType === Node.TEXT_NODE) element = element.parentElement!;
-
-    const computedStyle = window.getComputedStyle(element as HTMLElement);
-    setCopiedFormat({
-      fontWeight: computedStyle.fontWeight,
-      fontStyle: computedStyle.fontStyle,
-      textDecoration: computedStyle.textDecoration,
-      color: computedStyle.color,
-      backgroundColor: computedStyle.backgroundColor,
-      fontSize: computedStyle.fontSize,
-      fontFamily: computedStyle.fontFamily,
-      lineHeight: computedStyle.lineHeight,
-      letterSpacing: computedStyle.letterSpacing,
-    });
-  };
-
-  const pasteFormat = () => {
-    if (!copiedFormat) return;
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    
-    if (copiedFormat.fontWeight) wrapper.style.fontWeight = copiedFormat.fontWeight;
-    if (copiedFormat.fontStyle) wrapper.style.fontStyle = copiedFormat.fontStyle;
-    if (copiedFormat.color && copiedFormat.color !== 'rgb(0, 0, 0)') wrapper.style.color = copiedFormat.color;
-    if (copiedFormat.fontSize) wrapper.style.fontSize = copiedFormat.fontSize;
-    if (copiedFormat.letterSpacing) wrapper.style.letterSpacing = copiedFormat.letterSpacing;
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-  };
-
-  const applyTextEffect = (effect: 'shadow' | 'outline' | 'glow' | 'none') => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const wrapper = document.createElement('span');
-    
-    switch (effect) {
-      case 'shadow':
-        wrapper.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
-        break;
-      case 'outline':
-        wrapper.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
-        break;
-      case 'glow':
-        wrapper.style.textShadow = '0 0 10px #ffd700, 0 0 20px #ffd700, 0 0 30px #ffd700';
-        break;
-      case 'none':
-        wrapper.style.textShadow = 'none';
-        break;
-    }
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(wrapper);
-    selection.addRange(newRange);
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-    setShowTextEffectsPicker(false);
-  };
-
-  const applyListStyle = (style: 'disc' | 'circle' | 'square' | 'decimal' | 'decimal-leading-zero' | 'lower-roman' | 'upper-roman' | 'lower-alpha' | 'upper-alpha' | 'none') => {
-    const selection = window.getSelection();
-    if (!selection || !savedSelectionRef.current || !savedElementRef.current) return;
-
-    savedElementRef.current.focus();
-    selection.removeAllRanges();
-    selection.addRange(savedSelectionRef.current.cloneRange());
-
-    const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer;
-    const element = container.nodeType === Node.TEXT_NODE 
-      ? container.parentElement 
-      : container as HTMLElement;
-    
-    const listItem = element?.closest('li');
-    const listElement = listItem?.parentElement as HTMLUListElement | HTMLOListElement | null || element?.closest('ul, ol') as HTMLUListElement | HTMLOListElement | null;
-    
-    if (listElement) {
-      if (style === 'disc' || style === 'circle' || style === 'square') {
-        if (listElement.tagName === 'OL') {
-          const ul = document.createElement('ul');
-          ul.style.listStyleType = style;
-          Array.from(listElement.attributes).forEach(attr => {
-            ul.setAttribute(attr.name, attr.value);
-          });
-          while (listElement.firstChild) {
-            ul.appendChild(listElement.firstChild);
-          }
-          listElement.parentNode?.replaceChild(ul, listElement);
-        } else {
-          (listElement as HTMLUListElement).style.listStyleType = style;
-        }
-      } else {
-        if (listElement.tagName === 'UL') {
-          const ol = document.createElement('ol');
-          ol.style.listStyleType = style;
-          Array.from(listElement.attributes).forEach(attr => {
-            ol.setAttribute(attr.name, attr.value);
-          });
-          while (listElement.firstChild) {
-            ol.appendChild(listElement.firstChild);
-          }
-          listElement.parentNode?.replaceChild(ol, listElement);
-        } else {
-          (listElement as HTMLOListElement).style.listStyleType = style;
-        }
-      }
-    } else {
-      if (style === 'disc' || style === 'circle' || style === 'square') {
-        execCommand('insertUnorderedList');
-        setTimeout(() => {
-          const newList = element?.closest('ul') as HTMLUListElement | null;
-          if (newList) {
-            newList.style.listStyleType = style;
-          }
-        }, 10);
-      } else {
-        execCommand('insertOrderedList');
-        setTimeout(() => {
-          const newList = element?.closest('ol') as HTMLOListElement | null;
-          if (newList) {
-            newList.style.listStyleType = style;
-          }
-        }, 10);
-      }
-    }
-
-    if (savedElementRef.current) {
-      savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    saveSelection();
-    setShowBulletStylePicker(false);
-  };
-
   const insertLink = () => {
     saveSelection();
     setShowLinkDialog(true);
@@ -823,51 +475,6 @@ export const TextToolbar = ({
     saveSelection();
   };
 
-  const adjustIndent = (direction: 'increase' | 'decrease') => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    if (savedElementRef.current) {
-      savedElementRef.current.focus();
-    }
-
-    if (selection && savedSelectionRef.current) {
-      selection.removeAllRanges();
-      selection.addRange(savedSelectionRef.current.cloneRange());
-    }
-
-    const range = selection.getRangeAt(0);
-    let element = range.commonAncestorContainer;
-    if (element.nodeType === Node.TEXT_NODE) {
-      element = element.parentElement!;
-    }
-
-    let blockElement = element as HTMLElement;
-    while (blockElement && !['DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(blockElement.tagName)) {
-      blockElement = blockElement.parentElement as HTMLElement;
-      if (!blockElement || blockElement.closest('[contenteditable="true"]') !== savedElementRef.current) {
-        break;
-      }
-    }
-
-    if (blockElement && blockElement.closest('[contenteditable="true"]') === savedElementRef.current) {
-      const currentMargin = parseFloat(window.getComputedStyle(blockElement).marginLeft || '0');
-      const indentAmount = 24;
-      
-      if (direction === 'increase') {
-        blockElement.style.marginLeft = `${currentMargin + indentAmount}px`;
-      } else {
-        blockElement.style.marginLeft = `${Math.max(0, currentMargin - indentAmount)}px`;
-      }
-      
-      if (savedElementRef.current) {
-        savedElementRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-
-    saveSelection();
-  };
-
   const clearFormatting = () => {
     execCommand('removeFormat');
     const selection = window.getSelection();
@@ -883,7 +490,6 @@ export const TextToolbar = ({
     }
   };
 
-  // Update position when selection changes
   useEffect(() => {
     if (!isVisible) return;
     
@@ -904,7 +510,6 @@ export const TextToolbar = ({
     };
   }, [isVisible, updateToolbarPosition]);
 
-  // Check if should show
   if (!inline) {
     if (externalIsOpen !== undefined) {
       if (!externalIsOpen && !currentHoveredElement) return null;
@@ -920,6 +525,24 @@ export const TextToolbar = ({
     if (selection) {
       selection.removeAllRanges();
     }
+  };
+
+  const toolbarContentProps = {
+    showColorPicker,
+    showBulletStylePicker,
+    showEmojiPicker,
+    onToggleColorPicker: () => { closeAllPickers(); setShowColorPicker(c => !c); },
+    onToggleBulletStylePicker: () => { closeAllPickers(); setShowBulletStylePicker(c => !c); },
+    onToggleEmojiPicker: () => { closeAllPickers(); setShowEmojiPicker(c => !c); },
+    closeAllPickers,
+    execCommand,
+    adjustFontSize,
+    applyFontSize,
+    insertEmoji,
+    insertLink,
+    clearFormatting,
+    fontSizeInput,
+    setFontSizeInput,
   };
 
   return (
@@ -941,50 +564,13 @@ export const TextToolbar = ({
     >
       {inline ? (
         <>
-          <ToolbarContent
-            showColorPicker={showColorPicker}
-            showHighlightPicker={showHighlightPicker}
-            showFontPicker={showFontPicker}
-            showBulletStylePicker={showBulletStylePicker}
-            showEmojiPicker={showEmojiPicker}
-            showLineHeightPicker={showLineHeightPicker}
-            showLetterSpacingPicker={showLetterSpacingPicker}
-            showTextEffectsPicker={showTextEffectsPicker}
-            onToggleColorPicker={() => setShowColorPicker(!showColorPicker)}
-            onToggleHighlightPicker={() => setShowHighlightPicker(!showHighlightPicker)}
-            onToggleFontPicker={() => setShowFontPicker(!showFontPicker)}
-            onToggleBulletStylePicker={() => setShowBulletStylePicker(!showBulletStylePicker)}
-            onToggleEmojiPicker={() => setShowEmojiPicker(!showEmojiPicker)}
-            onToggleLineHeightPicker={() => setShowLineHeightPicker(!showLineHeightPicker)}
-            onToggleLetterSpacingPicker={() => setShowLetterSpacingPicker(!showLetterSpacingPicker)}
-            onToggleTextEffectsPicker={() => setShowTextEffectsPicker(!showTextEffectsPicker)}
-            closeAllPickers={closeAllPickers}
-            execCommand={execCommand}
-            adjustFontSize={adjustFontSize}
-            applyFontSize={applyFontSize}
-            applyFontFamily={applyFontFamily}
-            applyHighlight={applyHighlight}
-            applyLineHeight={applyLineHeight}
-            applyLetterSpacing={applyLetterSpacing}
-            applyTextTransform={applyTextTransform}
-            applyTextEffect={applyTextEffect}
-            applyListStyle={applyListStyle}
-            insertEmoji={insertEmoji}
-            insertLink={insertLink}
-            adjustIndent={adjustIndent}
-            copyFormat={copyFormat}
-            pasteFormat={pasteFormat}
-            clearFormatting={clearFormatting}
-            fontSizeInput={fontSizeInput}
-            setFontSizeInput={setFontSizeInput}
-          />
+          <ToolbarContent {...toolbarContentProps} />
           <LinkDialog
             isOpen={showLinkDialog}
             linkUrl={linkUrl}
             onClose={() => { setShowLinkDialog(false); setLinkUrl(''); }}
             onUrlChange={setLinkUrl}
             onApply={applyLink}
-            inline={true}
           />
         </>
       ) : (
@@ -1013,44 +599,7 @@ export const TextToolbar = ({
                 transition={{ duration: 0.15 }}
                 onMouseDown={(e) => e.preventDefault()}
               >
-                <ToolbarContent
-                  showColorPicker={showColorPicker}
-                  showHighlightPicker={showHighlightPicker}
-                  showFontPicker={showFontPicker}
-                  showBulletStylePicker={showBulletStylePicker}
-                  showEmojiPicker={showEmojiPicker}
-                  showLineHeightPicker={showLineHeightPicker}
-                  showLetterSpacingPicker={showLetterSpacingPicker}
-                  showTextEffectsPicker={showTextEffectsPicker}
-                  onToggleColorPicker={() => setShowColorPicker(!showColorPicker)}
-                  onToggleHighlightPicker={() => setShowHighlightPicker(!showHighlightPicker)}
-                  onToggleFontPicker={() => setShowFontPicker(!showFontPicker)}
-                  onToggleBulletStylePicker={() => setShowBulletStylePicker(!showBulletStylePicker)}
-                  onToggleEmojiPicker={() => setShowEmojiPicker(!showEmojiPicker)}
-                  onToggleLineHeightPicker={() => setShowLineHeightPicker(!showLineHeightPicker)}
-                  onToggleLetterSpacingPicker={() => setShowLetterSpacingPicker(!showLetterSpacingPicker)}
-                  onToggleTextEffectsPicker={() => setShowTextEffectsPicker(!showTextEffectsPicker)}
-                  closeAllPickers={closeAllPickers}
-                  execCommand={execCommand}
-                  adjustFontSize={adjustFontSize}
-                  applyFontSize={applyFontSize}
-                  applyFontFamily={applyFontFamily}
-                  applyHighlight={applyHighlight}
-                  applyLineHeight={applyLineHeight}
-                  applyLetterSpacing={applyLetterSpacing}
-                  applyTextTransform={applyTextTransform}
-                  applyTextEffect={applyTextEffect}
-                  applyListStyle={applyListStyle}
-                  insertEmoji={insertEmoji}
-                  insertLink={insertLink}
-                  adjustIndent={adjustIndent}
-                  copyFormat={copyFormat}
-                  pasteFormat={pasteFormat}
-                  clearFormatting={clearFormatting}
-                  fontSizeInput={fontSizeInput}
-                  setFontSizeInput={setFontSizeInput}
-                  copiedFormat={copiedFormat}
-                />
+                <ToolbarContent {...toolbarContentProps} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1061,7 +610,6 @@ export const TextToolbar = ({
             onClose={() => { setShowLinkDialog(false); setLinkUrl(''); }}
             onUrlChange={setLinkUrl}
             onApply={applyLink}
-            inline={false}
           />
         </>
       )}

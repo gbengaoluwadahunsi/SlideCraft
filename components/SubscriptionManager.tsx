@@ -63,7 +63,7 @@ export function SubscriptionManager() {
   const handleUpgrade = async () => {
     setIsUpgrading(true);
     try {
-      const response = await fetch('/api/subscription/checkout', {
+      const response = await fetch('/api/dodo/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: 'pro' }),

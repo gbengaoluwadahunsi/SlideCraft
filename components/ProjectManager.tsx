@@ -24,7 +24,7 @@ import {
   ArrowUpDown,
   Files
 } from 'lucide-react';
-import { SlideData } from '@/app/dashboard/page';
+import { SlideData } from '@/lib/types';
 
 interface ProjectManagerProps {
   currentProjectId?: string;

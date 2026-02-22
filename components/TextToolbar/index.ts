@@ -1,13 +1,8 @@
 export { TextToolbar } from './TextToolbar';
 export { ToolbarButton, Divider } from './ToolbarButton';
 export { ColorPicker } from './ColorPicker';
-export { HighlightPicker } from './HighlightPicker';
-export { FontPicker } from './FontPicker';
 export { BulletStylePicker } from './BulletStylePicker';
 export { EmojiPicker } from './EmojiPicker';
-export { LineHeightPicker } from './LineHeightPicker';
-export { LetterSpacingPicker } from './LetterSpacingPicker';
-export { TextEffectsPicker } from './TextEffectsPicker';
 export { LinkDialog } from './LinkDialog';
 export { ToolbarContent } from './ToolbarContent';
 export { TextToolbarProvider, useTextToolbar } from './TextToolbarContext';

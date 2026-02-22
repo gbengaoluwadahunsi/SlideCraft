@@ -122,9 +122,9 @@ async function launchBrowser() {
 
     return puppeteerCore.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: (chromium as any).defaultViewport ?? { width: 1080, height: 1080 },
       executablePath: executablePath || undefined,
-      headless: chromium.headless,
+      headless: (chromium as any).headless ?? true,
     });
   }
 
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
     
     const selectedFontFamily = fontVariableMap[fontFamily] 
       || (fontFamily.startsWith('var(--font-') 
-        ? fontFamily.replace('var(--font-', '').replace(')', '').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        ? fontFamily.replace('var(--font-', '').replace(')', '').split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
         : fontFamily.replace(/['"]/g, '')); // Remove quotes if present
 
     const generateFilename = (title: string): string => {
@@ -440,7 +440,7 @@ export async function POST(request: NextRequest) {
                     // Continue without video - the slide background image will still be there
                 }
             }
-            buffer = await pptx.write('nodebuffer') as Buffer;
+            buffer = await pptx.write({ outputType: 'nodebuffer' }) as Buffer;
         } else {
             // PDF Mode for Client Images - Use pdf-lib for MUCH faster generation
             // No need for Puppeteer just to stitch images!
@@ -1134,13 +1134,13 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      buffer = await pptx.write('nodebuffer') as Buffer;
+      buffer = await pptx.write({ outputType: 'nodebuffer' }) as Buffer;
 
     } else {
       // Default to PDF
       // Use preferCSSPageSize to respect @page CSS, but ensure content fits
       // Add small margins to prevent text clipping
-      buffer = await page.pdf({
+      const pdfData = await page.pdf({
         width: '1080px',
         height: '1080px',
         printBackground: true,
@@ -1152,6 +1152,7 @@ export async function POST(request: NextRequest) {
           left: '0',
         },
       });
+      buffer = Buffer.from(pdfData);
     }
 
         await browser.close();

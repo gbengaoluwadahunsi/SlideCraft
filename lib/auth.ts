@@ -18,10 +18,13 @@ if (!isGoogleConfigured) {
   console.warn('⚠️  Google OAuth is not configured. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in your .env.local file.');
 }
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 const authConfig: NextAuthConfig = {
   trustHost: true,
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   basePath: '/api/auth',
+  useSecureCookies: !isDev,
   providers: [
     // Only add Google provider if credentials are configured
     ...(isGoogleConfigured ? [
@@ -58,7 +61,7 @@ const authConfig: NextAuthConfig = {
           return null;
         }
 
-        const isValid = await bcrypt.compare(credentials.password, user.password_hash);
+        const isValid = await bcrypt.compare(String(credentials.password), String(user.password_hash));
 
         if (!isValid) {
           return null;
@@ -84,7 +87,7 @@ const authConfig: NextAuthConfig = {
   },
   pages: {
     signIn: '/login',
-    signUp: '/register'
+    newUser: '/register',
   },
   callbacks: {
     async signIn({ user, account, profile }) {

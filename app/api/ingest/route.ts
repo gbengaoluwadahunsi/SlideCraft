@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic';
 
 const SUPPORTED_EXTENSIONS = ['.md', '.markdown', '.docx', '.txt', '.pdf'];
 
-// pdf-parse doesn't have proper ESM exports, use dynamic require
+// pdf-parse doesn't have proper ESM exports
 const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
-  const pdf = (await import('pdf-parse')).default;
+  const mod = await import('pdf-parse');
+  const pdf = (mod as any).default || mod;
   return pdf(buffer);
 };
 const MAX_CHAR_COUNT = 20000;

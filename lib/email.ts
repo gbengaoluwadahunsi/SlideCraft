@@ -31,13 +31,10 @@ export async function sendEmail({
     // This allows sending to any email address once domain is verified
     // Only use default domain if no custom domain is configured
     
-    const { data, error } = await resend.emails.send({
-      from,
-      to,
-      subject,
-      html,
-      text,
-    });
+    const emailPayload: Record<string, string> = { from, to, subject };
+    if (html) emailPayload.html = html;
+    if (text) emailPayload.text = text;
+    const { data, error } = await resend.emails.send(emailPayload as any);
 
     if (error) {
       console.error('Resend email error:', error);
@@ -45,13 +42,10 @@ export async function sendEmail({
       // If domain verification error, try with default domain
       if (error.statusCode === 403 && error.message?.includes('domain is not verified')) {
         console.log('⚠️  Custom domain not verified. Retrying with default Resend domain...');
-        const { data: retryData, error: retryError } = await resend.emails.send({
-          from: 'onboarding@resend.dev',
-          to,
-          subject,
-          html,
-          text,
-        });
+        const retryPayload: Record<string, string> = { from: 'onboarding@resend.dev', to, subject };
+        if (html) retryPayload.html = html;
+        if (text) retryPayload.text = text;
+        const { data: retryData, error: retryError } = await resend.emails.send(retryPayload as any);
         
         if (retryError) {
           console.error('Resend email error (retry):', retryError);
@@ -72,7 +66,7 @@ export async function sendEmail({
 }
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const verificationUrl = `${process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+  const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL}/verify-email?token=${token}`;
   
   return sendEmail({
     to: email,
@@ -108,7 +102,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = `${process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
   
   return sendEmail({
     to: email,

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React Server Components — Deep Dive Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Epilogue:ital,wght@0,400;0,700;0,800;1,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #06080F;
+    --surface: #0D1120;
+    --yellow: #E8FF47;
+    --red: #FF4D6D;
+    --cyan: #00D4FF;
+    --orange: #FF9500;
+    --white: #EEF2FF;
+    --muted: #9BA8C0;
+    --font-display: 'Bebas Neue', cursive;
+    --font-body: 'Epilogue', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    padding: 40px 32px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .slide {
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+    padding: 30px;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: default;
+  }
+
+  .slide:hover {
+    transform: translateY(-3px) scale(1.012);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .slide .brand {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.05em;
+    opacity: 0.5;
+  }
+
+  .slide .sn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    font-family: var(--font-body);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--white);
+    margin-bottom: 14px;
+  }
+
+  h2 em {
+    font-style: normal;
+  }
+
+  .body-text {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.75;
+  }
+
+  .glow {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  /* -- COVER SLIDE -- */
+  .slide-cover {
+    border: 1px solid rgba(232, 255, 71, 0.15);
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: var(--surface) radial-gradient(ellipse at 50% 80%, rgba(232, 255, 71, 0.06) 0%, transparent 60%);
+  }
+  .slide-cover .badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--yellow);
+    border: 1px solid rgba(232, 255, 71, 0.3);
+    border-radius: 100px;
+    padding: 5px 14px;
+    margin-bottom: 20px;
+  }
+  .slide-cover .title {
+    font-family: var(--font-display);
+    font-size: 72px;
+    line-height: 0.9;
+    color: var(--white);
+    letter-spacing: 0.02em;
+  }
+  .slide-cover .title em {
+    font-style: normal;
+    color: var(--yellow);
+  }
+  .slide-cover .subtitle {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 16px;
+    letter-spacing: 0.02em;
+  }
+  .slide-cover .swipe {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    opacity: 0.5;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* -- CTA SLIDE -- */
+  .slide-cta {
+    border: 1px solid rgba(232, 255, 71, 0.15);
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: var(--surface) radial-gradient(ellipse at 50% 30%, rgba(232, 255, 71, 0.08) 0%, transparent 60%);
+  }
+  .slide-cta .cta-title {
+    font-family: var(--font-display);
+    font-size: 54px;
+    line-height: 0.95;
+    color: var(--white);
+    letter-spacing: 0.02em;
+    margin-bottom: 20px;
+  }
+  .slide-cta .cta-title em {
+    font-style: normal;
+    color: var(--yellow);
+  }
+  .slide-cta .follow-btn {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--yellow);
+    border-radius: 8px;
+    padding: 10px 28px;
+    margin-top: 8px;
+    text-decoration: none;
+  }
+  .slide-cta .cta-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 14px;
+    opacity: 0.7;
+  }
+
+  /* -- CONTENT SLIDES -- */
+  .slide-yellow { border: 1px solid rgba(232, 255, 71, 0.12); background: var(--surface) radial-gradient(ellipse at 20% 90%, rgba(232, 255, 71, 0.05) 0%, transparent 50%); }
+  .slide-yellow .label { color: var(--yellow); }
+  .slide-yellow h2 em { color: var(--yellow); }
+  .slide-yellow .brand { color: var(--yellow); }
+
+  .slide-red { border: 1px solid rgba(255, 77, 109, 0.12); background: var(--surface) radial-gradient(ellipse at 80% 10%, rgba(255, 77, 109, 0.05) 0%, transparent 50%); }
+  .slide-red .label { color: var(--red); }
+  .slide-red h2 em { color: var(--red); }
+  .slide-red .brand { color: var(--red); }
+
+  .slide-cyan { border: 1px solid rgba(0, 212, 255, 0.12); background: var(--surface) radial-gradient(ellipse at 70% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%); }
+  .slide-cyan .label { color: var(--cyan); }
+  .slide-cyan h2 em { color: var(--cyan); }
+  .slide-cyan .brand { color: var(--cyan); }
+
+  .slide-orange { border: 1px solid rgba(255, 149, 0, 0.12); background: var(--surface) radial-gradient(ellipse at 30% 20%, rgba(255, 149, 0, 0.05) 0%, transparent 50%); }
+  .slide-orange .label { color: var(--orange); }
+  .slide-orange h2 em { color: var(--orange); }
+  .slide-orange .brand { color: var(--orange); }
+
+  .content-area { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 20px; }
+
+  .code-block {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    line-height: 1.7;
+    color: var(--muted);
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .code-block .kw { color: var(--cyan); }
+  .code-block .fn { color: var(--yellow); }
+  .code-block .str { color: var(--orange); }
+  .code-block .cm { color: #5A6580; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .stat-card {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .stat-card .num {
+    font-family: var(--font-display);
+    font-size: 32px;
+    line-height: 1;
+  }
+  .stat-card .desc {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .pill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .pill {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--muted);
+  }
+
+  .check-list {
+    list-style: none;
+    margin-top: 10px;
+  }
+  .check-list li {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.75;
+    padding-left: 18px;
+    position: relative;
+  }
+  .check-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    opacity: 0.5;
+  }
+
+  .divider {
+    width: 32px;
+    height: 2px;
+    border-radius: 2px;
+    margin: 14px 0;
+    opacity: 0.5;
+  }
+
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .comp-col {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .comp-col .comp-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .comp-col li {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.8;
+    list-style: none;
+    padding-left: 12px;
+    position: relative;
+  }
+  .comp-col li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    opacity: 0.4;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .flow-arrow {
+    font-size: 14px;
+    opacity: 0.3;
+    color: var(--muted);
+  }
+
+  @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 800px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) {
+    .grid { grid-template-columns: 1fr; }
+    .slide-cover .title { font-size: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grid">
+
+  <!-- SLIDE 01 — COVER -->
+  <div class="slide slide-cover">
+    <div class="glow" style="top:-60px;left:-40px;background:var(--yellow);"></div>
+    <div class="badge">Deep Dive · 2026</div>
+    <div class="title">REACT<br>SERVER<br><em>COMPONENTS</em></div>
+    <div class="subtitle">The architecture shift you can't ignore.</div>
+    <div class="swipe">Swipe →</div>
+    <span class="sn">01 / 16</span>
+    <span class="brand" style="color:var(--yellow);">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 02 — WHAT ARE RSCs -->
+  <div class="slide slide-yellow">
+    <span class="sn">02 / 16</span>
+    <div class="content-area">
+      <div class="label">Definition</div>
+      <h2>What Are <em>Server Components</em>?</h2>
+      <p class="body-text">Components that run exclusively on the server. They render to HTML, never ship JavaScript to the client, and can directly access databases, file systems, and secrets.</p>
+      <div class="code-block">
+        <span class="cm">// This never reaches the browser</span><br>
+        <span class="kw">async function</span> <span class="fn">UserProfile</span>({ id }) {<br>
+        &nbsp;&nbsp;<span class="kw">const</span> user = <span class="kw">await</span> db.<span class="fn">query</span>(<span class="str">`SELECT * FROM users WHERE id = ${id}`</span>);<br>
+        &nbsp;&nbsp;<span class="kw">return</span> &lt;h1&gt;{user.name}&lt;/h1&gt;;<br>
+        }
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 03 — THE PROBLEM -->
+  <div class="slide slide-red">
+    <span class="sn">03 / 16</span>
+    <div class="content-area">
+      <div class="label">The Problem</div>
+      <h2>Why Do We <em>Need</em> Them?</h2>
+      <p class="body-text">Traditional React ships everything to the browser — components, data-fetching logic, dependencies. The result:</p>
+      <ul class="check-list" style="margin-top:12px;">
+        <li>Massive JS bundles slowing first paint</li>
+        <li>Waterfalls: render → fetch → render → fetch</li>
+        <li>Client secrets leaking into bundles</li>
+        <li>Hydration cost on every page load</li>
+        <li>Duplicate logic on server + client</li>
+      </ul>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 04 — CLIENT vs SERVER -->
+  <div class="slide slide-cyan">
+    <span class="sn">04 / 16</span>
+    <div class="content-area">
+      <div class="label">Comparison</div>
+      <h2><em>Client</em> vs <em>Server</em></h2>
+      <div class="comparison">
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--red);">Client</div>
+          <ul>
+            <li>useState, useEffect</li>
+            <li>Event handlers</li>
+            <li>Browser APIs</li>
+            <li>Ships JS to client</li>
+            <li>Interactivity</li>
+          </ul>
+        </div>
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--cyan);">Server</div>
+          <ul>
+            <li>async/await</li>
+            <li>Direct DB access</li>
+            <li>Zero bundle cost</li>
+            <li>No hydration</li>
+            <li>Render-only</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 05 — HOW THEY WORK -->
+  <div class="slide slide-orange">
+    <span class="sn">05 / 16</span>
+    <div class="content-area">
+      <div class="label">Architecture</div>
+      <h2>How They <em>Work</em></h2>
+      <p class="body-text">The server renders RSCs into a special serialized format (RSC payload), streams it to the client, which reconciles it into the existing React tree.</p>
+      <div class="flow">
+        <div class="flow-step">Server<br>renders RSC</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">RSC payload<br>streamed</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Client<br>reconciles</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">DOM<br>updated</div>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 06 — MENTAL MODEL -->
+  <div class="slide slide-yellow">
+    <span class="sn">06 / 16</span>
+    <div class="content-area">
+      <div class="label">Mental Model</div>
+      <h2>Think in <em>Layers</em></h2>
+      <p class="body-text">Server components are the outer shell. Client components are interactive islands inside them. Data flows down, interactivity is opt-in.</p>
+      <div class="code-block">
+        <span class="cm">// Server Component (default)</span><br>
+        <span class="kw">export default async function</span> <span class="fn">Page</span>() {<br>
+        &nbsp;&nbsp;<span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">getData</span>();<br>
+        &nbsp;&nbsp;<span class="kw">return</span> (<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&lt;Layout&gt;<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;<span class="fn">InteractiveWidget</span> data={data} /&gt;<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&lt;/Layout&gt;<br>
+        &nbsp;&nbsp;);<br>
+        }
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 07 — DATA FETCHING -->
+  <div class="slide slide-cyan">
+    <span class="sn">07 / 16</span>
+    <div class="content-area">
+      <div class="label">Data Fetching</div>
+      <h2><em>async/await</em> in Components</h2>
+      <p class="body-text">No useEffect. No loading states to manage. No client-side fetch waterfalls. Just write async functions.</p>
+      <div class="code-block">
+        <span class="kw">async function</span> <span class="fn">ProductList</span>() {<br>
+        &nbsp;&nbsp;<span class="kw">const</span> products = <span class="kw">await</span> db.<span class="fn">product</span>.<span class="fn">findMany</span>();<br>
+        &nbsp;&nbsp;<span class="kw">return</span> products.<span class="fn">map</span>(p =&gt;<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&lt;Card key={p.id} product={p} /&gt;<br>
+        &nbsp;&nbsp;);<br>
+        }
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 08 — STREAMING -->
+  <div class="slide slide-red">
+    <span class="sn">08 / 16</span>
+    <div class="content-area">
+      <div class="label">Streaming</div>
+      <h2><em>Progressive</em> Rendering</h2>
+      <p class="body-text">Suspense boundaries let slow parts stream in later. The shell loads instantly while data-heavy components resolve.</p>
+      <div class="code-block">
+        &lt;<span class="fn">Suspense</span> fallback={&lt;Skeleton /&gt;}&gt;<br>
+        &nbsp;&nbsp;&lt;<span class="fn">SlowDataComponent</span> /&gt;<br>
+        &lt;/<span class="fn">Suspense</span>&gt;<br><br>
+        <span class="cm">// Shell renders immediately</span><br>
+        <span class="cm">// SlowDataComponent streams in when ready</span>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 09 — SERVER ACTIONS -->
+  <div class="slide slide-orange">
+    <span class="sn">09 / 16</span>
+    <div class="content-area">
+      <div class="label">Mutations</div>
+      <h2>Server <em>Actions</em></h2>
+      <p class="body-text">Functions marked with "use server" run on the server but can be called from client components. No API routes needed.</p>
+      <div class="code-block">
+        <span class="str">"use server"</span><br><br>
+        <span class="kw">async function</span> <span class="fn">createPost</span>(formData) {<br>
+        &nbsp;&nbsp;<span class="kw">const</span> title = formData.<span class="fn">get</span>(<span class="str">"title"</span>);<br>
+        &nbsp;&nbsp;<span class="kw">await</span> db.post.<span class="fn">create</span>({ data: { title } });<br>
+        &nbsp;&nbsp;<span class="fn">revalidatePath</span>(<span class="str">"/posts"</span>);<br>
+        }
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 10 — COMMON PATTERNS -->
+  <div class="slide slide-yellow">
+    <span class="sn">10 / 16</span>
+    <div class="content-area">
+      <div class="label">Patterns</div>
+      <h2>Common <em>Patterns</em></h2>
+      <div class="pill-list">
+        <span class="pill">Fetch at the top</span>
+        <span class="pill">Props down</span>
+        <span class="pill">"use client" boundary</span>
+        <span class="pill">Composition over props</span>
+        <span class="pill">Server → Client handoff</span>
+        <span class="pill">Parallel data loading</span>
+        <span class="pill">Suspense boundaries</span>
+        <span class="pill">Streaming SSR</span>
+      </div>
+      <p class="body-text" style="margin-top:14px;">The golden rule: keep server components as the outer layer. Push "use client" as deep into the tree as possible.</p>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 11 — PERFORMANCE -->
+  <div class="slide slide-cyan">
+    <span class="sn">11 / 16</span>
+    <div class="content-area">
+      <div class="label">Performance</div>
+      <h2>The <em>Numbers</em></h2>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="num" style="color:var(--cyan);">-47%</div>
+          <div class="desc">JavaScript bundle reduction</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" style="color:var(--yellow);">3.2×</div>
+          <div class="desc">Faster Time to Interactive</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" style="color:var(--orange);">0ms</div>
+          <div class="desc">Client-side data waterfalls</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" style="color:var(--red);">100%</div>
+          <div class="desc">Server secrets stay on server</div>
+        </div>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 12 — BUNDLE IMPACT -->
+  <div class="slide slide-orange">
+    <span class="sn">12 / 16</span>
+    <div class="content-area">
+      <div class="label">Bundle Size</div>
+      <h2>Before vs <em>After</em></h2>
+      <p class="body-text">Libraries used only on the server (date-fns, marked, prisma) no longer ship to the browser.</p>
+      <div class="comparison" style="margin-top:12px;">
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--red);">Before RSC</div>
+          <ul>
+            <li>marked — 42KB</li>
+            <li>date-fns — 28KB</li>
+            <li>prisma — 0 (API route)</li>
+            <li>syntax-hl — 67KB</li>
+            <li><strong style="color:var(--red);">Total: ~137KB</strong></li>
+          </ul>
+        </div>
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--cyan);">After RSC</div>
+          <ul>
+            <li>marked — 0KB ✓</li>
+            <li>date-fns — 0KB ✓</li>
+            <li>prisma — 0KB ✓</li>
+            <li>syntax-hl — 0KB ✓</li>
+            <li><strong style="color:var(--cyan);">Total: 0KB</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 13 — PITFALLS -->
+  <div class="slide slide-red">
+    <span class="sn">13 / 16</span>
+    <div class="content-area">
+      <div class="label">Watch Out</div>
+      <h2>Common <em>Pitfalls</em></h2>
+      <ul class="check-list">
+        <li>Accidentally importing a client lib in a server component</li>
+        <li>Passing non-serializable props across the boundary</li>
+        <li>Over-using "use client" — making everything a client component</li>
+        <li>Forgetting Suspense boundaries for async components</li>
+        <li>Trying to use hooks (useState, useEffect) in server components</li>
+        <li>Not understanding when revalidation happens</li>
+      </ul>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 14 — DECISION FRAMEWORK -->
+  <div class="slide slide-cyan">
+    <span class="sn">14 / 16</span>
+    <div class="content-area">
+      <div class="label">Framework</div>
+      <h2>When to Use <em>What</em></h2>
+      <p class="body-text" style="margin-bottom:10px;">Ask yourself one question:</p>
+      <div class="comparison">
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--cyan);">Server Component</div>
+          <ul>
+            <li>Fetching data</li>
+            <li>Accessing backend</li>
+            <li>Static content</li>
+            <li>SEO-critical</li>
+            <li>Heavy dependencies</li>
+          </ul>
+        </div>
+        <div class="comp-col">
+          <div class="comp-title" style="color:var(--orange);">Client Component</div>
+          <ul>
+            <li>onClick, onChange</li>
+            <li>useState, useEffect</li>
+            <li>Browser APIs</li>
+            <li>Animations</li>
+            <li>Real-time updates</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 15 — THE FUTURE -->
+  <div class="slide slide-yellow">
+    <span class="sn">15 / 16</span>
+    <div class="content-area">
+      <div class="label">What's Next</div>
+      <h2>The <em>Future</em></h2>
+      <p class="body-text">RSCs are just the beginning. The React team is building toward a world where the framework decides what runs where — automatically.</p>
+      <ul class="check-list" style="margin-top:14px;">
+        <li>Partial prerendering (PPR) — static shells + dynamic holes</li>
+        <li>Server components in React Native</li>
+        <li>Cross-framework RSC protocol</li>
+        <li>Compiler-driven client/server splitting</li>
+        <li>Edge-first by default</li>
+      </ul>
+    </div>
+    <span class="brand">@slidecraft</span>
+  </div>
+
+  <!-- SLIDE 16 — CTA -->
+  <div class="slide slide-cta">
+    <div class="glow" style="top:-40px;right:-40px;background:var(--yellow);"></div>
+    <div class="cta-title">FOUND THIS<br><em>USEFUL</em>?</div>
+    <span class="follow-btn">Follow for More</span>
+    <div class="cta-sub">Save · Share · Drop a comment</div>
+    <span class="sn">16 / 16</span>
+    <span class="brand" style="color:var(--yellow);">@slidecraft</span>
+  </div>
+
+</div>
+
+</body>
+</html>

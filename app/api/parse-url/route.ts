@@ -229,6 +229,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // YouTube URL detection — extract transcript instead of scraping HTML
+    const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) {
+      const videoId = ytMatch[1];
+      try {
+        // Fetch the YouTube page to get the title and captions
+        const ytRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept-Language': 'en-US,en;q=0.9' },
+        });
+        const ytHtml = await ytRes.text();
+        const titleMatch = ytHtml.match(/<meta\s+name="title"\s+content="([^"]+)"/i)
+          || ytHtml.match(/<title>([^<]+)<\/title>/i);
+        const videoTitle = titleMatch?.[1]?.replace(' - YouTube', '').trim() || 'YouTube Video';
+
+        // Extract captions URL from the page source
+        const captionsMatch = ytHtml.match(/"captionTracks":\s*(\[.*?\])/);
+        let transcript = '';
+
+        if (captionsMatch) {
+          const captionTracks = JSON.parse(captionsMatch[1]);
+          const enTrack = captionTracks.find((t: any) => t.languageCode === 'en' || t.languageCode?.startsWith('en'))
+            || captionTracks[0];
+          if (enTrack?.baseUrl) {
+            const capRes = await fetch(enTrack.baseUrl);
+            const capXml = await capRes.text();
+            // Parse XML captions: <text start="0.0" dur="2.5">Hello world</text>
+            const textParts = capXml.match(/<text[^>]*>([^<]*)<\/text>/g) || [];
+            transcript = textParts
+              .map(t => t.replace(/<text[^>]*>/, '').replace(/<\/text>/, ''))
+              .map(t => t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"'))
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+        }
+
+        if (!transcript) {
+          // Fallback: extract description from meta
+          const descMatch = ytHtml.match(/<meta\s+name="description"\s+content="([^"]+)"/i);
+          transcript = descMatch?.[1] || '';
+        }
+
+        if (!transcript || transcript.length < 50) {
+          return NextResponse.json(
+            { error: 'Could not extract transcript from this YouTube video. Try a video with captions enabled.' },
+            { status: 422 }
+          );
+        }
+
+        const MAX_CHARS = 25000;
+        const finalTranscript = transcript.length > MAX_CHARS ? transcript.slice(0, MAX_CHARS) + '...' : transcript;
+
+        return NextResponse.json({
+          title: videoTitle,
+          description: `YouTube video transcript`,
+          text: finalTranscript,
+          wordCount: countWords(finalTranscript),
+          sections: [],
+          truncated: transcript.length > MAX_CHARS,
+          sourceUrl: url,
+          sourceDomain: 'youtube.com',
+        });
+      } catch (ytError) {
+        console.error('YouTube transcript extraction failed:', ytError);
+        return NextResponse.json(
+          { error: 'Failed to extract content from YouTube. Try pasting the transcript directly.' },
+          { status: 500 }
+        );
+      }
+    }
+
     // Fetch the URL content
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout

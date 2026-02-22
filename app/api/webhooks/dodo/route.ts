@@ -7,10 +7,6 @@ import { sendEmail } from '@/lib/email';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * Verify webhook signature using HMAC SHA256 over `${timestamp}.${rawBody}`.
- * Accepts headers: x-dodo-signature / x-dodopayments-signature and x-dodo-timestamp.
- */
 function verifySignature(rawBody: string, req: NextRequest): boolean {
   const secret =
     process.env.DODO_WEBHOOK_SECRET ||
@@ -59,7 +55,7 @@ function resolvePlan(data: any): Plan | null {
   if (productName.includes('pro')) return 'pro' as Plan;
 
   if (typeof amount === 'number') {
-    if (amount <= 1200) return 'starter' as Plan; // ~$12 threshold for starter
+    if (amount <= 1200) return 'starter' as Plan;
     if (amount > 1200) return 'pro' as Plan;
   }
 
@@ -121,7 +117,7 @@ export async function POST(req: NextRequest) {
   let event: any;
   try {
     event = JSON.parse(rawBody);
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
@@ -132,7 +128,6 @@ export async function POST(req: NextRequest) {
   const nextBillingDate = data?.next_billing_date || data?.next_billing_at || null;
   const cancelAtPeriodEnd = data?.cancel_at_next_billing_date || false;
 
-  // We only handle subscription lifecycle + payment failures
   const relevantTypes = new Set([
     'subscription.active',
     'subscription.renewed',
@@ -169,7 +164,6 @@ export async function POST(req: NextRequest) {
   try {
     await updateUserPlan(userId, plan, status);
 
-    // Send lifecycle emails (best-effort; ignore failures)
     try {
       if (status === 'active' && (type === 'subscription.active' || type === 'subscription.renewed')) {
         await sendLifecycleEmail({ email, type: 'renewed', plan, nextBillingDate });
@@ -193,4 +187,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ received: true });
 }
-

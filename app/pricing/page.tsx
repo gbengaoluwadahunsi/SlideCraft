@@ -272,14 +272,16 @@ export default function PricingPage() {
                   <button
                     onClick={async () => {
                       try {
-                        const response = await fetch(`/api/dodo/checkout?plan=${plan.name.toLowerCase()}`);
-                        if (response.ok) {
-                          const data = await response.json();
-                          if (data.url) {
-                            window.location.href = data.url;
-                          }
+                        const response = await fetch('/api/dodo/checkout', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ plan: plan.name.toLowerCase() }),
+                        });
+                        const data = await response.json();
+                        if (data.url) {
+                          window.location.href = data.url;
                         } else {
-                          toast.error('Failed to start checkout');
+                          toast.error(data.error || 'Failed to start checkout');
                         }
                       } catch (error) {
                         toast.error('Failed to start checkout');
@@ -595,7 +597,7 @@ export default function PricingPage() {
           
           <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">
             <h3 className="font-semibold mb-2">What payment methods do you accept?</h3>
-            <p className="text-sm text-gray-400">We accept all major credit cards, PayPal, and bank transfers for Enterprise plans.</p>
+            <p className="text-sm text-gray-400">We accept all major credit/debit cards, bank transfers, and mobile money via Paystack.</p>
           </div>
           
           <div className="bg-[#0f1117] border border-gray-800 rounded-xl p-6">

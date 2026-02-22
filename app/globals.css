@@ -2,43 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design Tokens ─────────────────────────────────────────── */
 :root {
-  --background: #0a0a0a;
+  /* Surfaces (light → dark) */
+  --surface-0: #0a0a0a;
+  --surface-1: #0f1117;
+  --surface-2: #1a1d27;
+  --surface-3: #252830;
+
+  /* Text hierarchy */
+  --text-primary: #ffffff;
+  --text-secondary: #d1d5db;
+  --text-muted: #6b7280;
+
+  /* Accent */
+  --accent: #ffd700;
+  --accent-hover: #ffed4a;
+  --accent-subtle: rgba(255, 215, 0, 0.1);
+  --accent-border: rgba(255, 215, 0, 0.3);
+  --accent-glow: rgba(255, 215, 0, 0.15);
+
+  /* Borders */
+  --border: #1f2937;
+  --border-hover: #374151;
+  --border-active: #ffd700;
+
+  /* Semantic colors */
+  --success: #4ade80;
+  --error: #f87171;
+  --info: #60a5fa;
+
+  /* Legacy aliases kept for backwards compat */
+  --background: var(--surface-0);
   --foreground: #ededed;
 }
 
 body {
-  background: var(--background);
+  background: var(--surface-0);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Make text selection more visible - high contrast for dark themes */
+/* ── Selection ─────────────────────────────────────────────── */
 ::selection {
   background-color: rgba(59, 130, 246, 0.7) !important;
   color: white !important;
 }
 
-*::selection {
-  background-color: rgba(59, 130, 246, 0.7) !important;
-  color: white !important;
-}
-
-/* Ensure selection is visible on contenteditable elements */
-[contenteditable="true"]::selection,
-[contenteditable="true"] *::selection {
-  background-color: rgba(59, 130, 246, 0.7) !important;
-  color: white !important;
-}
-
-/* Ensure contenteditable elements allow text selection */
+/* ── Contenteditable ───────────────────────────────────────── */
 [contenteditable="true"] {
   -webkit-user-select: text !important;
   user-select: text !important;
   cursor: text !important;
 }
 
-/* Prevent inappropriate word breaks in editable text */
 [contenteditable="true"],
 [contenteditable="true"] * {
   word-break: normal !important;
@@ -47,9 +64,16 @@ body {
   hyphens: none !important;
   -webkit-hyphens: none !important;
   -ms-hyphens: none !important;
+  -webkit-touch-callout: default;
+  -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
 }
 
-/* Ensure titles and headings never break mid-word */
+[contenteditable="true"]::selection,
+[contenteditable="true"] *::selection {
+  background-color: rgba(59, 130, 246, 0.7) !important;
+  color: white !important;
+}
+
 h1[contenteditable="true"],
 h2[contenteditable="true"],
 h3[contenteditable="true"],
@@ -60,62 +84,50 @@ h3[contenteditable="true"],
   white-space: normal !important;
 }
 
-/* Table styling inside contenteditable - no focus rings on cells */
+/* ── Table styles ──────────────────────────────────────────── */
 [contenteditable="true"] table {
   border-collapse: collapse;
   width: 100%;
 }
 
 [contenteditable="true"] td,
-[contenteditable="true"] th {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
+[contenteditable="true"] th,
 [contenteditable="true"] td:focus,
 [contenteditable="true"] th:focus {
   outline: none !important;
   box-shadow: none !important;
 }
 
-/* Table block resize styling */
 .table-block {
   border: 2px dashed transparent;
   transition: border-color 0.2s ease;
 }
 
 .table-block:hover {
-  border-color: rgba(255, 215, 0, 0.5);
+  border-color: var(--accent-border);
 }
 
-/* Custom resize handle styling for tables */
 .table-block .react-resizable-handle {
   background: rgba(255, 215, 0, 0.8) !important;
   border-radius: 2px;
 }
 
-/* Fix for selection on transformed elements */
-[contenteditable="true"], 
-[contenteditable="true"] * {
-  -webkit-touch-callout: default;
-  -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
-}
-
+/* ── Scrollbars ────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--surface-1);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: var(--surface-3);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: var(--text-muted);
 }
 
 .hide-scrollbar {
@@ -127,6 +139,7 @@ h3[contenteditable="true"],
   display: none;
 }
 
+/* ── Animations ────────────────────────────────────────────── */
 @keyframes float {
   0%, 100% {
     transform: translateY(0) rotate(6deg);
@@ -153,41 +166,10 @@ h3[contenteditable="true"],
   animation: float-delayed 7s ease-in-out infinite;
 }
 
-/* Hide Vercel toolbar in production */
+/* ── Hide Vercel toolbar ───────────────────────────────────── */
 [data-vercel-toolbar],
-[data-vercel-toolbar] *,
 #vercel-toolbar,
-#__vercel-toolbar__,
-.vercel-toolbar,
 vercel-toolbar,
-[class*="vercel-toolbar"],
-[id*="vercel-toolbar"],
-[data-testid="vercel-toolbar"],
-[data-vercel],
-[data-vercel] *,
-#__next-build-indicator,
-[class*="__vercel"],
-[id*="__vercel"],
-vercel-live-feedback,
-[data-nextjs-toast],
-#__next-build-watcher,
-[class*="vercel-feedback"],
-[id*="vercel-feedback"],
-/* Target fixed positioned elements from Vercel at screen edges */
-body > div[style*="position: fixed"][style*="right: 0"],
-body > div[style*="position: fixed"][style*="bottom: 0"]:not([class]),
-body > aside[style*="position: fixed"],
-/* Shadow host elements */
-:host([data-vercel]),
-:host([data-vercel-toolbar]) {
+vercel-live-feedback {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  position: absolute !important;
-  left: -9999px !important;
-  z-index: -9999 !important;
 }

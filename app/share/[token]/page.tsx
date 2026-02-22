@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Slide } from '@/components/Slide';
-import { SlideData } from '@/app/dashboard/page';
+import { SlideData } from '@/lib/types';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 

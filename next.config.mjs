@@ -24,7 +24,7 @@ const nextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // Allow larger file uploads (for videos)
   experimental: {

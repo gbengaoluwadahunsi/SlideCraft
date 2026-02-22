@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Permanent_Marker, Inter, Playfair_Display, Oswald, Roboto_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Permanent_Marker, Inter, Playfair_Display, Oswald, Roboto_Mono, Bebas_Neue, Epilogue } from "next/font/google";
 import { ToasterProvider } from "@/components/ToasterProvider";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
-import { HelpChatbot } from "@/components/HelpChatbot";
 import { AppContextProvider } from "@/lib/hooks/useAppContext";
 import "./globals.css";
 
@@ -32,6 +31,8 @@ const inter = Inter({
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
 const oswald = Oswald({ subsets: ["latin"], variable: "--font-oswald" });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mono" });
+const bebasNeue = Bebas_Neue({ weight: "400", subsets: ["latin"], variable: "--font-bebas-neue" });
+const epilogue = Epilogue({ subsets: ["latin"], variable: "--font-epilogue" });
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.carouslk.com'),
@@ -108,7 +109,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head></head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${permanentMarker.variable} ${inter.variable} ${playfair.variable} ${oswald.variable} ${robotoMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${permanentMarker.variable} ${inter.variable} ${playfair.variable} ${oswald.variable} ${robotoMono.variable} ${bebasNeue.variable} ${epilogue.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Remove Vercel toolbar in production */}
@@ -208,7 +209,6 @@ export default function RootLayout({
           <ConfirmProvider>
             <AppContextProvider>
               {children}
-              <HelpChatbot />
             </AppContextProvider>
           </ConfirmProvider>
         </SessionProvider>

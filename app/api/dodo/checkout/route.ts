@@ -9,13 +9,11 @@ const PRODUCT_IDS: Record<string, string | undefined> = {
   pro: process.env.DODO_PRO_PRODUCT_ID,
 };
 
-export async function GET(request: NextRequest) {
-  // Allow disabling checkout in build/local by not setting DODO_CHECKOUT_ENABLED=true
+export async function POST(request: NextRequest) {
   if (process.env.DODO_CHECKOUT_ENABLED !== 'true') {
     return NextResponse.json({ error: 'Checkout disabled', url: null }, { status: 200 });
   }
 
-  // Avoid hitting external APIs during build-time page data collection
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     return NextResponse.json({ error: 'Checkout disabled during build', url: null }, { status: 200 });
   }
@@ -25,7 +23,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized', url: null }, { status: 200 });
   }
 
-  const plan = request.nextUrl.searchParams.get('plan')?.toLowerCase();
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    // fall through to validation
+  }
+
+  const plan = body?.plan?.toLowerCase?.();
   if (!plan || !['starter', 'pro'].includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan', url: null }, { status: 200 });
   }
@@ -77,4 +82,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create checkout session', url: null }, { status: 200 });
   }
 }
-

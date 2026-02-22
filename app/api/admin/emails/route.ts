@@ -3,9 +3,10 @@ import { getPool, initDB } from '@/lib/db';
 
 // Admin secret key for protecting admin endpoints
 // Set this in your environment variables
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'your-super-secret-admin-key';
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
 function verifyAdminAccess(request: NextRequest): boolean {
+  if (!ADMIN_SECRET) return false;
   const authHeader = request.headers.get('x-admin-secret');
   return authHeader === ADMIN_SECRET;
 }

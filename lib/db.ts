@@ -109,6 +109,11 @@ export async function initDB() {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMP;
+        
+        -- Paystack fields
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_customer_code VARCHAR(255);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_subscription_code VARCHAR(255);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_email_token VARCHAR(255);
       END $$;
     `);
     
@@ -177,6 +182,8 @@ export async function initDB() {
         status VARCHAR(50) NOT NULL DEFAULT 'active',
         stripe_subscription_id VARCHAR(255) UNIQUE,
         stripe_customer_id VARCHAR(255),
+        paystack_subscription_code VARCHAR(255) UNIQUE,
+        paystack_customer_code VARCHAR(255),
         current_period_start TIMESTAMP,
         current_period_end TIMESTAMP,
         cancel_at_period_end BOOLEAN DEFAULT FALSE,

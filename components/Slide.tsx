@@ -36,7 +36,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi, Scissors, Loader2 } from 'lucide-react';
+import { GripVertical, Trash2, Upload, Image as ImageIcon, Lightbulb, Target, Rocket, TrendingUp, Users, Shield, Zap, Brain, Puzzle, Trophy, Clock, CheckCircle, Layers, GitBranch, Search, Lock, Globe, Star, Heart, Flag, Compass, Anchor, Award, Briefcase, Calendar, Cloud, Code, Cpu, Database, Download, Edit, Eye, FileText, Folder, Gift, Grid, Key, Layout, Link, List, Mail, Map, Maximize, Monitor, Package, Play, Plus, Power, RefreshCw, Settings, Share, Sliders, Sun, Tag, ThumbsUp, Wrench, UploadCloud, User, Video, Wifi, Loader2 } from 'lucide-react';
 import { Rnd } from 'react-rnd';
 import { Infographic } from './Infographic';
 
@@ -114,6 +114,17 @@ interface SlideProps {
   borderColor?: string;
   borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
   borderRadius?: number;
+  titleColor?: string;
+  slideLabel?: string;
+  slideLabelColor?: string;
+  showNoise?: boolean;
+  glowColor?: string;
+  glowPosition?: 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left' | 'center';
+  slideNumber?: number;
+  totalSlides?: number;
+  slidePadding?: number;
+  backgroundPattern?: 'grid' | 'dots' | 'none';
+  slideJustify?: 'center' | 'start' | 'between' | 'end';
 }
 
 const sanitizeEmoji = (value: string | undefined | null) => {
@@ -208,7 +219,7 @@ function getYouTubeId(url: string) {
     } catch { return null; }
 }
 
-export const Slide: React.FC<SlideProps> = ({ 
+export const Slide: React.FC<SlideProps> = React.memo(function Slide({ 
   type, 
   title, 
   subtitle, 
@@ -254,11 +265,21 @@ export const Slide: React.FC<SlideProps> = ({
   borderColor,
   borderStyle,
   borderRadius,
+  titleColor,
+  slideLabel,
+  slideLabelColor,
+  showNoise,
+  glowColor,
+  glowPosition,
+  slideNumber,
+  totalSlides,
+  slidePadding,
+  backgroundPattern,
+  slideJustify,
   ...props
-}) => {
+}) {
   // Track client-side mount to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
-  const [isRemovingBackground, setIsRemovingBackground] = useState(false);
   
   useEffect(() => {
     setIsMounted(true);
@@ -370,11 +391,25 @@ export const Slide: React.FC<SlideProps> = ({
 
   // Default orders if not provided
   const getOrder = () => {
-      if (elementOrder && elementOrder.length > 0) return elementOrder;
-      if (type === 'cover') return ['title', 'subtitle', 'media'];
-      if (type === 'chart') return ['emoji', 'title', 'content', 'chart', 'media'];
-      if (type === 'visual') return ['icon', 'title', 'infographic', 'media'];
-      return ['emoji', 'title', 'content', 'media'];
+      let order: string[];
+      if (elementOrder && elementOrder.length > 0) {
+          order = elementOrder;
+      } else if (type === 'cover') {
+          order = ['title', 'subtitle', 'media'];
+      } else if (type === 'chart') {
+          order = ['emoji', 'title', 'content', 'chart', 'media'];
+      } else if (type === 'visual') {
+          order = ['icon', 'title', 'infographic', 'media'];
+      } else {
+          order = ['emoji', 'title', 'content', 'media'];
+      }
+      if ((slideNumber !== undefined || slideLabel) && !order.includes('slideCounter') && !order.includes('slideLabel')) {
+          const prefix: string[] = [];
+          if (slideNumber !== undefined && totalSlides !== undefined) prefix.push('slideCounter');
+          if (slideLabel) prefix.push('slideLabel');
+          order = [...prefix, ...order];
+      }
+      return order;
   };
 
   const currentOrder = getOrder();
@@ -505,39 +540,6 @@ export const Slide: React.FC<SlideProps> = ({
         );
     }
 
-    // Handle background removal
-    const handleRemoveBackground = async () => {
-        if (!mediaUrl || !onUpdate || isRemovingBackground) return;
-        
-        setIsRemovingBackground(true);
-        try {
-            const response = await fetch('/api/remove-background', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ imageUrl: mediaUrl }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Background removal failed');
-            }
-
-            const data = await response.json();
-            if (data.secure_url) {
-                onUpdate('mediaUrl', data.secure_url);
-                toast.success('Background removed successfully!');
-            }
-        } catch (error) {
-            console.error('Background removal error:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to remove background. Please try again.';
-            toast.error(errorMessage);
-        } finally {
-            setIsRemovingBackground(false);
-        }
-    };
-
     // Media Actions Overlay (Hover) for Editable Mode
     const MediaOverlay = () => {
         if (!isEditable) return null;
@@ -545,23 +547,6 @@ export const Slide: React.FC<SlideProps> = ({
         return (
             <div className="absolute inset-0 pointer-events-none z-20">
                 <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition pointer-events-auto">
-                    {mediaType === 'image' && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveBackground();
-                            }}
-                            disabled={isRemovingBackground}
-                            className="p-2 bg-blue-500/20 rounded-lg text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/50 shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Remove Background"
-                        >
-                            {isRemovingBackground ? (
-                                <Loader2 size={18} className="animate-spin" />
-                            ) : (
-                                <Scissors size={18} />
-                            )}
-                        </button>
-                    )}
                     <label className="p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 border border-gray-600 cursor-pointer shadow-lg transform hover:scale-105 transition-all" title="Replace Media">
                         {mediaType === 'video' ? <Upload size={18} /> : <ImageIcon size={18} />}
                         <input 
@@ -727,7 +712,7 @@ export const Slide: React.FC<SlideProps> = ({
       max-width: 100% !important;
     }
     .${scopeClass} strong, .${scopeClass} b { color: ${activeAccentColor}; font-weight: 700; }
-    .${scopeClass} em, .${scopeClass} i { background-color: ${activeAccentColor}33; color: ${activeAccentColor}; font-style: normal; padding: 0 4px; border-radius: 4px; }
+    .${scopeClass} em, .${scopeClass} i { ${titleColor ? '' : `background-color: ${activeAccentColor}33;`} color: ${activeAccentColor}; font-style: normal; ${titleColor ? '' : 'padding: 0 4px; border-radius: 4px;'} }
     .${scopeClass} code { background-color: transparent; color: ${activeAccentColor}; padding: 0 2px; font-family: var(--font-roboto-mono), monospace; font-weight: bold; }
     .${scopeClass} ul, .${scopeClass} ol { 
       margin: 1rem 0; 
@@ -1273,6 +1258,55 @@ export const Slide: React.FC<SlideProps> = ({
   // Element Renderers Map
   const renderElement = (id: string) => {
       switch (id) {
+        case 'slideLabel': {
+            if (!slideLabel) return null;
+            const labelColor = slideLabelColor || activeAccentColor;
+            const isCover = type === 'cover';
+            return (
+                <div
+                    style={{
+                        fontFamily: 'var(--font-roboto-mono), monospace',
+                        fontSize: `${0.75 * fontScale}rem`,
+                        letterSpacing: '0.25em',
+                        textTransform: 'uppercase' as const,
+                        color: labelColor,
+                        marginBottom: isCover ? '12px' : '8px',
+                        ...(isCover ? {
+                            background: `${labelColor}14`,
+                            border: `1px solid ${labelColor}33`,
+                            padding: '6px 14px',
+                            borderRadius: '4px',
+                            width: 'fit-content',
+                        } : {}),
+                    }}
+                >
+                    {isEditable ? (
+                        <EditableText
+                            tagName="span"
+                            html={slideLabel}
+                            onChange={(val) => onUpdate?.('slideLabel', val)}
+                            placeholder="Label"
+                        />
+                    ) : slideLabel}
+                </div>
+            );
+        }
+        case 'slideCounter': {
+            if (slideNumber === undefined || totalSlides === undefined) return null;
+            return (
+                <div
+                    style={{
+                        fontFamily: 'var(--font-roboto-mono), monospace',
+                        fontSize: `${0.7 * fontScale}rem`,
+                        letterSpacing: '0.2em',
+                        color: '#9BA8C0',
+                        marginBottom: '8px',
+                    }}
+                >
+                    {String(slideNumber).padStart(2, '0')} / {String(totalSlides).padStart(2, '0')}
+                </div>
+            );
+        }
         case 'emoji': {
             const emojiValue = sanitizeEmoji(emoji);
             // Only render emoji container if there's actually an emoji value
@@ -1338,12 +1372,13 @@ export const Slide: React.FC<SlideProps> = ({
             const titleStripped = title?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
             // Visual slides default to centered text
             const titleAlign = type === 'visual' ? 'center' : textAlign;
+            const resolvedTitleColor = titleColor || activeAccentColor;
             return isEditable ? (
                 <EditableText 
                     tagName="h1"
                     className="font-bold leading-tight tracking-tight mb-2"
                     style={{ 
-                        color: activeAccentColor, // Consistent color for simplicity in dynamic order
+                        color: resolvedTitleColor,
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
@@ -1352,7 +1387,6 @@ export const Slide: React.FC<SlideProps> = ({
                         overflowWrap: 'break-word',
                         hyphens: 'auto',
                         width: '100%',
-                        // Removed boxShadow, borders, and borderRadius for cleaner text
                     }}
                     html={title}
                     onChange={(val) => onUpdate?.('title', val)}
@@ -1362,7 +1396,7 @@ export const Slide: React.FC<SlideProps> = ({
                 <h1 
                     className="font-bold leading-tight tracking-tight mb-2" 
                     style={{ 
-                        color: activeAccentColor,
+                        color: resolvedTitleColor,
                         fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
@@ -1425,7 +1459,7 @@ export const Slide: React.FC<SlideProps> = ({
             const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
             const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
-                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word', minHeight: '600px', height: 'auto' }}>
+                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word', minHeight: slidePadding ? 'auto' : '600px', height: 'auto' }}>
                     {isEditable ? (
                         <EditableText 
                             tagName="div"
@@ -1497,25 +1531,79 @@ export const Slide: React.FC<SlideProps> = ({
       }
   };
 
+  const glowPositionStyles: Record<string, React.CSSProperties> = {
+    'top-right': { top: '-80px', right: '-80px' },
+    'bottom-right': { bottom: '-80px', right: '-80px' },
+    'top-left': { top: '-80px', left: '-80px' },
+    'bottom-left': { bottom: '-80px', left: '-80px' },
+    'center': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+  };
+
   return (
     <motion.div
       className={`w-[1080px] min-h-[1080px] flex flex-col relative overflow-visible shrink-0 ${scopeClass}`}
       style={{
-        // If there's a background image, use a fallback dark color; otherwise use the selected color
         backgroundColor: backgroundImage ? '#0a0a0a' : activeBgColor,
         color: activeTextColor,
         fontFamily: fontFamily,
         userSelect: isEditable ? 'text' : 'none',
         WebkitUserSelect: isEditable ? 'text' : 'none',
-        height: 'auto', // Allow slide to expand to fit content
-        maxHeight: 'none', // Remove any max height restrictions
-        minHeight: '1080px', // Minimum height but allow expansion
+        height: 'auto',
+        maxHeight: 'none',
+        minHeight: '1080px',
+        ...(borderWidth ? { border: `${borderWidth}px ${borderStyle || 'solid'} ${borderColor || activeAccentColor}` } : {}),
+        ...(borderRadius ? { borderRadius: `${borderRadius}px`, overflow: 'hidden' } : {}),
       }}
       initial={isDownloading ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={isDownloading ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
     >
       <style>{styles}</style>
+
+      {/* Noise texture overlay */}
+      {showNoise && (
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`,
+            opacity: 0.4,
+          }}
+        />
+      )}
+
+      {/* Grid/dots background pattern */}
+      {backgroundPattern === 'grid' && (
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage: `linear-gradient(${activeAccentColor}08 1px, transparent 1px), linear-gradient(90deg, ${activeAccentColor}08 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
+      )}
+      {backgroundPattern === 'dots' && (
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage: `radial-gradient(${activeAccentColor}15 1px, transparent 1px)`,
+            backgroundSize: '24px 24px',
+          }}
+        />
+      )}
+
+      {/* Radial glow effect */}
+      {glowColor && (
+        <div
+          className="absolute pointer-events-none z-0"
+          style={{
+            width: '360px',
+            height: '360px',
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${glowColor} 0%, transparent 65%)`,
+            ...(glowPositionStyles[glowPosition || 'top-right'] || glowPositionStyles['top-right']),
+          }}
+        />
+      )}
       
       {/* Background Image Layer - fully covers when present */}
       {backgroundImage && (
@@ -1703,7 +1791,7 @@ export const Slide: React.FC<SlideProps> = ({
         </div>
       ) : (
         /* Flow Layout Mode - elements stack vertically and can be reordered */
-        <div className={`w-full px-16 pt-2 pb-2 relative z-10 flex flex-col ${type === 'cover' ? 'justify-center' : 'justify-start'} overflow-visible`} style={{ minHeight: 'auto', height: 'auto', flex: '1 1 auto' }}>
+        <div className={`w-full relative z-10 flex flex-col overflow-visible`} style={{ justifyContent: slideJustify === 'between' ? 'space-between' : slideJustify === 'end' ? 'flex-end' : slideJustify === 'start' ? 'flex-start' : (type === 'cover' ? 'center' : 'flex-start'), padding: slidePadding ? `${slidePadding}px` : undefined, paddingLeft: slidePadding ? undefined : '4rem', paddingRight: slidePadding ? undefined : '4rem', paddingTop: slidePadding ? undefined : '0.5rem', paddingBottom: slidePadding ? undefined : '0.5rem', minHeight: 'auto', height: 'auto', flex: '1 1 auto' }}>
           {isEditable && isMounted ? (
               <DndContext 
                   sensors={sensors} 
@@ -1774,4 +1862,4 @@ export const Slide: React.FC<SlideProps> = ({
 
     </motion.div>
   );
-};
+});

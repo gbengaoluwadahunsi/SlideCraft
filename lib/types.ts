@@ -70,6 +70,18 @@ export interface SlideData {
   borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
   borderRadius?: number;
   textAnimation?: string; // Animation type for text elements (fadeIn, slideUp, zoomIn, etc.)
+  // Advanced design properties (for premium templates)
+  titleColor?: string;
+  slideLabel?: string;
+  slideLabelColor?: string;
+  showNoise?: boolean;
+  glowColor?: string;
+  glowPosition?: 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left' | 'center';
+  slideNumber?: number;
+  totalSlides?: number;
+  slidePadding?: number;
+  backgroundPattern?: 'grid' | 'dots' | 'none';
+  slideJustify?: 'center' | 'start' | 'between' | 'end';
 }
 
 export interface Project {

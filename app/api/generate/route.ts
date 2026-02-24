@@ -23,10 +23,12 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
-// Provider configuration — Groq primary, OpenRouter (Gemini) fallback
+// Provider order: best quality first when keys exist. OpenAI/Claude > OpenRouter Gemini > Groq (free tier).
 const PROVIDERS = [
+  { name: 'openai', model: 'gpt-4o', envKey: 'OPENAI_API_KEY', baseURL: 'https://api.openai.com/v1' },
+  { name: 'openrouter_claude', model: 'anthropic/claude-3.5-sonnet', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
+  { name: 'openrouter_gemini', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
   { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
-  { name: 'openrouter', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
 ];
 
 // Retry logic — skip immediately on rate limits (don't waste time retrying)
@@ -90,6 +92,12 @@ SLIDE N — CTA (call to action):
 - Summarize the key insight in one punchy sentence.
 - Clear CTA: follow, save, share, comment, or visit a link.
 - Make it feel like a satisfying ending, not an abrupt stop.
+
+NARRATIVE COHERENCE (context awareness):
+- This is ONE carousel with ONE story. Every slide must connect to the next; slide N sets up or builds on slide N+1.
+- Do not repeat the same point in different words across slides. Each slide adds new information or a new angle.
+- Keep a clear throughline: hook → why it matters → main ideas (in logical order) → proof/summary → CTA.
+- If the user specified an audience or goal, tailor depth, examples, and tone to that context.
 
 CONTENT DENSITY RULES:
 - PRESERVE source material depth. Reformat into patterns, don't summarize away.
@@ -630,6 +638,9 @@ export async function POST(request: NextRequest) {
       accentColor: requestAccentColor,
       textColor: requestTextColor,
       backgroundColor: requestBackgroundColor,
+      // Context awareness: who is this for and what's the goal (e.g. "LinkedIn pros", "investors", "beginners")
+      audience = '',
+      goal = '',
     } = await request.json();
     const requestedSlideCount = Math.max(3, Math.min(50, Number(slideCount) || 6));
     const rawText = (text || '').trim();
@@ -704,12 +715,12 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
           {
             type: 'cover',
             title: 'MISSING API KEY',
-            subtitle: 'Please provide a GROQ_API_KEY or TOGETHER_API_KEY in your .env file.',
+            subtitle: 'Add OPENAI_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY to .env for best results.',
           },
           {
             type: 'content',
             title: 'Configuration Needed',
-            content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY=your_key_here</p><p>3. Restart the server</p>',
+            content: '<p>1. Create a .env.local file</p><p>2. Add one of: OPENAI_API_KEY (GPT-4o), OPENROUTER_API_KEY (Claude/Gemini), or GROQ_API_KEY (free tier)</p><p>3. Restart the server</p>',
             emoji: '⚙️'
           }
         ]
@@ -717,6 +728,10 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
     }
 
     const outlineHint = Array.isArray(sections) && sections.length > 0 ? OUTLINE_PROMPT(sections) : '';
+    const audienceGoal = [audience, goal].filter(Boolean).join('. ');
+    const contextInstruction = audienceGoal
+      ? `CONTEXT (tailor depth, examples, and tone): Audience / use case — ${audienceGoal}.`
+      : '';
 
     const { prompt: systemPrompt, creativeAngleIndex: usedCreativeAngle } = getSystemPrompt(
       slideStyle,
@@ -731,6 +746,7 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
           content: `
 ${contentBrief}
 ${thinContentInstruction ? `\n${thinContentInstruction}\n` : ''}
+${contextInstruction ? `\n${contextInstruction}\n` : ''}
 Create exactly ${requestedSlideCount} slides from the content below.
 ${styleInstruction}
 ${wordCountInstruction}

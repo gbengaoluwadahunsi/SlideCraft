@@ -80,6 +80,11 @@ interface AIGenerateModalProps {
   freshDesign: boolean;
   onFreshDesignChange: (v: boolean) => void;
 
+  aiAudience: string;
+  onAudienceChange: (v: string) => void;
+  aiGoal: string;
+  onGoalChange: (v: string) => void;
+
   onGenerate: () => void;
   isGenerating: boolean;
 }
@@ -90,6 +95,17 @@ const LANG_MAP: Record<string, string> = {
   ko: 'Korean', ar: 'Arabic', hi: 'Hindi', ru: 'Russian',
   nl: 'Dutch', sv: 'Swedish', pl: 'Polish',
 };
+
+const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Any audience' },
+  { value: 'LinkedIn professionals', label: 'LinkedIn' },
+  { value: 'Twitter/X', label: 'Twitter/X' },
+  { value: 'Investors and decision-makers', label: 'Investors' },
+  { value: 'Beginners in the topic', label: 'Beginners' },
+  { value: 'Experts and practitioners', label: 'Experts' },
+  { value: 'Sales and marketing teams', label: 'Sales/Marketing' },
+  { value: 'Educators and students', label: 'Education' },
+];
 
 export const AIGenerateModal = React.memo(function AIGenerateModal({
   isOpen,
@@ -138,6 +154,10 @@ export const AIGenerateModal = React.memo(function AIGenerateModal({
   onSmartColorsChange,
   freshDesign,
   onFreshDesignChange,
+  aiAudience,
+  onAudienceChange,
+  aiGoal,
+  onGoalChange,
   onGenerate,
   isGenerating,
 }: AIGenerateModalProps) {
@@ -322,6 +342,29 @@ export const AIGenerateModal = React.memo(function AIGenerateModal({
                 </select>
               </div>
 
+              <div className="flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5">
+                <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">For</span>
+                <select
+                  value={aiAudience}
+                  onChange={(e) => onAudienceChange(e.target.value)}
+                  className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer appearance-none pr-3 max-w-[120px]"
+                  style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'8\' height=\'8\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%239ca3af\' stroke-width=\'3\'%3E%3Cpath d=\'M6 9l6 6 6-6\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
+                >
+                  {AUDIENCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} className="bg-[#1a1a2e]">{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 flex-1 min-w-0">
+                <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap shrink-0">Goal</span>
+                <input
+                  type="text"
+                  value={aiGoal}
+                  onChange={(e) => onGoalChange(e.target.value)}
+                  placeholder="e.g. drive sign-ups, explain concept"
+                  className="bg-transparent text-xs text-white placeholder-[var(--text-muted)] focus:outline-none w-full min-w-0"
+                />
+              </div>
               <div className="flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5">
                 <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">Tone</span>
                 <select
@@ -524,6 +567,10 @@ export const AIGenerateModal = React.memo(function AIGenerateModal({
                 onToggle={onAdvancedToggle}
                 tone={aiTone}
                 onToneChange={onToneChange}
+                audience={aiAudience}
+                onAudienceChange={onAudienceChange}
+                goal={aiGoal}
+                onGoalChange={onGoalChange}
                 autoHashtags={aiAutoHashtags}
                 onAutoHashtagsChange={onAutoHashtagsChange}
                 includeStats={aiIncludeStats}
@@ -1088,6 +1135,10 @@ function AdvancedOptions({
   onToggle,
   tone,
   onToneChange,
+  audience,
+  onAudienceChange,
+  goal,
+  onGoalChange,
   autoHashtags,
   onAutoHashtagsChange,
   includeStats,
@@ -1103,6 +1154,10 @@ function AdvancedOptions({
   onToggle: () => void;
   tone: string;
   onToneChange: (v: string) => void;
+  audience: string;
+  onAudienceChange: (v: string) => void;
+  goal: string;
+  onGoalChange: (v: string) => void;
   autoHashtags: boolean;
   onAutoHashtagsChange: (v: boolean) => void;
   includeStats: boolean;
@@ -1142,6 +1197,32 @@ function AdvancedOptions({
       </button>
       {isOpen && (
         <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-[var(--text-muted)] shrink-0">
+              Audience
+            </label>
+            <select
+              value={audience}
+              onChange={(e) => onAudienceChange(e.target.value)}
+              className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--accent)] transition flex-1 max-w-[180px]"
+            >
+              {AUDIENCE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value} className="bg-[#1a1a2e]">{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-[var(--text-muted)]">
+              Goal (optional)
+            </label>
+            <input
+              type="text"
+              value={goal}
+              onChange={(e) => onGoalChange(e.target.value)}
+              placeholder="e.g. drive sign-ups, explain to investors"
+              className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-white placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
+            />
+          </div>
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-[var(--text-muted)]">
               Tone

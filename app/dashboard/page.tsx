@@ -176,6 +176,8 @@ function DashboardContent() {
   const [aiAccessibility, setAiAccessibility] = useState<boolean>(false);
   const [aiSmartColors, setAiSmartColors] = useState<boolean>(false);
   const [aiFreshDesign, setAiFreshDesign] = useState<boolean>(false);
+  const [aiAudience, setAiAudience] = useState<string>('');
+  const [aiGoal, setAiGoal] = useState<string>('');
   const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState<boolean>(false);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
@@ -1315,6 +1317,8 @@ function DashboardContent() {
             accentColor: brandSettings.accentColor,
             textColor: brandSettings.textColor,
             backgroundColor: brandSettings.backgroundColor,
+            audience: aiAudience || undefined,
+            goal: aiGoal || undefined,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,
@@ -1739,7 +1743,7 @@ function DashboardContent() {
       } finally {
         setIsGenerating(false);
       }
-  }, [urlAttachment, docAttachment, aiPrompt, aiSlideCount, aiWritingStyle, aiSlideStyle, aiLanguage, aiWordCount, aiTone, aiAutoHashtags, aiIncludeStats, aiAccessibility, aiSmartColors, aiFreshDesign, normalizeSlides, brandSettings, addToHistory]);
+  }, [urlAttachment, docAttachment, aiPrompt, aiSlideCount, aiWritingStyle, aiSlideStyle, aiLanguage, aiWordCount, aiTone, aiAutoHashtags, aiIncludeStats, aiAccessibility, aiSmartColors, aiFreshDesign, aiAudience, aiGoal, normalizeSlides, brandSettings, addToHistory]);
 
   const handleToolClick = useCallback((tool: 'select' | 'text' | 'image' | 'color') => {
     setActiveTool(tool);
@@ -3792,6 +3796,10 @@ function DashboardContent() {
         onSmartColorsChange={setAiSmartColors}
         freshDesign={aiFreshDesign}
         onFreshDesignChange={setAiFreshDesign}
+        aiAudience={aiAudience}
+        onAudienceChange={setAiAudience}
+        aiGoal={aiGoal}
+        onGoalChange={setAiGoal}
         onGenerate={handleAiGenerate}
         isGenerating={isGenerating}
       />

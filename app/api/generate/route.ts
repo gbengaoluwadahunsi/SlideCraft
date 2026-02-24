@@ -61,9 +61,15 @@ ENGAGEMENT-OPTIMIZED SLIDE SEQUENCE (data-backed):
 
 SLIDE 1 — THE HOOK (most important slide, determines 80% of performance):
 - Title: 6-8 words MAX. Benefit-driven. Create an open loop or curiosity gap.
-- Patterns that work: bold claim, surprising stat, contrarian take, "how to" promise, numbered list tease ("7 mistakes killing your...").
 - Use <em>keyword</em> to visually anchor ONE power word.
 - Subtitle: 1 sentence expanding the hook. Must make them NEED to swipe.
+- VARY the cover hook style — choose the format that best fits the topic:
+  1. NUMBER HOOK: "X [things/ways/mistakes] That [outcome]" — e.g., "5 <em>Mistakes</em> Killing Your Productivity"
+  2. QUESTION HOOK: An open question — e.g., "Why Do <em>Smart</em> People Stay Broke?"
+  3. BOLD CLAIM: A contrarian statement — e.g., "Your Best Idea Will Come From <em>Failure</em>"
+  4. HOW-TO PROMISE: Outcome-first — e.g., "How to Build a <em>6-Figure</em> Brand in 90 Days"
+  5. STAT HOOK: A surprising number — e.g., "95% of Developers Miss This <em>Simple</em> Optimization"
+  6. STORY HOOK: First-person, relatable — e.g., "I Lost $50K Before I Learned This <em>Lesson</em>"
 
 SLIDE 2 — CONTEXT / CREDIBILITY:
 - Build urgency. Use a stat, quote, or pain point that proves the topic matters.
@@ -491,6 +497,55 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+// Rotate hue of a hex color by `degrees` to generate a complementary accent
+function rotateHue(hex: string, degrees: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16) / 255;
+  const g = parseInt(h.substring(2, 4), 16) / 255;
+  const b = parseInt(h.substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let hDeg = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) hDeg = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) hDeg = ((b - r) / d + 2) * 60;
+    else hDeg = ((r - g) / d + 4) * 60;
+  }
+  hDeg = (hDeg + degrees + 360) % 360;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+  let r2, g2, b2;
+  if (s === 0) {
+    r2 = g2 = b2 = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const h1 = hDeg / 360;
+    r2 = hue2rgb(p, q, h1 + 1/3);
+    g2 = hue2rgb(p, q, h1);
+    b2 = hue2rgb(p, q, h1 - 1/3);
+  }
+  const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+}
+
+// Derive a muted text color appropriate for the slide's background
+function deriveMutedColor(backgroundColor: string): string {
+  const h = backgroundColor.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.5 ? '#9BA8C0' : '#64748b';
+}
+
 function replaceColorTokens(html: string, accent: string, accent2: string, muted: string, text: string): string {
   if (!html) return html;
   return html
@@ -571,6 +626,10 @@ export async function POST(request: NextRequest) {
       includeStats = false,
       patternOrder: incomingPatternOrder,
       creativeAngle: incomingCreativeAngle,
+      // Active theme colors from the frontend (preferred over DB brand_settings)
+      accentColor: requestAccentColor,
+      textColor: requestTextColor,
+      backgroundColor: requestBackgroundColor,
     } = await request.json();
     const requestedSlideCount = Math.max(3, Math.min(50, Number(slideCount) || 6));
     const rawText = (text || '').trim();
@@ -581,6 +640,17 @@ export async function POST(request: NextRequest) {
     const combinedText = rawText.length > maxSourceChars
       ? rawText.slice(0, maxSourceChars) + '\n\n[Content truncated for processing — focus on the sections above.]'
       : rawText;
+
+    // Detect thin-content inputs (short topic prompts with little substance)
+    const inputWordCount = combinedText.split(/\s+/).filter((w: string) => w.length > 0).length;
+    const isThinContent = inputWordCount < 120;
+    const thinContentInstruction = isThinContent
+      ? `IMPORTANT: The user provided a brief topic prompt (${inputWordCount} words). Do NOT just rephrase what they wrote.
+Treat this as a TOPIC SEED and generate a full, authoritative, information-dense carousel using your own knowledge.
+- Add real statistics, expert insights, and concrete examples the user didn't provide.
+- Every slide must contain substantial, valuable content a professional would recognize as accurate.
+- Write like a subject-matter expert, not a summarizer.`
+      : '';
 
     // Analyze content to make smarter pattern and prompt decisions
     const contentAnalysis = analyzeContent(combinedText);
@@ -660,7 +730,7 @@ export async function POST(request: NextRequest) {
         role: 'user' as const,
           content: `
 ${contentBrief}
-
+${thinContentInstruction ? `\n${thinContentInstruction}\n` : ''}
 Create exactly ${requestedSlideCount} slides from the content below.
 ${styleInstruction}
 ${wordCountInstruction}
@@ -680,8 +750,8 @@ ${combinedText}`,
         },
     ];
 
-    // Scale max_tokens to slide count — each rich HTML slide needs ~600-800 tokens
-    const outputTokens = Math.min(Math.max(requestedSlideCount * 800, 4096), 16384);
+    // Scale max_tokens to slide count — each rich HTML slide needs ~1000-1500 tokens
+    const outputTokens = Math.min(Math.max(requestedSlideCount * 1200, 6000), 32768);
 
     // Try each provider with retry logic
     let completion: any = null;
@@ -770,10 +840,10 @@ ${combinedText}`,
       console.log('Could not fetch brand settings, using defaults');
     }
 
-    // Default brand colors if not available
-    const accentColor = brandSettings?.accentColor || '#ffd700';
-    const backgroundColor = brandSettings?.backgroundColor || '#0B0F19';
-    const textColor = brandSettings?.textColor || '#ffffff';
+    // Prefer colors sent by the frontend (active theme) over DB brand_settings
+    const accentColor = requestAccentColor || brandSettings?.accentColor || '#ffd700';
+    const backgroundColor = requestBackgroundColor || brandSettings?.backgroundColor || '#0B0F19';
+    const textColor = requestTextColor || brandSettings?.textColor || '#ffffff';
     const fontFamily = brandSettings?.fontFamily || 'var(--font-inter)';
 
     // Default icons for visual slides based on common topics
@@ -924,13 +994,28 @@ ${combinedText}`,
       // Extract infographic data for visual slides
       let infographicData: any = undefined;
       if (slideType === 'visual' && slide.content) {
-        // Extract items from <li> tags
-        const items = slide.content.match(/<li[^>]*>([^<]+)<\/li>/gi)?.map((li: string) => 
-          li.replace(/<\/?[^>]+>/g, '').trim()
-        ) || [];
-        
+        // Robust <li> extraction: ([\s\S]*?) handles nested HTML tags like <strong>, <em>
+        const liMatches = slide.content.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
+        let items = liMatches
+          .map((li: string) =>
+            li
+              .replace(/<\/?[^>]+>/g, '') // strip all HTML tags
+              .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+          )
+          .filter((text: string) => text.length > 1);
+
+        // Fallback: if no <li> found, try extracting from bullet-like <div> or <p> blocks
+        if (items.length === 0 && slide.content) {
+          const stripped = slide.content.replace(/<[^>]+>/g, '\n').replace(/&[a-z]+;/gi, ' ');
+          items = stripped
+            .split('\n')
+            .map((s: string) => s.replace(/^[•\-→✅❌\d.]+\s*/, '').trim())
+            .filter((s: string) => s.length > 3 && s.length < 120);
+        }
+
         if (items.length > 0) {
-          // Map infographicLayout from AI response to our supported layouts
           const layoutMap: Record<string, string> = {
             'cards-grid': 'cards-grid',
             'timeline': 'timeline',
@@ -943,12 +1028,10 @@ ${combinedText}`,
             'comparison': 'comparison',
             'checklist': 'checklist',
           };
-          
           const infographicLayout = slide.infographicLayout || 'cards-grid';
           const mappedLayout = layoutMap[infographicLayout] || 'cards-grid';
-          
           infographicData = {
-            items,
+            items: items.slice(0, 8), // cap at 8 items to prevent overflow
             layout: mappedLayout as any,
           };
         }
@@ -1016,8 +1099,8 @@ ${combinedText}`,
               
               // Replace color tokens with the slide's actual accent colors
               const ac = slideAccentColor || '#00D4FF';
-              const ac2 = slideAccentColor === '#E8FF47' ? '#FF4D6D' : '#E8FF47';
-              const mt = '#9BA8C0';
+              const ac2 = rotateHue(ac, 150);
+              const mt = deriveMutedColor(slideBackgroundColor || backgroundColor);
               const tx = slideTextColor || '#EEF2FF';
               processed = replaceColorTokens(processed, ac, ac2, mt, tx);
               

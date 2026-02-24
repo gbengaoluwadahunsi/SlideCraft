@@ -1299,7 +1299,8 @@ export const Slide: React.FC<SlideProps> = React.memo(function Slide({
                         fontFamily: 'var(--font-roboto-mono), monospace',
                         fontSize: `${0.7 * fontScale}rem`,
                         letterSpacing: '0.2em',
-                        color: '#9BA8C0',
+                        color: activeTextColor,
+                        opacity: 0.45,
                         marginBottom: '8px',
                     }}
                 >

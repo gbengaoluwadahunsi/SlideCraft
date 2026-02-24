@@ -36,6 +36,45 @@ interface InfographicProps {
   infographicIcons?: string[]; // Add this prop
 }
 
+// Derive N theme-aware colors from a base accent color using hue rotation
+function deriveThemeColors(accentColor: string, count: number): string[] {
+  const h = (accentColor || '#ffd700').replace('#', '').padEnd(6, '0');
+  const r = parseInt(h.substring(0, 2), 16) / 255;
+  const g = parseInt(h.substring(2, 4), 16) / 255;
+  const b = parseInt(h.substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let hDeg = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) hDeg = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) hDeg = ((b - r) / d + 2) * 60;
+    else hDeg = ((r - g) / d + 4) * 60;
+  }
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+  const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
+  return Array.from({ length: count }, (_, i) => {
+    const newH = ((hDeg + (i * (360 / count))) % 360) / 360;
+    let r2, g2, b2;
+    if (s === 0) { r2 = g2 = b2 = l; }
+    else {
+      const q2 = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p2 = 2 * l - q2;
+      r2 = hue2rgb(p2, q2, newH + 1/3);
+      g2 = hue2rgb(p2, q2, newH);
+      b2 = hue2rgb(p2, q2, newH - 1/3);
+    }
+    return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+  });
+}
+
 // Animation variants
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -345,9 +384,9 @@ const TimelineLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd
 };
 
 // Poster Process - Mimics the "How to make an infographic" style 1:1
-const PosterProcessLayout: React.FC<InfographicProps> = ({ items, textColor = '#ffffff', infographicIcons = [] }) => {
+const PosterProcessLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff', infographicIcons = [] }) => {
   const displayItems = items.slice(0, 5);
-  const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#a855f7'];
+  const colors = deriveThemeColors(accentColor, 5);
   
   return (
     <div className="w-full h-[600px] relative flex items-center justify-center overflow-visible rounded-[40px] shadow-2xl"
@@ -368,7 +407,8 @@ const PosterProcessLayout: React.FC<InfographicProps> = ({ items, textColor = '#
           
           {/* Inner Circle with Hub Icon */}
           <motion.div 
-            className="w-24 h-32 bg-[#ffd700] rounded-2xl flex flex-col items-center justify-center shadow-[0_20px_40px_rgba(255,215,0,0.3)]"
+            className="w-24 h-32 rounded-2xl flex flex-col items-center justify-center"
+            style={{ background: accentColor, boxShadow: `0 20px 40px ${accentColor}4D` }}
             initial={{ scale: 0, rotate: -10 }}
             animate={{ scale: 1, rotate: -5 }}
             transition={{ type: "spring", damping: 10 }}
@@ -509,7 +549,7 @@ const FeatureListLayout: React.FC<InfographicProps> = ({ items, accentColor = '#
 // Metrics Row - Impactful numbers with visual flair
 const MetricsRowLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
   const displayItems = items.slice(0, 4);
-  const colors = ['#3b82f6', '#a855f7', '#ec4899', '#10b981'];
+  const colors = deriveThemeColors(accentColor, 4);
   
   const metrics = displayItems.map((item, index) => {
     const numberMatch = item.match(/(\d+%?|\d+x|\d+\+|\d+k|\d+K|\d+M)/i);
@@ -730,9 +770,9 @@ const PyramidLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd7
 };
 
 // Cycle - Circular hub and spoke diagram (Designer style)
-const CycleLayout: React.FC<InfographicProps> = ({ items, textColor = '#ffffff' }) => {
+const CycleLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
   const displayItems = items.slice(0, 5);
-  const colors = ['#3b82f6', '#a855f7', '#ec4899', '#10b981', '#f59e0b'];
+  const colors = deriveThemeColors(accentColor, 5);
   
   return (
     <div className="w-full h-[550px] relative flex items-center justify-center overflow-visible">
@@ -740,8 +780,8 @@ const CycleLayout: React.FC<InfographicProps> = ({ items, textColor = '#ffffff' 
       <motion.div 
         className="relative z-20 w-32 h-32 rounded-[32px] flex items-center justify-center shadow-2xl"
         style={{ 
-          background: 'linear-gradient(135deg, #ffd700 0%, #ffb700 100%)',
-          boxShadow: '0 0 80px rgba(255,215,0,0.2)',
+          background: `linear-gradient(135deg, ${accentColor} 0%, ${colors[1]} 100%)`,
+          boxShadow: `0 0 80px ${accentColor}33`,
         }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}

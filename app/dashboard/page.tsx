@@ -884,6 +884,36 @@ function DashboardContent() {
   }, [slides, activeSlideId, commitSlidesImmediateHistory]);
 
   // Regenerate a single slide with AI — supports optional refinement instruction
+  // Detect which HTML pattern (A-L) a slide is currently using, so refinement preserves layout.
+  // [\s\S]*? matches across newlines (no /s flag so TS target ES2017 is ok)
+  const detectSlidePattern = useCallback((content: string): string => {
+    if (!content) return '';
+    // F before C — Stats Grid has bebas-neue too, so check it first with the 2x2 grid marker
+    if (/grid-template-columns:1fr 1fr[\s\S]*?font-family:var\(--font-bebas-neue\)[\s\S]*?font-size:2em/.test(content)) return 'F (Stats Grid — keep exact same 2x2 grid layout)';
+    if (/font-family:var\(--font-bebas-neue\)[\s\S]*?font-size:1\.6em/.test(content)) return 'C (Numbered List — keep exact same numbered layout)';
+    // G: two-column grid with Before/After labels
+    if (/grid-template-columns:1fr 1fr[\s\S]*?(Before|After)/.test(content)) return 'G (Before/After — keep exact same two-column comparison layout)';
+    // I: timeline dots (width:10px;height:10px;border-radius:50%)
+    if (/width:10px;height:10px;border-radius:50%/.test(content)) return 'I (Timeline — keep exact same timeline layout)';
+    // J: highlight box — accent bg + border + Key Takeaway label
+    if (/border-radius:12px[\s\S]*?(Key Takeaway|⚡)/.test(content) || /ACCENT_BG[\s\S]*?ACCENT_BORDER/.test(content)) return 'J (Highlight Box — keep exact same highlight box layout)';
+    // K: single large metric centered
+    if (/font-size:3\.5em/.test(content) && /text-align:center/.test(content)) return 'K (Metric Callout — keep exact same single metric layout)';
+    // L: quote card with italic text and attribution
+    if (/font-style:italic/.test(content) && /—\s/.test(content)) return 'L (Quote Card — keep exact same quote card layout)';
+    // E: pill/tag cloud (flex-wrap + border-radius:100px)
+    if (/flex-wrap:wrap[\s\S]*?border-radius:100px/.test(content)) return 'E (Pill Tags — keep exact same tag cloud layout)';
+    // H: arrow list (→ arrows as absolute positioned markers)
+    if (/position:absolute;left:0[\s\S]*?→/.test(content) || content.includes('→')) return 'H (Arrow List — keep exact same arrow list layout)';
+    // A: quote with left border + tip box
+    if (/border-left:3px solid[\s\S]*?padding-left:16px/.test(content)) return 'A (Quote + Tip — keep exact same quote with tip box layout)';
+    // D: code block (dark background + monospace font)
+    if (/rgba\(0,0,0,0\.35\)[\s\S]*?monospace/.test(content) || /font-family:monospace[\s\S]*?background:rgba\(0,0,0/.test(content)) return 'D (Code Block — keep exact same code block layout)';
+    // B: icon cards (flex column of cards with flex-shrink:0 icons)
+    if (/flex-shrink:0[\s\S]*?font-weight:700/.test(content)) return 'B (Icon Cards — keep exact same icon cards layout)';
+    return '';
+  }, []);
+
   const handleRegenerateSlide = useCallback(async (id: string, instruction?: string) => {
     const slideIndex = slides.findIndex(s => s.id === id);
     if (slideIndex === -1) return;
@@ -892,6 +922,7 @@ function DashboardContent() {
     setRegeneratingSlideId(id);
     try {
       const carouselTopic = slides[0]?.title?.replace(/<[^>]*>/g, '') || 'General';
+      const detectedPattern = slide.type !== 'visual' ? detectSlidePattern(slide.content || '') : '';
       const response = await fetch('/api/generate-slide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -902,7 +933,13 @@ function DashboardContent() {
           slideIndex,
           totalSlides: slides.length,
           carouselTopic,
+          pattern: detectedPattern,
           instruction,
+          slideType: slide.type,
+          infographicLayout: slide.infographicData?.layout,
+          accentColor: slide.accentColor || brandSettings.accentColor,
+          textColor: slide.textColor || brandSettings.textColor,
+          backgroundColor: slide.backgroundColor || brandSettings.backgroundColor,
         }),
       });
 
@@ -912,8 +949,22 @@ function DashboardContent() {
         return;
       }
 
+      // Re-extract infographicData for visual slides from the new <ul><li> content
+      let newInfographicData = slide.infographicData;
+      if (slide.type === 'visual' && data.content) {
+        const liMatches = data.content.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
+        const items = liMatches
+          .map((li: string) => li.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim())
+          .filter((t: string) => t.length > 1);
+        if (items.length > 0) {
+          newInfographicData = { items, layout: data.infographicLayout || slide.infographicData?.layout || 'cards-grid' };
+        }
+      }
+
       const updatedSlides = slides.map(s =>
-        s.id === id ? { ...s, title: data.title || s.title, content: data.content || s.content, slideLabel: data.slideLabel || s.slideLabel } : s
+        s.id === id
+          ? { ...s, title: data.title || s.title, content: data.content || s.content, slideLabel: data.slideLabel || s.slideLabel, infographicData: newInfographicData }
+          : s
       );
       commitSlidesImmediateHistory(updatedSlides);
       toast.success(instruction ? 'Slide refined!' : 'Slide regenerated!');
@@ -1260,6 +1311,10 @@ function DashboardContent() {
             smartColors: aiSmartColors,
             patternOrder: savedPatternOrder,
             creativeAngle: savedCreativeAngle,
+            // Pass active theme colors so they are used even if brand_settings DB is stale
+            accentColor: brandSettings.accentColor,
+            textColor: brandSettings.textColor,
+            backgroundColor: brandSettings.backgroundColor,
             sourceFile: docAttachment
               ? {
                   name: docAttachment.name,

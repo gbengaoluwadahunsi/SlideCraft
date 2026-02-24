@@ -234,8 +234,10 @@ export async function POST(request: NextRequest) {
       'var(--font-oswald)': 'Oswald',
       'var(--font-roboto-mono)': 'Roboto Mono',
       'var(--font-permanent-marker)': 'Permanent Marker',
-      'var(--font-geist-sans)': 'Geist',
-      'var(--font-geist-mono)': 'Geist Mono',
+      'var(--font-bebas-neue)': 'Bebas Neue',
+      'var(--font-space-grotesk)': 'Space Grotesk',
+      'var(--font-geist-sans)': 'Inter', // Geist not on Google Fonts — fallback to Inter
+      'var(--font-geist-mono)': 'Roboto Mono', // Geist Mono fallback
     };
     
     const selectedFontFamily = fontVariableMap[fontFamily] 
@@ -958,8 +960,8 @@ export async function POST(request: NextRequest) {
     }).join('');
 
     // Construct Google Fonts URL
-    // Filter out CSS variables and invalid font names, and ensure we have valid font names
-    const fontsToLoad = ['Permanent Marker', 'Roboto Mono', selectedFontFamily]
+    // Always load Bebas Neue + Roboto Mono since they're used inside HTML pattern templates
+    const fontsToLoad = ['Permanent Marker', 'Roboto Mono', 'Bebas Neue', selectedFontFamily]
       .filter(font => font && !font.startsWith('var(') && font.trim().length > 0);
     const fontQuery = [...new Set(fontsToLoad)]
       .map(font => `family=${font.replace(/\s+/g, '+')}:wght@300;400;500;700`)
@@ -973,6 +975,18 @@ export async function POST(request: NextRequest) {
           <link href="https://fonts.googleapis.com/css2?${fontQuery}&display=swap" rel="stylesheet">
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
+            /* Resolve CSS font variables used inside AI-generated HTML patterns */
+            :root {
+              --font-bebas-neue: 'Bebas Neue', sans-serif;
+              --font-inter: 'Inter', sans-serif;
+              --font-playfair: 'Playfair Display', serif;
+              --font-oswald: 'Oswald', sans-serif;
+              --font-roboto-mono: 'Roboto Mono', monospace;
+              --font-permanent-marker: 'Permanent Marker', cursive;
+              --font-space-grotesk: 'Space Grotesk', sans-serif;
+              --font-geist-sans: 'Inter', sans-serif;
+              --font-geist-mono: 'Roboto Mono', monospace;
+            }
             body { margin: 0; padding: 0; overflow: visible; }
             @page { 
               size: 1080px 1080px; 

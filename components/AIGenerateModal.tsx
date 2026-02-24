@@ -336,7 +336,7 @@ export const AIGenerateModal = React.memo(function AIGenerateModal({
                   className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer appearance-none pr-3"
                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'8\' height=\'8\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%239ca3af\' stroke-width=\'3\'%3E%3Cpath d=\'M6 9l6 6 6-6\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
                 >
-                  {[3,4,5,6,8,10,12,15,20,25,30,40,50].map(n => (
+                  {[3,4,5,6,8,10,12,15,20,25,30,40,50,60,80,100].map(n => (
                     <option key={n} value={n} className="bg-[#1a1a2e]">{n}</option>
                   ))}
                 </select>
@@ -547,7 +547,7 @@ export const AIGenerateModal = React.memo(function AIGenerateModal({
               <RangeField
                 label="Target slide count"
                 min={3}
-                max={50}
+                max={100}
                 step={1}
                 value={aiSlideCount}
                 onChange={onSlideCountChange}

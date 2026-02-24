@@ -706,7 +706,7 @@ function DashboardContent() {
       accentColor: brandSettings.accentColor,
       handle: brandSettings.handle,
       fontFamily: brandSettings.fontFamily,
-      fontScale: slides[0]?.fontScale || 1,
+      fontScale: prevSlides[0]?.fontScale ?? 1,
       backgroundColor: brandSettings.backgroundColor,
       textColor: brandSettings.textColor,
       logoUrl: brandSettings.logoUrl || null,
@@ -720,7 +720,7 @@ function DashboardContent() {
       customBlocks: [],
     }]);
     setActiveSlideId(newId);
-  }, [slides, activeSlideId, brandSettings, addToHistory]);
+  }, [brandSettings]);
 
   const getSlideFilename = (slide: SlideData, index: number) => {
     const sanitized = (slide.title || '')
@@ -1446,12 +1446,15 @@ function DashboardContent() {
             };
           });
 
-          // Filter out empty slides (no title and no content)
+          // Filter out empty or near-empty slides so we never show blank slides
           const nonEmpty = themedSlides.filter((s) => {
-            const hasTitle = s.title && s.title.trim().length > 0;
-            const hasContent = s.content && s.content.replace(/<[^>]*>/g, '').trim().length > 0;
+            const titleText = (s.title || '').replace(/<[^>]*>/g, '').trim();
+            const contentText = (s.content || '').replace(/<[^>]*>/g, '').trim();
+            const hasTitle = titleText.length > 0;
+            const hasContent = contentText.length > 15;
             const isCover = s.type === 'cover';
-            return hasTitle || hasContent || isCover;
+            if (isCover) return hasTitle;
+            return hasTitle && hasContent;
           });
 
           // Normalize slide IDs, element order etc.

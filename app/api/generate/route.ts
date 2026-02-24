@@ -23,12 +23,11 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
-// Provider order: best quality first when keys exist. OpenAI/Claude > OpenRouter Gemini > Groq (free tier).
+// Provider order: Groq (free) first, then OpenRouter if key present.
 const PROVIDERS = [
-  { name: 'openai', model: 'gpt-4o', envKey: 'OPENAI_API_KEY', baseURL: 'https://api.openai.com/v1' },
+  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
   { name: 'openrouter_claude', model: 'anthropic/claude-3.5-sonnet', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
   { name: 'openrouter_gemini', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
-  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
 ];
 
 // Retry logic — skip immediately on rate limits (don't waste time retrying)
@@ -55,9 +54,19 @@ async function generateWithRetry<T>(
 }
 
 const BASE_SYSTEM_PROMPT = `
-You are the world's best carousel content strategist. You create carousels that get 3-5x more engagement than average.
-Return ONLY a valid JSON object with a "slides" array. No markdown code blocks.
-Do NOT use markdown syntax (**bold**, ###, __underline__). Only HTML.
+You are an expert carousel content strategist. Your job is to turn the user's source (article, document, or link) into a clear, engaging carousel that truly reflects it.
+
+PRIMARY GOAL:
+- Read and understand the full source. The carousel must match the topic, message, and content type of the original.
+- Do not add code examples unless the source itself contains code or technical implementation. If the source is about business, marketing, stories, or ideas, use only patterns that fit (lists, stats, quotes, comparisons, tips)—never code blocks.
+- Match the tone and depth of the source. One idea per slide; each slide must add real value from the content.
+
+CRITICAL RULES (follow exactly):
+1. Return ONLY a valid JSON object with a "slides" array. No markdown, no \`\`\`json\`, no extra text.
+2. Use ONLY HTML inside fields (no **bold** or ###). Use <em> for emphasis.
+3. EVERY slide must have REAL, SPECIFIC content from the source—no placeholders, no one-line filler, no generic fluff.
+4. FILL every pattern completely: Icon Cards = 3-4 cards with title + description each; Stats Grid = 4 stats; Numbered List = 3-5 items; etc. Half-empty layouts are invalid.
+5. Return ONLY as many slides as you can fill with real content. If the source does not support 10 slides, return 6 or 7. Never return a slide with an empty or placeholder title or content—empty slides are invalid and will be dropped.
 
 ENGAGEMENT-OPTIMIZED SLIDE SEQUENCE (data-backed):
 
@@ -99,16 +108,14 @@ NARRATIVE COHERENCE (context awareness):
 - Keep a clear throughline: hook → why it matters → main ideas (in logical order) → proof/summary → CTA.
 - If the user specified an audience or goal, tailor depth, examples, and tone to that context.
 
-CONTENT DENSITY RULES:
-- PRESERVE source material depth. Reformat into patterns, don't summarize away.
-- Every pattern must be completely filled. A half-empty card grid looks broken.
-- If source has 4 points under a heading, show all 4 — don't collapse to 1.
-- Icon Cards: 3-4 cards, each with title + 1-2 sentence description.
-- Numbered Lists: 3-5 items, each with title + explanation.
-- Stats Grid: 4 cards with number + description.
-- Before/After: 3-4 items per column.
-- Quote + Tip: Full paragraph (3-4 sentences) + actionable tip.
-- Code Blocks: 8-15 lines of real code + explanation.
+CONTENT DENSITY — DO NOT BE SCANTY (this is the #1 failure mode):
+- NEVER one-line slides. Every slide must feel substantial enough to stand alone.
+- NEVER one sentence per card. Each Icon Card = title + at least 2–3 full sentences. Each list item = title + at least 2–3 sentences of explanation. Each stat = number + 1–2 sentence description.
+- PULL specifics from the source: numbers, names, quotes, examples. If the article mentions "37% of teams", use "37%". If it names a study or person, include it.
+- REFORMAT, do not summarize. If the source has 4 points, show all 4 with full text—do not collapse to one line each.
+- BAD: A card that says "Set clear goals." GOOD: "Set clear goals. Define 2–3 measurable outcomes and a deadline. Teams that set specific goals see 30% higher follow-through (source the stat if the article has it)."
+- Icon Cards: 3–4 cards, each title + 2–3 sentences. Numbered Lists: 3–5 items, each title + 2–3 sentences. Stats Grid: 4 stats, each number + 1–2 sentence context. Quote + Tip: full paragraph (3–4 sentences) + actionable tip. Before/After: 3–4 items per column with real content.
+- Code (only when source has code): 8–15 lines of real code + short explanation.
 `;
 
 const TEXT_PATTERN_DEFINITIONS = `
@@ -182,7 +189,8 @@ function generatePatternOrder(slideCount: number, existingOrder?: string[], hasC
   }
 
   const contentSlideCount = slideCount - 2; // minus cover and CTA
-  const pool = [...ALL_CONTENT_PATTERNS];
+  // Do not suggest code pattern when source has no code
+  const pool = hasCode ? [...ALL_CONTENT_PATTERNS] : [...NON_TECHNICAL_PATTERNS];
   const order: string[] = [];
 
   // For code-heavy content, reserve ~30-40% of slots for Pattern D
@@ -208,13 +216,13 @@ function generatePatternOrder(slideCount: number, existingOrder?: string[], hasC
   return order;
 }
 
-function buildSlideStructure(patternOrder: string[]): string {
+function buildSlideStructure(patternOrder: string[], hasCode?: boolean): string {
+  const codeLine = hasCode ? '  • Code / technical implementation → D (Code Block)\n' : '  • Do NOT use Pattern D (Code Block) unless the source actually contains code.\n';
   return `PATTERN SELECTION — match content type to the BEST visual pattern:
   • Definition / explanation → A (Quote + Tip)
   • List of features / problems / pain points → B (Icon Cards)
   • Steps / rules / principles → C (Numbered List)
-  • Code / technical implementation → D (Code Block)
-  • Tags / keywords / quick list → E (Pill Tags)
+${codeLine}  • Tags / keywords / quick list → E (Pill Tags)
   • Multiple stats / metrics → F (Stats Grid)
   • Comparison / before vs after → G (Before/After)
   • Checklist / do's & don'ts → H (Arrow List)
@@ -231,7 +239,7 @@ LAYOUT RULES:
 }
 
 const SLIDE_STYLE_PROMPTS = {
-  text: (patternOrder: string[]) => `
+  text: (patternOrder: string[], hasCode?: boolean) => `
 Each slide should have:
 - type: "cover" (only for the first slide), "content", or "chart"
 - title: Short, punchy header. Use <em>keyword</em> to highlight ONE key word in the accent color (not italic). Example: "Why This <em>Matters</em>"
@@ -247,20 +255,19 @@ CRITICAL: If the content involves statistics, data comparisons, or numeric trend
 RICH HTML DESIGN PATTERNS — USE THESE FOR content FIELD:
 ${TEXT_PATTERN_DEFINITIONS}
 
-${buildSlideStructure(patternOrder)}
+${buildSlideStructure(patternOrder, hasCode)}
 
-NEVER use plain paragraphs or raw text. ALWAYS use one of the 12 HTML patterns above.
+NEVER use plain paragraphs or raw text. ALWAYS use one of the HTML patterns above that fit the content.
 NEVER use markdown. Only HTML.
 NEVER return an empty slide. Every content slide MUST have a non-empty title AND content with a proper pattern.
 EVERY pattern must be FULLY FILLED — a half-empty grid or single-card list looks broken.
-
-CODE RULES (non-negotiable for technical content):
-- NEVER reduce a code snippet to a one-liner like "const x = {...};" or "function foo() {...}". That is USELESS.
-- Include at least 8-15 lines of the actual code. Show the real logic, not a stub.
-- If a code snippet is too long for one slide, split it across 2 slides: Part 1 and Part 2. Use the title to indicate this (e.g. "App Shell — Routing" and "App Shell — Navigation").
-- A brief 1-2 sentence explanation ABOVE the code block is good. But the code itself must be substantial and readable.
-- Preserve variable names, function names, imports, and structure from the original source.
-- Use <br/> for line breaks and &nbsp; for indentation inside the Pattern D code block.
+${hasCode ? `
+CODE RULES (only because the source contains code):
+- Use Pattern D only for slides that present actual code from the source. Include 8-15 lines of real code, not stubs.
+- Use <br/> for line breaks and &nbsp; for indentation inside the code block.
+` : `
+Do NOT use Pattern D (Code Block). The source has no code—use other patterns only (lists, stats, quotes, tips, etc.).
+`}
 `,
 
   visual: `
@@ -360,7 +367,7 @@ const CREATIVE_ANGLES = [
   'Use pattern interrupts — alternate between bold claims, data points, stories, and direct advice.',
 ];
 
-const getSystemPrompt = (slideStyle: string, patternOrder: string[], creativeAngleIndex?: number) => {
+const getSystemPrompt = (slideStyle: string, patternOrder: string[], creativeAngleIndex?: number, hasCode?: boolean) => {
   const idx = (typeof creativeAngleIndex === 'number' && creativeAngleIndex >= 0 && creativeAngleIndex < CREATIVE_ANGLES.length)
     ? creativeAngleIndex
     : Math.floor(Math.random() * CREATIVE_ANGLES.length);
@@ -369,7 +376,7 @@ const getSystemPrompt = (slideStyle: string, patternOrder: string[], creativeAng
 
   let prompt: string;
   if (slideStyle === 'text') {
-    prompt = BASE_SYSTEM_PROMPT + creativeSeed + SLIDE_STYLE_PROMPTS.text(patternOrder);
+    prompt = BASE_SYSTEM_PROMPT + creativeSeed + SLIDE_STYLE_PROMPTS.text(patternOrder, hasCode);
   } else {
     const stylePrompt = SLIDE_STYLE_PROMPTS[slideStyle as keyof typeof SLIDE_STYLE_PROMPTS];
     if (typeof stylePrompt === 'function') {
@@ -642,7 +649,7 @@ export async function POST(request: NextRequest) {
       audience = '',
       goal = '',
     } = await request.json();
-    const requestedSlideCount = Math.max(3, Math.min(50, Number(slideCount) || 6));
+    const requestedSlideCount = Math.max(3, Math.min(100, Number(slideCount) || 6));
     const rawText = (text || '').trim();
 
     // Cap source content to ~12K chars (~3K tokens) to stay within token budgets
@@ -675,8 +682,8 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
 
     const styleInstruction = writingStyle ? `Writing Style: ${writingStyle}.` : '';
     const wordCountInstruction = wordCount
-      ? `Target approximately ${wordCount} words per slide. Fill every HTML pattern completely.`
-      : `Fill every pattern completely — 3-4 cards for Icon Cards, 3-5 items for Numbered Lists, 4 stats for Stats Grid, etc. No half-filled patterns.`;
+      ? `Target approximately ${wordCount} words per slide. Fill every HTML pattern completely with 2-3 sentences per card/item.`
+      : `Aim for dense content: at least 40-60 words per content slide. Every card/item = 2-3 full sentences. Fill every pattern completely—no one-line cards, no half-filled grids.`;
     
     // Language instruction
     const languageNames: Record<string, string> = {
@@ -715,12 +722,12 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
           {
             type: 'cover',
             title: 'MISSING API KEY',
-            subtitle: 'Add OPENAI_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY to .env for best results.',
+            subtitle: 'Add GROQ_API_KEY (free) or OPENROUTER_API_KEY to .env.',
           },
           {
             type: 'content',
             title: 'Configuration Needed',
-            content: '<p>1. Create a .env.local file</p><p>2. Add one of: OPENAI_API_KEY (GPT-4o), OPENROUTER_API_KEY (Claude/Gemini), or GROQ_API_KEY (free tier)</p><p>3. Restart the server</p>',
+            content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY (free at groq.com) or OPENROUTER_API_KEY</p><p>3. Restart the server</p>',
             emoji: '⚙️'
           }
         ]
@@ -736,7 +743,8 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
     const { prompt: systemPrompt, creativeAngleIndex: usedCreativeAngle } = getSystemPrompt(
       slideStyle,
       patternOrder,
-      typeof incomingCreativeAngle === 'number' ? incomingCreativeAngle : undefined
+      typeof incomingCreativeAngle === 'number' ? incomingCreativeAngle : undefined,
+      contentAnalysis.hasCode
     );
 
     const messages = [
@@ -755,10 +763,15 @@ ${toneInstruction}
 ${featuresInstruction}
 ${outlineHint}
 
+DEPTH REQUIREMENT (critical):
+- Every slide must feel substantial. No one-line cards or single-sentence bullets. Each Icon Card = title + 2–3 full sentences. Each list item = title + 2–3 sentences. Pull numbers, names, and quotes from the source.
+- If a slide would be scanty, expand it using the source before moving on. Half-filled patterns are invalid.
+
 REMINDERS:
 - Use the HTML design patterns from the system prompt. Pick the pattern that fits each slide's content.
 - For lists, use the pattern HTML (Icon Cards, Numbered List, Arrow List) — NOT raw <ul>/<ol>.
-${contentAnalysis.hasCode ? `- This content has ${contentAnalysis.codeBlocks.length} code snippets. Include them using Pattern D with 8-15 lines of actual code per slide. NEVER stub code as "const x = {...}".` : ''}
+- Deliver exactly ${requestedSlideCount} slides. Each slide = real, specific content from the source—no placeholders, no generic one-liners.
+${contentAnalysis.hasCode ? `- This content has ${contentAnalysis.codeBlocks.length} code snippets. Include them using Pattern D with 8-15 lines of actual code per slide. NEVER stub code as "const x = {...}".` : '- The source has NO code. Do NOT use Pattern D (code block). Use only patterns that fit the content (lists, stats, quotes, comparisons, tips).'}
 ${contentAnalysis.hasStats ? `- Include these statistics: ${contentAnalysis.stats.slice(0, 5).join(', ')}. Use Pattern F or K.` : ''}
 
 SOURCE CONTENT:
@@ -766,8 +779,8 @@ ${combinedText}`,
         },
     ];
 
-    // Scale max_tokens to slide count — each rich HTML slide needs ~1000-1500 tokens
-    const outputTokens = Math.min(Math.max(requestedSlideCount * 1200, 6000), 32768);
+    // Generous token budget so model can output dense content (2-3 sentences per card, not scanty)
+    const outputTokens = Math.min(Math.max(requestedSlideCount * 1600, 8000), 32768);
 
     // Try each provider with retry logic
     let completion: any = null;
@@ -781,11 +794,13 @@ ${combinedText}`,
           baseURL: provider.baseURL,
         });
 
+        // Lower temperature for Groq/Llama = follow "write more" rules; reduces scanty output
+        const temperature = provider.name === 'groq' ? 0.45 : 0.65;
         completion = await generateWithRetry(async () => {
           return client.chat.completions.create({
             model: provider.model,
             messages,
-            temperature: 0.7,
+            temperature,
             max_tokens: outputTokens,
             response_format: { type: 'json_object' },
           });
@@ -1167,14 +1182,15 @@ ${combinedText}`,
       });
     }
 
-    // Post-processing: validate and clean slides
+    // Post-processing: drop empty or near-empty slides so we never return blank slides
     const validatedSlides = slidesWithIds.filter((slide: any) => {
-      // Remove slides with no title AND no content
-      const hasTitle = slide.title && slide.title.trim().length > 0;
+      const titleText = (slide.title || '').replace(/<[^>]*>/g, '').trim();
       const contentText = (slide.content || '').replace(/<[^>]*>/g, '').trim();
-      const hasContent = contentText.length > 5;
+      const hasTitle = titleText.length > 0;
+      const hasContent = contentText.length > 15; // meaningful content, not a few chars
       const isCover = slide.type === 'cover';
-      return hasTitle || hasContent || isCover;
+      if (isCover) return hasTitle; // cover must have at least a title
+      return hasTitle && hasContent; // content slides must have both title and real content
     });
 
     incrementAndGetMetrics().catch(console.error);

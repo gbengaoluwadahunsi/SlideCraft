@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { getPool } from '@/lib/db';
+// Dynamic imports for React rendering to avoid build-time restrictions in Route Handlers
 
 // Generate a short URL for video links
 async function generateShortUrl(originalUrl: string): Promise<string> {
@@ -611,353 +613,30 @@ export async function POST(request: NextRequest) {
       req.abort();
     });
 
+    // Dynamic imports to bypass Next.js build restrictions on react-dom/server in Route Handlers
+    const [{ renderToString }, { Slide }] = await Promise.all([
+      import('react-dom/server'),
+      import('@/components/Slide')
+    ]);
+
     // HTML Template generation
-    const slidesHtml = slides.map((slide: any) => {
-      const isCover = slide.type === 'cover';
-      const isChart = slide.type === 'chart';
-      
-      // Determine active colors
-      const activeBgColor = (isCover && coverBackgroundColor) ? coverBackgroundColor : (backgroundColor || '#0B0F19');
-      const activeTextColor = (isCover && coverTextColor) ? coverTextColor : (textColor || '#ffffff');
-      const activeAccentColor = (isCover && coverAccentColor) ? coverAccentColor : (accentColor || '#ffd700');
-      
-      // Use slide-specific background or fallback to global option
-      const slideBgImage = slide.backgroundImage || backgroundImage;
-      const slideOverlayOpacity = slide.backgroundOverlayOpacity || backgroundOverlayOpacity || 0.5;
-
-      const backgroundImageStyle = slideBgImage 
-        ? `background-image: url(${slideBgImage}); background-size: cover; background-position: center;` 
-        : '';
-        
-      const overlayHtml = slideBgImage 
-        ? `<div style="position: absolute; inset: 0; background-color: ${activeBgColor}; opacity: ${slideOverlayOpacity}; pointer-events: none;"></div>` 
-        : '';
-        
-      const textShadowStyle = slideBgImage ? 'text-shadow: 0 2px 8px rgba(0,0,0,0.5);' : '';
-      
-      let chartHtml = '';
-      if (isChart && slide.chartData) {
-          const maxVal = Math.max(...slide.chartData.map((d: any) => d.value));
-          
-          if (slide.chartType === 'bar') {
-              chartHtml = `
-                <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 100%; width: 100%; padding-bottom: 2rem; box-sizing: border-box;">
-                    ${slide.chartData.map((d: any) => `
-                        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; height: 100%; justify-content: flex-end; width: ${100 / slide.chartData.length}%;">
-                             <div style="font-size: 1.5rem; font-weight: bold; color: ${activeTextColor};">${d.value}</div>
-                             <div style="width: 60%; background-color: ${activeAccentColor}; border-radius: 8px 8px 0 0; height: ${(d.value / maxVal) * 80}%;"></div>
-                             <div style="font-size: 1.5rem; color: ${activeTextColor};">${d.name}</div>
-                        </div>
-                    `).join('')}
-                </div>
-              `;
-          } else if (slide.chartType === 'line') {
-               const width = 800;
-               const height = 400;
-               const points = slide.chartData.map((d: any, i: number) => {
-                   const x = (i / (slide.chartData.length - 1)) * width;
-                   const y = height - ((d.value / maxVal) * height);
-                   return `${x},${y}`;
-               }).join(' ');
-
-              chartHtml = `
-                <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
-                     <svg width="100%" height="100%" viewBox="0 0 ${width} ${height + 50}" overflow="visible">
-                        <line x1="0" y1="0" x2="${width}" y2="0" stroke="rgba(255,255,255,0.2)" stroke-dasharray="5,5" />
-                        <line x1="0" y1="${height/2}" x2="${width}" y2="${height/2}" stroke="rgba(255,255,255,0.2)" stroke-dasharray="5,5" />
-                        <line x1="0" y1="${height}" x2="${width}" y2="${height}" stroke="rgba(255,255,255,0.2)" />
-                        
-                        <polyline points="${points}" fill="none" stroke="${activeAccentColor}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
-                        
-                        ${slide.chartData.map((d: any, i: number) => {
-                           const x = (i / (slide.chartData.length - 1)) * width;
-                           const y = height - ((d.value / maxVal) * height);
-                           return `
-                             <circle cx="${x}" cy="${y}" r="8" fill="${activeAccentColor}" />
-                             <text x="${x}" y="${height + 40}" fill="${activeTextColor}" font-size="24" text-anchor="middle">${d.name}</text>
-                             <text x="${x}" y="${y - 20}" fill="${activeTextColor}" font-size="24" text-anchor="middle" font-weight="bold">${d.value}</text>
-                           `;
-                        }).join('')}
-                     </svg>
-                </div>
-              `;
-          } else {
-              chartHtml = `
-                  <div style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; align-items: center; height: 100%;">
-                      ${slide.chartData.map((d: any) => `
-                          <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 1rem; width: 200px;">
-                              <div style="font-size: 3rem; font-weight: bold; color: ${activeAccentColor};">${d.value}%</div>
-                              <div style="font-size: 1.5rem; color: ${activeTextColor}; text-align: center;">${d.name}</div>
-                          </div>
-                      `).join('')}
-                  </div>
-              `;
-          }
-      }
-
-      const aspectRatio = slide.mediaAspectRatio || (16 / 9);
-
-      const mediaWidthPercent = Math.max(20, Math.min(100, typeof slide.mediaWidthPercent === 'number' ? slide.mediaWidthPercent : 100));
-      const mediaAlignment = slide.mediaAlignment || 'center';
-      const mediaJustify = mediaAlignment === 'left' ? 'flex-start' : mediaAlignment === 'right' ? 'flex-end' : 'center';
-
-      const mediaHtml = (() => {
-        if (!slide.mediaType) return '';
-        if (slide.mediaType === 'image' && slide.mediaUrl) {
-           return `
-             <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
-                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 0; box-shadow: 0 10px 30px -5px rgba(0,0,0,0.3);">
-                  <img src="${slide.mediaUrl}" alt="Slide Media" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
-                </div>
-             </div>
-           `;
-        }
-        if (slide.mediaType === 'video' && slide.mediaUrl) {
-          const videoLink = slide.mediaUrl; // Original URL for linking
-          const isEmbeddable = isEmbeddableVideo(slide.mediaUrl);
-          
-          if (isEmbeddable) {
-            // YouTube/Vimeo: Use iframe embed with URL displayed below
-            const embedUrl = resolveVideoEmbedUrl(slide.mediaUrl);
-            if (!embedUrl) return '';
-            
-            return `
-              <div style="margin-top: 2rem; width: 100%; display: flex; flex-direction: column; align-items: ${mediaJustify === 'flex-start' ? 'flex-start' : mediaJustify === 'flex-end' ? 'flex-end' : 'center'};">
-                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); position: relative;">
-                  <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
-                      <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0;">
-                          <iframe src="${embedUrl}" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none;" tabindex="-1"></iframe>
-                          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); z-index: 10;">
-                              <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                                  <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
-                              </div>
-                          </div>
-                      </div>
-                  </a>
-                  <!-- Video URL link displayed below -->
-                  <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);">
-                      <a href="${videoLink}" target="_blank" style="color: #60a5fa; font-size: 0.9rem; word-break: break-all; text-decoration: underline; display: flex; align-items: center; gap: 0.5rem;">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                          <span>${videoLink}</span>
-                      </a>
-                  </div>
-                </div>
-              </div>
-            `;
-          } else {
-            // Direct video file (Cloudinary, etc.): Show thumbnail with clickable URL
-            const thumbnailUrl = getVideoThumbnailUrl(slide.mediaUrl, slide.mediaPosterUrl);
-            
-            return `
-              <div style="margin-top: 2rem; width: 100%; display: flex; flex-direction: column; align-items: ${mediaJustify === 'flex-start' ? 'flex-start' : mediaJustify === 'flex-end' ? 'flex-end' : 'center'};">
-                <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); position: relative;">
-                  <a href="${videoLink}" target="_blank" style="display: block; position: relative; text-decoration: none; color: inherit;">
-                      <div style="position: relative; padding-bottom: ${(1 / aspectRatio) * 100}%; height: 0; background: #1a1a2e;">
-                          ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;" />` : ''}
-                          <!-- Play button overlay -->
-                          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); z-index: 10;">
-                              <div style="width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                                  <div style="width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 26px solid white; margin-left: 4px;"></div>
-                              </div>
-                          </div>
-                      </div>
-                  </a>
-                  <!-- Video URL link displayed below thumbnail -->
-                  <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);">
-                      <a href="${videoLink}" target="_blank" style="color: #60a5fa; font-size: 0.9rem; word-break: break-all; text-decoration: underline; display: flex; align-items: center; gap: 0.5rem;">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                          <span>${videoLink}</span>
-                      </a>
-                  </div>
-                </div>
-              </div>
-            `;
-          }
-        }
-        if (slide.mediaType === 'embed' && slide.embedHtml) {
-          return `
-            <div style="margin-top: 2rem; width: 100%; display: flex; justify-content: ${mediaJustify};">
-              <div style="width: ${mediaWidthPercent}%; min-width: 220px; max-width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 2rem; overflow: hidden; background: rgba(0,0,0,0.35); padding: 1.5rem;">
-                ${slide.embedHtml}
-              </div>
-            </div>
-          `;
-        }
-        return '';
-      })();
-
-      const slideCategory = (slide.category ?? category ?? '').trim();
-      const categoryHtml = slideCategory
-        ? `
-          <div style="position: absolute; top: 4rem; left: 4rem; z-index: 10;">
-            <span style="font-family: 'Permanent Marker', cursive; background-color: ${activeAccentColor}; color: black; padding: 0.75rem 2rem; border-radius: 9999px; font-size: ${1.5 * fontScale}rem; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); display: inline-block; transform: rotate(-1deg);">
-              ${slideCategory}
-            </span>
-          </div>
-        `
-        : '';
-
-      // Logo HTML (only if logoUrl exists)
-      const logoHtml = slide.logoUrl
-        ? `
-          <div style="position: absolute; top: 4rem; right: 4rem; z-index: 10;">
-            <img 
-              src="${slide.logoUrl}" 
-              alt="Brand Logo" 
-              style="max-height: 5rem; max-width: 12rem; object-fit: contain; opacity: 0.9; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));"
-            />
-          </div>
-        `
-        : '';
-
-      // Define default order if missing
-      let currentOrder = slide.elementOrder || [];
-      if (!currentOrder.length) {
-          if (slide.type === 'cover') currentOrder = ['title', 'subtitle', 'media'];
-          else if (slide.type === 'chart') currentOrder = ['emoji', 'title', 'content', 'chart', 'media'];
-          else currentOrder = ['emoji', 'title', 'content', 'media'];
-      }
-
-      // Render logic for each element type
-      const renderElement = (id: string) => {
-          switch (id) {
-              case 'emoji': {
-                  const emojiStripped = slide.emoji?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return emojiStripped ? `<div style="font-size: ${3.75 * fontScale}rem; margin-bottom: 1.5rem;">${slide.emoji}</div>` : '';
-              }
-              case 'title': {
-                  const titleStripped = slide.title?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return titleStripped ? `<h1 style="font-size: ${(isCover ? 4.5 : 3) * fontScale}rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 1.5rem; color: ${(isCover ? activeTextColor : activeAccentColor)}; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
-                      ${slide.title}
-                  </h1>` : '';
-              }
-              case 'subtitle': {
-                  const subtitleStripped = slide.subtitle?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return subtitleStripped ? `<p style="font-size: ${2.25 * fontScale}rem; font-weight: 300; line-height: 1.625; opacity: 0.8; color: ${activeTextColor}; margin-bottom: 1.5rem; ${textShadowStyle}; text-align: ${isCover ? 'center' : 'left'};">
-                      ${slide.subtitle}
-                  </p>` : '';
-              }
-              case 'content': {
-                  const contentStripped = slide.content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
-                  return contentStripped ? `<div style="flex: 1; margin-bottom: 1.5rem; overflow: visible; min-height: 0; padding-bottom: 0.5rem;">
-                      <div class="slide-content" style="font-size: ${2.25 * fontScale}rem; line-height: 1.8; font-weight: 300; color: ${activeTextColor}; ${textShadowStyle}; overflow: visible; padding-bottom: 0.5rem;">
-                        ${slide.content}
-                      </div>
-                  </div>` : '';
-              }
-              case 'chart':
-                  return chartHtml ? `<div style="flex: 1; overflow: hidden; background: rgba(0,0,0,0.2); border-radius: 2rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 1.5rem;">
-                      ${chartHtml}
-                  </div>` : '';
-              case 'media':
-                  return mediaHtml;
-              default:
-                  return '';
-          }
+    const slidesHtml = (await Promise.all(slides.map(async (slideData: any, index: number) => {
+      // Merge slide data with global options
+      const mergedProps = {
+        ...options,
+        ...slideData,
+        slideNumber: index + 1,
+        totalSlides: slides.length,
+        _isDownloading: true, // Marker for components to use static fallbacks (charts/video)
       };
 
-      const innerContent = currentOrder.map((id: string) => renderElement(id)).join('');
-
-      // Render custom blocks (freeform text blocks)
-      const customBlocksHtml = (slide.customBlocks || []).map((block: any) => {
-        // Only render blocks with actual content
-        const strippedContent = block.html
-          ?.replace(/<[^>]*>/g, '') // Remove HTML tags
-          .replace(/&nbsp;/gi, ' ') // Replace &nbsp; with space
-          .replace(/\u200B/g, '') // Remove zero-width spaces
-          .trim();
-        
-        // Only skip if truly empty
-        if (!strippedContent) return '';
-        
-        return `
-          <div style="position: absolute; left: ${block.x}px; top: ${block.y}px; width: ${block.width}px; height: ${block.height}px; z-index: 40;">
-            <div style="width: 100%; height: 100%; text-align: left; font-size: ${2.25 * fontScale}rem; line-height: 1.6; color: ${activeTextColor}; overflow: visible; padding: 0.5rem; ${textShadowStyle}">
-              ${block.html}
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      return `
-        <div class="slide-container" style="
-            width: 1080px; 
-            height: 1080px; 
-            background-color: ${activeBgColor}; 
-            ${backgroundImageStyle}
-            color: ${activeTextColor}; 
-            position: relative; 
-            overflow: visible; 
-            display: flex; 
-            flex-direction: column; 
-            font-family: '${selectedFontFamily}', system-ui, sans-serif; 
-            padding: 4rem; 
-            box-sizing: border-box; 
-            page-break-after: always;
-          ">
-          
-          ${overlayHtml}
-          
-          <!-- Styles for this slide -->
-          <style>
-            .slide-content strong { color: ${activeAccentColor}; font-weight: 700; }
-            .slide-content em { background-color: ${activeAccentColor}33; color: ${activeAccentColor}; font-style: normal; padding: 0 4px; border-radius: 4px; }
-            .slide-content :not(pre) > code { background-color: transparent; color: ${activeAccentColor}; padding: 0 2px; font-family: 'Roboto Mono', monospace; font-weight: bold; }
-            .slide-content :not(pre) > code::before, .slide-content :not(pre) > code::after { content: "'"; opacity: 0.8; }
-            .slide-content pre { background-color: #1f2937; padding: 1rem; border-radius: 0.5rem; overflow-x: hidden; margin: 1rem 0; border: 1px solid #374151; white-space: pre-wrap; word-break: break-word; }
-            .slide-content pre code { background-color: transparent; color: inherit; padding: 0; font-weight: normal; font-family: 'Roboto Mono', monospace; }
-            .slide-content pre code::before, .slide-content pre code::after { content: none; }
-            .slide-content ul { 
-              list-style-type: disc; 
-              padding-left: 2.5rem; 
-              margin: 1rem 0; 
-              margin-bottom: 1.5rem;
-              list-style-position: inside;
-              overflow: visible;
-              padding-bottom: 0.5rem;
-            }
-            .slide-content li { 
-              margin-bottom: 0.75rem; 
-              margin-top: 0.25rem;
-              list-style-position: inside;
-              padding-left: 0;
-              padding-bottom: 0.25rem;
-              line-height: 1.8;
-              overflow: visible;
-              display: list-item;
-            }
-            .slide-content p { margin-bottom: 1.5rem; }
-            .slide-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; font-size: 0.75em; border: 1px solid #374151; border-radius: 0.5rem; overflow: hidden; }
-            .slide-content th, .slide-content td { padding: 1.25rem; border-bottom: 1px solid #374151; border-right: 1px solid #374151; text-align: left; vertical-align: middle; }
-            .slide-content th:last-child, .slide-content td:last-child { border-right: none; }
-            .slide-content tr:last-child td { border-bottom: none; }
-            .slide-content th { background-color: #1f2937; color: ${activeAccentColor}; font-weight: 700; text-transform: uppercase; font-size: 0.9em; letter-spacing: 0.05em; }
-            .slide-content tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.03); }
-            .slide-content img { max-width: 100%; border-radius: 0.5rem; margin: 1rem 0; }
-          </style>
-
-          <!-- Category Pill -->
-          ${categoryHtml}
-
-          <!-- Brand Logo -->
-          ${logoHtml}
-
-          <!-- Custom Blocks (Freeform Text) -->
-          ${customBlocksHtml}
-
-          <!-- Main Content -->
-          <div style="flex: 1; padding-top: 12rem; padding-bottom: 6rem; display: flex; flex-direction: column; position: relative; z-index: 10; overflow: visible; min-height: 0; ${isCover ? 'justify-content: center;' : ''}">
-             ${innerContent}
-          </div>
-
-          <!-- Footer Handle -->
-          <div style="position: absolute; bottom: 3rem; right: 4rem; font-size: ${1.25 * fontScale}rem; font-weight: 500; letter-spacing: 0.025em; opacity: 0.6; z-index: 10;">
-            ${handle}
-          </div>
-
-        </div>
-      `;
-    }).join('');
+      try {
+        return renderToString(React.createElement(Slide as any, mergedProps));
+      } catch (error) {
+        console.error(`Failed to render slide ${index} with React:`, error);
+        return `<div style="width:1080px;height:1080px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;">Error rendering slide ${index}</div>`;
+      }
+    }))).join('');
 
     // Construct Google Fonts URL
     // Always load Bebas Neue + Roboto Mono since they're used inside HTML pattern templates
@@ -972,37 +651,42 @@ export async function POST(request: NextRequest) {
       <html>
         <head>
           <meta charset="UTF-8">
-          <link href="https://fonts.googleapis.com/css2?${fontQuery}&display=swap" rel="stylesheet">
           <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?${fontQuery}&display=swap" rel="stylesheet">
           <style>
-            /* Resolve CSS font variables used inside AI-generated HTML patterns */
-            :root {
-              --font-bebas-neue: 'Bebas Neue', sans-serif;
-              --font-inter: 'Inter', sans-serif;
-              --font-playfair: 'Playfair Display', serif;
-              --font-oswald: 'Oswald', sans-serif;
-              --font-roboto-mono: 'Roboto Mono', monospace;
-              --font-permanent-marker: 'Permanent Marker', cursive;
-              --font-space-grotesk: 'Space Grotesk', sans-serif;
-              --font-geist-sans: 'Inter', sans-serif;
-              --font-geist-mono: 'Roboto Mono', monospace;
-            }
-            body { margin: 0; padding: 0; overflow: visible; }
+            /* Global resets and PDF-specific adjustments */
+            *, *::before, *::after { box-sizing: border-box; }
+            body { margin: 0; padding: 0; overflow: visible; font-family: system-ui, sans-serif; }
             @page { 
               size: 1080px 1080px; 
               margin: 0; 
             }
-            html {
-              overflow: visible;
-            }
+            html { overflow: visible; }
             * {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
               color-adjust: exact !important;
             }
+            /* Ensure text renders nicely */
+            h1, h2, h3, p, div { -webkit-font-smoothing: antialiased; }
           </style>
+          <script>
+            tailwind.config = {
+              theme: {
+                extend: {
+                  colors: {
+                    slide: {
+                      bg: 'var(--slide-bg)',
+                      text: 'var(--slide-text)',
+                      accent: 'var(--slide-accent)',
+                    }
+                  }
+                }
+              }
+            }
+          </script>
         </head>
-        <body>
+        <body style="margin:0; padding:0;">
           ${slidesHtml}
         </body>
       </html>

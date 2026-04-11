@@ -2,8 +2,16 @@
 
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
 
+interface CopiedFormat {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  fontSize?: string;
+  color?: string;
+}
+
 interface TextToolbarContextType {
-  // State
   savedSelectionRef: React.MutableRefObject<Range | null>;
   savedElementRef: React.MutableRefObject<HTMLElement | null>;
   activeStates: {
@@ -34,10 +42,9 @@ interface TextToolbarContextType {
   setFontSizeInput: React.Dispatch<React.SetStateAction<string>>;
   recentColors: string[];
   setRecentColors: React.Dispatch<React.SetStateAction<string[]>>;
-  copiedFormat: any;
-  setCopiedFormat: React.Dispatch<React.SetStateAction<any>>;
+  copiedFormat: CopiedFormat | null;
+  setCopiedFormat: React.Dispatch<React.SetStateAction<CopiedFormat | null>>;
   
-  // Functions
   execCommand: (command: string, value?: string) => void;
   saveSelection: () => void;
   updateActiveStates: () => void;

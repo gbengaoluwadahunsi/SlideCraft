@@ -2,35 +2,52 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { incrementAndGetMetrics } from '@/lib/metrics';
 import { getUserPlanLimits, trackUsage } from '@/lib/subscription';
+import { checkRateLimitWithDB, initRateLimitDB } from '@/lib/rate-limit';
+import { generateRequestSchema } from '@/lib/schemas';
+import { initDB } from '@/lib/db';
+import { SlideData } from '@/lib/types';
+import { SCHEMA_DESCRIPTION, AIOutputSchema, type AISlide, type ContentBlock } from '@/lib/ai-schema';
+import { renderContentBlock, applyTitleEmphasis, type ThemeTokens } from '@/lib/content-renderer';
+import { routeLayouts, generateDesignSeed, type LayoutDecision } from '@/lib/layout-router';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// In-memory burst rate limiter: max 5 requests per user per 60 seconds
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 60_000;
-const RATE_LIMIT_MAX = 5;
+// ── Types ────────────────────────────────────────────────────────────────────
 
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count++;
-  return true;
+interface ChatCompletionChoice {
+  message: {
+    content: string | null;
+  };
 }
 
-// Provider order: Groq (free) first, then OpenRouter if key present.
+interface ChatCompletion {
+  choices: ChatCompletionChoice[];
+}
+
+interface BrandSettings {
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  fontFamily?: string;
+  logoUrl?: string;
+}
+
+// ── Provider Configuration ───────────────────────────────────────────────────
+
 const PROVIDERS = [
   { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
   { name: 'openrouter_claude', model: 'anthropic/claude-3.5-sonnet', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
   { name: 'openrouter_gemini', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
 ];
 
-// Retry logic — skip immediately on rate limits (don't waste time retrying)
+// ── Retry Logic ──────────────────────────────────────────────────────────────
+
+interface ApiError extends Error {
+  status?: number;
+  statusCode?: number;
+}
+
 async function generateWithRetry<T>(
   fn: () => Promise<T>,
   maxRetries: number = 2
@@ -38,10 +55,10 @@ async function generateWithRetry<T>(
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
-    } catch (err: any) {
-      const msg = err?.message || '';
-      const status = err?.status || err?.statusCode || 0;
-      // Don't retry rate limits or auth errors — fail fast to next provider
+    } catch (err) {
+      const error = err as ApiError;
+      const msg = error?.message || '';
+      const status = error.status || error.statusCode || 0;
       if (status === 429 || status === 401 || status === 403 || msg.includes('rate_limit') || msg.includes('quota')) {
         throw err;
       }
@@ -53,304 +70,65 @@ async function generateWithRetry<T>(
   throw new Error('Max retries exceeded');
 }
 
+// ── System Prompt (Schema-First — NO HTML) ───────────────────────────────────
+
 const BASE_SYSTEM_PROMPT = `
-You are an expert carousel content strategist. Your job is to turn the user's source (article, document, or link) into a clear, engaging carousel that truly reflects it.
+You are an expert carousel content strategist. Your job is to turn the user's source (article, document, or link) into a clear, engaging carousel using STRUCTURED JSON.
 
 PRIMARY GOAL:
 - Read and understand the full source. The carousel must match the topic, message, and content type of the original.
-- Do not add code examples unless the source itself contains code or technical implementation. If the source is about business, marketing, stories, or ideas, use only patterns that fit (lists, stats, quotes, comparisons, tips)—never code blocks.
-- Match the tone and depth of the source. One idea per slide; each slide must add real value from the content.
+- Do not add code examples unless the source itself contains code or technical implementation.
+- Match the tone and depth of the source. One idea per slide; each slide must add real value.
 
-CRITICAL RULES (follow exactly):
-1. Return ONLY a valid JSON object with a "slides" array. No markdown, no \`\`\`json\`, no extra text.
-2. Use ONLY HTML inside fields (no **bold** or ###). Use <em> for emphasis.
-3. EVERY slide must have REAL, SPECIFIC content from the source—no placeholders, no one-line filler, no generic fluff.
-4. FILL every pattern completely: Icon Cards = 3-4 cards with title + description each; Stats Grid = 4 stats; Numbered List = 3-5 items; etc. Half-empty layouts are invalid.
-5. Return ONLY as many slides as you can fill with real content. If the source does not support 10 slides, return 6 or 7. Never return a slide with an empty or placeholder title or content—empty slides are invalid and will be dropped.
+CRITICAL RULES:
+1. Return ONLY a valid JSON object with a "slides" array. No markdown, no code fences, no extra text.
+2. EVERY slide must have REAL, SPECIFIC content from the source — no placeholders, no filler.
+3. Fill every content block completely: icon-cards = 3-4 cards each with description, stats-grid = 3-4 stats, etc.
+4. Return ONLY as many slides as you can fill with real content.
 
-ENGAGEMENT-OPTIMIZED SLIDE SEQUENCE (data-backed):
+ENGAGEMENT-OPTIMIZED SLIDE SEQUENCE:
 
-SLIDE 1 — THE HOOK (most important slide, determines 80% of performance):
-- Title: 6-8 words MAX. Benefit-driven. Create an open loop or curiosity gap.
-- Use <em>keyword</em> to visually anchor ONE power word.
-- Subtitle: 1 sentence expanding the hook. Must make them NEED to swipe.
-- VARY the cover hook style — choose the format that best fits the topic:
-  1. NUMBER HOOK: "X [things/ways/mistakes] That [outcome]" — e.g., "5 <em>Mistakes</em> Killing Your Productivity"
-  2. QUESTION HOOK: An open question — e.g., "Why Do <em>Smart</em> People Stay Broke?"
-  3. BOLD CLAIM: A contrarian statement — e.g., "Your Best Idea Will Come From <em>Failure</em>"
-  4. HOW-TO PROMISE: Outcome-first — e.g., "How to Build a <em>6-Figure</em> Brand in 90 Days"
-  5. STAT HOOK: A surprising number — e.g., "95% of Developers Miss This <em>Simple</em> Optimization"
-  6. STORY HOOK: First-person, relatable — e.g., "I Lost $50K Before I Learned This <em>Lesson</em>"
+SLIDE 1 — THE HOOK (role: "hook"):
+- Title: 6-8 words MAX. Benefit-driven. Create curiosity.
+- Set emphasisWord to ONE power word from the title.
+- Subtitle: 1 sentence expanding the hook.
+- Content block: Use "paragraph" with a compelling opening statement.
+- VARY the hook style:
+  1. NUMBER HOOK: "X things/ways/mistakes that outcome"
+  2. QUESTION HOOK: An open question
+  3. BOLD CLAIM: A contrarian statement
+  4. HOW-TO PROMISE: Outcome-first
+  5. STAT HOOK: A surprising number
+  6. STORY HOOK: First-person, relatable
 
-SLIDE 2 — CONTEXT / CREDIBILITY:
-- Build urgency. Use a stat, quote, or pain point that proves the topic matters.
-- Pattern F (Stats Grid), K (Metric Callout), or L (Quote Card) work great here.
+SLIDE 2 — CONTEXT (role: "context"):
+- Build urgency. Use a stat, quote, or pain point.
+- Best content blocks: stats-grid, metric-callout, or quote-card.
 
-SLIDES 3 to N-2 — VALUE DELIVERY (the meat):
-- ONE idea per slide. Each slide must teach or reveal something.
-- Write at Grade 7-8 reading level. Short sentences (under 12 words). Conversational tone.
-- Use rich HTML patterns — Icon Cards, Numbered Lists, Code Blocks, Timelines, etc.
-- VARY the pattern every slide. Never use the same layout twice in a row.
-- Each pattern must be FULLY FILLED (3-4 cards for Icon Cards, 3-5 items for lists, 4 stats for grids).
+SLIDES 3 to N-2 — VALUE (role: "value"):
+- ONE idea per slide. Each must teach or reveal something.
+- Write at Grade 7-8 reading level. Short sentences. Conversational tone.
+- VARY the content block kind every slide. Never use the same kind consecutively.
+- Choose the content block that genuinely fits: lists → numbered-list, features → icon-cards, data → stats-grid, etc.
 
-SLIDE N-1 — PROOF / SUMMARY:
-- Reinforce value with a highlight box, stats recap, or key takeaway.
-- Pattern J (Highlight Box) or F (Stats Grid) work best.
+SLIDE N-1 — PROOF (role: "proof"):
+- Reinforce with a highlight-box, stats recap, or key takeaway.
 
-SLIDE N — CTA (call to action):
+SLIDE N — CTA (role: "cta"):
 - Summarize the key insight in one punchy sentence.
-- Clear CTA: follow, save, share, comment, or visit a link.
-- Make it feel like a satisfying ending, not an abrupt stop.
+- Clear call-to-action: follow, save, share.
 
-NARRATIVE COHERENCE (context awareness):
-- This is ONE carousel with ONE story. Every slide must connect to the next; slide N sets up or builds on slide N+1.
-- Do not repeat the same point in different words across slides. Each slide adds new information or a new angle.
-- Keep a clear throughline: hook → why it matters → main ideas (in logical order) → proof/summary → CTA.
-- If the user specified an audience or goal, tailor depth, examples, and tone to that context.
+CONTENT DENSITY (critical):
+- NEVER one-line content. Every field must be substantial.
+- icon-cards: each card = title + 2-3 full sentences in description.
+- numbered-list: each item = title + 2-3 sentences.
+- stats-grid: each stat = value + 1-2 sentence description.
+- Pull specifics from the source: numbers, names, quotes, examples.
 
-CONTENT DENSITY — DO NOT BE SCANTY (this is the #1 failure mode):
-- NEVER one-line slides. Every slide must feel substantial enough to stand alone.
-- NEVER one sentence per card. Each Icon Card = title + at least 2–3 full sentences. Each list item = title + at least 2–3 sentences of explanation. Each stat = number + 1–2 sentence description.
-- PULL specifics from the source: numbers, names, quotes, examples. If the article mentions "37% of teams", use "37%". If it names a study or person, include it.
-- REFORMAT, do not summarize. If the source has 4 points, show all 4 with full text—do not collapse to one line each.
-- BAD: A card that says "Set clear goals." GOOD: "Set clear goals. Define 2–3 measurable outcomes and a deadline. Teams that set specific goals see 30% higher follow-through (source the stat if the article has it)."
-- Icon Cards: 3–4 cards, each title + 2–3 sentences. Numbered Lists: 3–5 items, each title + 2–3 sentences. Stats Grid: 4 stats, each number + 1–2 sentence context. Quote + Tip: full paragraph (3–4 sentences) + actionable tip. Before/After: 3–4 items per column with real content.
-- Code (only when source has code): 8–15 lines of real code + short explanation.
+${SCHEMA_DESCRIPTION}
 `;
 
-const TEXT_PATTERN_DEFINITIONS = `
-IMPORTANT: Use these exact color tokens in your HTML. They will be replaced with the user's theme colors:
-- {{ACCENT}} = primary accent color
-- {{ACCENT2}} = secondary accent (for contrast, e.g. "before" column)
-- {{MUTED}} = muted/body text color
-- {{TEXT}} = primary text color (headings)
-- {{ACCENT_BG}} = accent at 6% opacity for backgrounds (use as-is, it will be computed)
-- {{ACCENT_BORDER}} = accent at 15% opacity for borders (use as-is, it will be computed)
-
-PATTERN A: "Quote + Tip" — for definitions, core concepts, key explanations
-<p style="border-left:3px solid {{ACCENT}};padding-left:16px;color:{{MUTED}};font-size:0.92em;line-height:1.75;">Write a full paragraph here — 3-4 sentences that explain the concept in depth. Don't just write one line. The reader should walk away understanding the idea after reading this block. Include context, why it matters, and how it connects to the bigger picture.</p><div style="background:{{ACCENT_BG}};border:1px solid {{ACCENT_BORDER}};border-radius:10px;padding:14px 18px;margin-top:16px;color:{{ACCENT}};font-size:0.85em;line-height:1.6;">💡 A concrete, actionable insight — not generic advice. Tie it to the content above.</div>
-
-PATTERN B: "Icon Cards" — for problems, pain points, features (MUST have 3-4 cards)
-<div style="display:flex;flex-direction:column;gap:8px;"><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;"><span style="font-size:1.3em;flex-shrink:0;">📦</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;margin-bottom:2px;">Card Title</div><div style="font-family:monospace;font-size:0.72em;color:{{MUTED}};line-height:1.65;">1-2 sentence description explaining THIS specific point. Don't leave this empty.</div></div></div><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;"><span style="font-size:1.3em;flex-shrink:0;">⚡</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;margin-bottom:2px;">Second Card</div><div style="font-family:monospace;font-size:0.72em;color:{{MUTED}};line-height:1.65;">Another 1-2 sentence description with real detail from the source.</div></div></div><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;"><span style="font-size:1.3em;flex-shrink:0;">🔧</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;margin-bottom:2px;">Third Card</div><div style="font-family:monospace;font-size:0.72em;color:{{MUTED}};line-height:1.65;">Same here — every card needs both a title AND a meaningful description.</div></div></div></div>
-ALWAYS include 3-4 cards. Each card MUST have a title AND a 1-2 sentence description. Use relevant emoji per card.
-
-PATTERN C: "Numbered List" — for principles, rules, steps (MUST have 3-5 items)
-<div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;gap:14px;align-items:flex-start;padding:4px 0;"><span style="font-family:var(--font-bebas-neue);font-size:1.6em;line-height:1;color:{{ACCENT}};flex-shrink:0;min-width:28px;">01</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;">First Principle Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:1px;">1-2 sentence explanation of this principle with real detail.</div></div></div><div style="display:flex;gap:14px;align-items:flex-start;padding:4px 0;"><span style="font-family:var(--font-bebas-neue);font-size:1.6em;line-height:1;color:{{ACCENT}};flex-shrink:0;min-width:28px;">02</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;">Second Principle Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:1px;">Another explanation — don't just repeat the title.</div></div></div><div style="display:flex;gap:14px;align-items:flex-start;padding:4px 0;"><span style="font-family:var(--font-bebas-neue);font-size:1.6em;line-height:1;color:{{ACCENT}};flex-shrink:0;min-width:28px;">03</span><div><div style="font-weight:700;color:{{TEXT}};font-size:0.92em;">Third Principle Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:1px;">Keep going — each item must have both title and explanation.</div></div></div></div>
-ALWAYS include 3-5 numbered items. Each item MUST have a title AND a description.
-
-PATTERN D: "Code Block" — for technical content, implementation details, examples
-<p style="color:{{MUTED}};font-size:0.9em;line-height:1.75;">Explanation text.</p><div style="background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;margin-top:14px;font-family:monospace;font-size:0.72em;line-height:1.7;color:{{MUTED}};"><span style="color:#5A6580;">// comment</span><br/><span style="color:{{ACCENT}};">keyword</span> <span style="color:{{ACCENT2}};">functionName</span>() {<br/>&nbsp;&nbsp;code here;<br/>}</div>
-
-PATTERN E: "Pill Tags" — for best practices, key terms, quick lists
-<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"><span style="font-family:monospace;font-size:0.7em;padding:5px 12px;border-radius:100px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:{{MUTED}};">Tag One</span></div><p style="color:{{MUTED}};font-size:0.88em;line-height:1.75;">Summary text.</p>
-Repeat <span> for each tag.
-
-PATTERN F: "Stats Grid" — for metrics, numbers, data highlights (MUST have 4 cards in 2x2)
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:14px;"><div style="font-family:var(--font-bebas-neue);font-size:2em;line-height:1;color:{{ACCENT}};">47%</div><div style="font-family:monospace;font-size:0.65em;color:{{MUTED}};margin-top:4px;line-height:1.5;">What this number means in context — 1-2 sentences.</div></div><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:14px;"><div style="font-family:var(--font-bebas-neue);font-size:2em;line-height:1;color:{{ACCENT2}};">3.2x</div><div style="font-family:monospace;font-size:0.65em;color:{{MUTED}};margin-top:4px;line-height:1.5;">Explanation of what this metric represents.</div></div><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:14px;"><div style="font-family:var(--font-bebas-neue);font-size:2em;line-height:1;color:{{ACCENT}};">12K+</div><div style="font-family:monospace;font-size:0.65em;color:{{MUTED}};margin-top:4px;line-height:1.5;">Context for this number and why it matters.</div></div><div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:14px;"><div style="font-family:var(--font-bebas-neue);font-size:2em;line-height:1;color:{{ACCENT2}};">98%</div><div style="font-family:monospace;font-size:0.65em;color:{{MUTED}};margin-top:4px;line-height:1.5;">Describe the significance of this stat.</div></div></div>
-ALWAYS include 4 stat cards with REAL numbers, labels, AND 1-2 sentence descriptions.
-
-PATTERN G: "Before/After" — for comparisons, transformations (MUST have 3-4 items per column)
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:14px;border:1px solid rgba(255,255,255,0.04);"><div style="font-family:monospace;font-size:0.65em;letter-spacing:0.15em;text-transform:uppercase;color:{{ACCENT2}};font-weight:600;margin-bottom:8px;">Before</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.8;">❌ First problem or old approach<br/>❌ Second problem or limitation<br/>❌ Third pain point or issue</div></div><div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:14px;border:1px solid rgba(255,255,255,0.04);"><div style="font-family:monospace;font-size:0.65em;letter-spacing:0.15em;text-transform:uppercase;color:{{ACCENT}};font-weight:600;margin-bottom:8px;">After</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.8;">✅ First improvement or new approach<br/>✅ Second benefit or capability<br/>✅ Third advantage or result</div></div></div>
-ALWAYS include 3-4 items per column with real contrasting content.
-
-PATTERN H: "Arrow List" — for checklists, pitfalls, future items (MUST have 4-6 items)
-<div style="display:flex;flex-direction:column;gap:6px;"><div style="font-family:monospace;font-size:0.75em;color:{{MUTED}};padding-left:18px;position:relative;line-height:1.75;"><span style="position:absolute;left:0;opacity:0.5;">→</span><strong style="color:{{TEXT}};">Item title</strong> — brief explanation of this point</div><div style="font-family:monospace;font-size:0.75em;color:{{MUTED}};padding-left:18px;position:relative;line-height:1.75;"><span style="position:absolute;left:0;opacity:0.5;">→</span><strong style="color:{{TEXT}};">Second item</strong> — another meaningful point with detail</div><div style="font-family:monospace;font-size:0.75em;color:{{MUTED}};padding-left:18px;position:relative;line-height:1.75;"><span style="position:absolute;left:0;opacity:0.5;">→</span><strong style="color:{{TEXT}};">Third item</strong> — keep going, each line needs substance</div><div style="font-family:monospace;font-size:0.75em;color:{{MUTED}};padding-left:18px;position:relative;line-height:1.75;"><span style="position:absolute;left:0;opacity:0.5;">→</span><strong style="color:{{TEXT}};">Fourth item</strong> — end with a complete list</div></div>
-ALWAYS include 4-6 items. Each item should have a bold title + brief explanation.
-
-PATTERN I: "Timeline" — for chronological progressions, phases, roadmaps (MUST have 3-4 phases)
-<div style="display:flex;flex-direction:column;gap:10px;"><div style="display:flex;gap:12px;align-items:flex-start;"><div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;"><div style="width:10px;height:10px;border-radius:50%;background:{{ACCENT}};"></div><div style="width:2px;height:32px;background:rgba(255,255,255,0.08);"></div></div><div><div style="font-weight:700;color:{{TEXT}};font-size:0.88em;">Phase 1 Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:2px;">1-2 sentence description of what happens in this phase.</div></div></div><div style="display:flex;gap:12px;align-items:flex-start;"><div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;"><div style="width:10px;height:10px;border-radius:50%;background:{{ACCENT2}};"></div><div style="width:2px;height:32px;background:rgba(255,255,255,0.08);"></div></div><div><div style="font-weight:700;color:{{TEXT}};font-size:0.88em;">Phase 2 Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:2px;">Another description — keep them substantive, not one-word placeholders.</div></div></div><div style="display:flex;gap:12px;align-items:flex-start;"><div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;"><div style="width:10px;height:10px;border-radius:50%;background:{{ACCENT}};"></div></div><div><div style="font-weight:700;color:{{TEXT}};font-size:0.88em;">Phase 3 Title</div><div style="font-family:monospace;font-size:0.7em;color:{{MUTED}};line-height:1.65;margin-top:2px;">Final phase with real content explaining what it involves.</div></div></div></div>
-ALWAYS include 3-4 timeline phases. Each MUST have a title AND 1-2 sentence description.
-
-PATTERN J: "Highlight Box" — for key takeaways, important callouts, summaries
-<div style="background:{{ACCENT_BG}};border:1px solid {{ACCENT_BORDER}};border-radius:12px;padding:18px 20px;"><div style="font-family:monospace;font-size:0.65em;letter-spacing:0.15em;text-transform:uppercase;color:{{ACCENT}};font-weight:600;margin-bottom:10px;">⚡ Key Takeaway</div><div style="color:{{TEXT}};font-size:0.95em;font-weight:700;line-height:1.6;margin-bottom:8px;">The main insight stated clearly in one strong sentence.</div><div style="font-family:monospace;font-size:0.72em;color:{{MUTED}};line-height:1.7;">2-3 sentences of supporting detail that expand on the insight. Explain WHY it matters, WHO it affects, and WHAT to do about it. Don't leave this section thin.</div></div>
-
-PATTERN K: "Metric Callout" — for a single big number with context
-<div style="text-align:center;padding:8px 0;"><div style="font-family:var(--font-bebas-neue);font-size:3.5em;line-height:1;color:{{ACCENT}};letter-spacing:-0.02em;">73%</div><div style="font-family:monospace;font-size:0.72em;color:{{MUTED}};margin-top:8px;line-height:1.6;">What this metric represents and why it matters.</div><div style="width:40px;height:2px;background:{{ACCENT}};margin:12px auto 0;border-radius:2px;opacity:0.5;"></div><div style="font-family:monospace;font-size:0.65em;color:{{MUTED}};margin-top:10px;opacity:0.7;">Source or context</div></div>
-
-PATTERN L: "Quote Card" — for powerful quotes, testimonials, expert opinions
-<div style="background:rgba(0,0,0,0.2);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.04);position:relative;"><div style="font-size:2em;color:{{ACCENT}};opacity:0.3;line-height:1;margin-bottom:6px;">"</div><div style="color:{{TEXT}};font-size:0.95em;font-style:italic;line-height:1.7;">The quoted text goes here. Keep it punchy and memorable.</div><div style="margin-top:12px;display:flex;align-items:center;gap:8px;"><div style="width:28px;height:2px;background:{{ACCENT}};border-radius:2px;"></div><div style="font-family:monospace;font-size:0.68em;color:{{MUTED}};">— Attribution Name</div></div></div>
-`;
-
-const ALL_CONTENT_PATTERNS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const;
-const NON_TECHNICAL_PATTERNS = ['A','B','C','E','F','G','H','I','J','K','L'] as const;
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function generatePatternOrder(slideCount: number, existingOrder?: string[], hasCode?: boolean): string[] {
-  if (existingOrder && existingOrder.length >= slideCount - 2) {
-    return existingOrder.slice(0, slideCount - 2);
-  }
-
-  const contentSlideCount = slideCount - 2; // minus cover and CTA
-  // Do not suggest code pattern when source has no code
-  const pool = hasCode ? [...ALL_CONTENT_PATTERNS] : [...NON_TECHNICAL_PATTERNS];
-  const order: string[] = [];
-
-  // For code-heavy content, reserve ~30-40% of slots for Pattern D
-  const codeSlotCount = hasCode ? Math.max(2, Math.floor(contentSlideCount * 0.35)) : 0;
-  const codeSlotIndices = new Set<number>();
-  if (codeSlotCount > 0) {
-    const indices = Array.from({ length: contentSlideCount }, (_, i) => i);
-    const shuffledIndices = shuffleArray(indices);
-    for (let i = 0; i < codeSlotCount; i++) {
-      codeSlotIndices.add(shuffledIndices[i]);
-    }
-  }
-
-  for (let i = 0; i < contentSlideCount; i++) {
-    if (codeSlotIndices.has(i) && order[order.length - 1] !== 'D') {
-      order.push('D');
-    } else {
-      const available = pool.filter(p => p !== order[order.length - 1]);
-      const shuffled = shuffleArray(available);
-      order.push(shuffled[0]);
-    }
-  }
-  return order;
-}
-
-function buildSlideStructure(patternOrder: string[], hasCode?: boolean): string {
-  const codeLine = hasCode ? '  • Code / technical implementation → D (Code Block)\n' : '  • Do NOT use Pattern D (Code Block) unless the source actually contains code.\n';
-  return `PATTERN SELECTION — match content type to the BEST visual pattern:
-  • Definition / explanation → A (Quote + Tip)
-  • List of features / problems / pain points → B (Icon Cards)
-  • Steps / rules / principles → C (Numbered List)
-${codeLine}  • Tags / keywords / quick list → E (Pill Tags)
-  • Multiple stats / metrics → F (Stats Grid)
-  • Comparison / before vs after → G (Before/After)
-  • Checklist / do's & don'ts → H (Arrow List)
-  • Phases / roadmap / timeline → I (Timeline)
-  • Key takeaway / summary → J (Highlight Box)
-  • Single standout metric → K (Metric Callout)
-  • Quote / testimonial → L (Quote Card)
-
-LAYOUT RULES:
-1. Never repeat the same pattern on consecutive slides.
-2. Use 5+ different patterns across the carousel.
-3. Content dictates pattern — don't force a layout that doesn't fit.
-4. Suggested variety: ${patternOrder.join(', ')}`;
-}
-
-const SLIDE_STYLE_PROMPTS = {
-  text: (patternOrder: string[], hasCode?: boolean) => `
-Each slide should have:
-- type: "cover" (only for the first slide), "content", or "chart"
-- title: Short, punchy header. Use <em>keyword</em> to highlight ONE key word in the accent color (not italic). Example: "Why This <em>Matters</em>"
-- subtitle: (for cover only) The main hook
-- slideLabel: A short 1-2 word category label for the slide. Examples: "Definition", "The Problem", "Foundation", "Pattern", "Deep Dive", "Impact", "Comparison", "Watch Out", "Framework", "What's Next", "Takeaway"
-- content: (for content slides) Use the RICH HTML DESIGN PATTERNS below based on slide role.
-- emoji: DO NOT include emoji. Leave this field empty or omit it entirely.
-- chartType: (for chart slides only) "bar", "line", or "pie"
-- chartData: (for chart slides only) Array of objects with "name" (string) and "value" (number).
-
-CRITICAL: If the content involves statistics, data comparisons, or numeric trends, use a "chart" slide type with proper chartData.
-
-RICH HTML DESIGN PATTERNS — USE THESE FOR content FIELD:
-${TEXT_PATTERN_DEFINITIONS}
-
-${buildSlideStructure(patternOrder, hasCode)}
-
-NEVER use plain paragraphs or raw text. ALWAYS use one of the HTML patterns above that fit the content.
-NEVER use markdown. Only HTML.
-NEVER return an empty slide. Every content slide MUST have a non-empty title AND content with a proper pattern.
-EVERY pattern must be FULLY FILLED — a half-empty grid or single-card list looks broken.
-${hasCode ? `
-CODE RULES (only because the source contains code):
-- Use Pattern D only for slides that present actual code from the source. Include 8-15 lines of real code, not stubs.
-- Use <br/> for line breaks and &nbsp; for indentation inside the code block.
-` : `
-Do NOT use Pattern D (Code Block). The source has no code—use other patterns only (lists, stats, quotes, tips, etc.).
-`}
-`,
-
-  visual: `
-Create INFOGRAPHIC-STYLE slides that are visually structured and information-dense but easy to scan.
-
-Each slide should have:
-- type: "cover" (only for the first slide), "visual", "chart"
-- title: Short, impactful header (max 5 words). Can use text effects:
-  - <span style="text-transform: uppercase">TITLE</span> for impact
-  - <span style="letter-spacing: 0.15em">T I T L E</span> for elegant spacing
-- subtitle: (for cover only) The main hook
-- icon: Choose ONE icon name from Phosphor icons: lightbulb, target, rocket, users, shield, brain, trophy, clock, star, heart, fire, globe, lightning, chart, book, leaf, gift, sun, moon, camera, phone, calendar, bell, gear, flag, key, lock, cloud, database, cpu, battery, wifi, shopping-cart, credit-card, wallet, package, truck, airplane, train, bicycle, tree, paint-brush, code, music, video, coffee, sparkle, trending-up, check-circle, activity, heartbeat, first-aid, and more
-- content: (for visual slides) Provide 3-5 distinct bullet points using <ul><li> format. DO NOT wrap in <p> tags.
-  - Each bullet should be EXTREMELY SHORT (max 10 words).
-  - Each bullet should be a clear, standalone insight or step.
-  - Keep content plain text inside <li> tags for visual slides.
-  - Example: <ul><li>Make SMART Goals</li><li>Set Realistic Targets</li><li>Create an Action Plan</li></ul>
-- infographicLayout: (for visual slides) Suggest the MOST FITTING layout from: "cards-grid", "timeline", "process-steps", "cycle", "icon-cards", "numbered-list", "feature-list", "pyramid", "comparison", "checklist"
-  - Use "process-steps" ONLY for step-by-step how-to content (max 5 steps)
-  - Use "timeline" for chronological/sequential information
-  - Use "cycle" for circular/repeating processes
-  - Use "icon-cards" for tips/hacks/quick points (3-6 items)
-  - Use "cards-grid" for general concepts/ideas
-  - Use "numbered-list" for ordered lists
-  - Use "feature-list" for benefits/features (2 columns)
-  - VARY the layouts across slides - don't use the same layout repeatedly
-- chartType: (for chart slides with data) "bar", "line", or "pie" 
-- chartData: (for chart slides) Array of objects with "name" and "value". Example: [{"name": "Revenue", "value": 50000}]
-
-IMPORTANT TYPE SELECTION:
-- Use "chart" type for: statistics, comparisons with numbers, data trends, survey results, performance metrics
-- Use "visual" type for: processes, timelines, tips, features, steps, concepts, ideas
-
-"visual" slides will be rendered as interactive INFOGRAPHICS (timelines, process steps, cycle diagrams).
-"chart" slides will be rendered as professional chart images using QuickChart.io.
-
-CRITICAL FOR VISUAL SLIDES:
-- ALWAYS provide content as a clean <ul> list with <li> items
-- Each <li> should contain 5-10 words maximum
-- Do NOT use nested <p> tags
-- Example format:
-  <ul><li>Make SMART Goals</li><li>Set Realistic Targets</li><li>Create an Action Plan</li><li>Establish a Support System</li><li>Review and Adjust Regularly</li></ul>
-`,
-
-  mixed: `
-Create a MIX of visual infographics and text-heavy slides for variety.
-
-Each slide should have:
-- type: "cover" (first slide only), "visual" (infographic), "content" (text-focused), or "chart"
-- title: Short, punchy header. For impact, can use:
-  - <span style="text-transform: uppercase">TITLE</span> for bold statements
-  - <span style="letter-spacing: 0.1em">Elegant Title</span> for spaced effect
-- subtitle: (for cover only) The main hook
-- icon: (for "visual" type) Choose ONE Phosphor icon
-- content: 
-  - For "visual" type: Clean <ul><li> list with 3-5 short items (5-10 words each)
-  - For "content" type: Rich formatted text using these HTML options:
-    * <strong>bold</strong> - Bold emphasis (accent color)
-    * <em>highlight</em> - Yellow background highlight
-    * <u>underline</u> - Underlined text
-    * <s>strikethrough</s> - Crossed out text
-    * <sup>superscript</sup> - For x², footnotes
-    * <sub>subscript</sub> - For H₂O, chemical formulas
-    * <span style="font-size: 20px">larger</span> - Size variations
-    * <a href="url">links</a> - Clickable links
-    * <p> - Paragraphs
-    * <ul><li>item</li></ul> - Bullet lists (for tips, features, benefits)
-    * <ol><li>item</li></ol> - Numbered lists (for step-by-step guides, rankings)
-- infographicLayout: (for visual slides) VARY the layouts - use different styles for each visual slide
-- chartType/chartData: For chart slides with statistics
-
-SLIDE PATTERN - Alternate types for variety:
-- Slide 1: Cover
-- Slide 2: Visual (infographic - use cards-grid or icon-cards)
-- Slide 3: Content (detailed text with rich formatting)
-- Slide 4: Visual (infographic - use timeline or process-steps)
-- Slide 5: Content or Chart (if data available)
-- Slide 6: Visual (infographic - use cycle or feature-list)
-- Continue alternating with DIFFERENT infographic layouts each time
-
-CRITICAL: Never use the same infographicLayout twice in a row. Ensure visual variety!
-`
-};
+// ── Creative Angles ──────────────────────────────────────────────────────────
 
 const CREATIVE_ANGLES = [
   'Use unexpected analogies and metaphors to explain concepts. Compare ideas to everyday life situations.',
@@ -367,26 +145,7 @@ const CREATIVE_ANGLES = [
   'Use pattern interrupts — alternate between bold claims, data points, stories, and direct advice.',
 ];
 
-const getSystemPrompt = (slideStyle: string, patternOrder: string[], creativeAngleIndex?: number, hasCode?: boolean) => {
-  const idx = (typeof creativeAngleIndex === 'number' && creativeAngleIndex >= 0 && creativeAngleIndex < CREATIVE_ANGLES.length)
-    ? creativeAngleIndex
-    : Math.floor(Math.random() * CREATIVE_ANGLES.length);
-  const angle = CREATIVE_ANGLES[idx];
-  const creativeSeed = `\n\nCREATIVE DIRECTION (make this carousel unique):\n${angle}\n`;
-
-  let prompt: string;
-  if (slideStyle === 'text') {
-    prompt = BASE_SYSTEM_PROMPT + creativeSeed + SLIDE_STYLE_PROMPTS.text(patternOrder, hasCode);
-  } else {
-    const stylePrompt = SLIDE_STYLE_PROMPTS[slideStyle as keyof typeof SLIDE_STYLE_PROMPTS];
-    if (typeof stylePrompt === 'function') {
-      prompt = BASE_SYSTEM_PROMPT + creativeSeed + stylePrompt(patternOrder);
-    } else {
-      prompt = BASE_SYSTEM_PROMPT + creativeSeed + (stylePrompt || SLIDE_STYLE_PROMPTS.mixed);
-    }
-  }
-  return { prompt, creativeAngleIndex: idx };
-};
+// ── Content Analysis ─────────────────────────────────────────────────────────
 
 interface ContentAnalysis {
   hasCode: boolean;
@@ -403,7 +162,6 @@ interface ContentAnalysis {
 }
 
 function analyzeContent(text: string): ContentAnalysis {
-  // Extract code blocks (markdown fenced + indented)
   const codeBlockRegex = /```[\w]*\n([\s\S]*?)```/g;
   const codeBlocks: string[] = [];
   let match;
@@ -411,21 +169,18 @@ function analyzeContent(text: string): ContentAnalysis {
     codeBlocks.push(match[1].trim());
   }
 
-  // Extract stats/numbers
   const statRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(%|percent|million|billion|x faster|ms|seconds|hours|users|times)/gi;
   const stats: string[] = [];
   while ((match = statRegex.exec(text)) !== null) {
     stats.push(match[0]);
   }
 
-  // Extract quotes
-  const quoteRegex = /[""]([^""]{20,})[""]/g;
+  const quoteRegex = /["""]([^"""]{20,})["""]/g;
   const quotes: string[] = [];
   while ((match = quoteRegex.exec(text)) !== null) {
     quotes.push(match[1].trim());
   }
 
-  // Extract section headings
   const headingRegex = /^#{1,3}\s+(.+)$/gm;
   const sectionHeadings: string[] = [];
   while ((match = headingRegex.exec(text)) !== null) {
@@ -435,7 +190,6 @@ function analyzeContent(text: string): ContentAnalysis {
   const hasComparison = /\bvs\.?\b|before\s*(?:\/|and|&)\s*after|compare|comparison|difference|alternative/i.test(text);
   const hasList = /^\s*[-*•]\s+/m.test(text) || /^\s*\d+\.\s+/m.test(text);
 
-  // Determine content type
   let contentType: ContentAnalysis['contentType'] = 'general';
   if (codeBlocks.length >= 2 || /\b(API|function|import|export|const|class|interface|module|npm|webpack|docker|git)\b/i.test(text)) {
     contentType = 'technical';
@@ -449,7 +203,6 @@ function analyzeContent(text: string): ContentAnalysis {
     contentType = 'opinion';
   }
 
-  // Estimate topic from first heading or first sentence
   const estimatedTopic = sectionHeadings[0] || text.split(/[.\n]/)[0]?.trim().substring(0, 80) || 'Topic';
 
   return {
@@ -469,7 +222,7 @@ function analyzeContent(text: string): ContentAnalysis {
 
 function buildContentBrief(analysis: ContentAnalysis): string {
   const parts: string[] = [];
-  parts.push(`CONTENT ANALYSIS (pre-scanned — use this to make better decisions):`);
+  parts.push(`CONTENT ANALYSIS (pre-scanned — use this to make better content block choices):`);
   parts.push(`- Topic: "${analysis.estimatedTopic}"`);
   parts.push(`- Content type: ${analysis.contentType.toUpperCase()}`);
 
@@ -478,31 +231,35 @@ function buildContentBrief(analysis: ContentAnalysis): string {
   }
 
   if (analysis.hasCode) {
-    parts.push(`- CODE BLOCKS FOUND: ${analysis.codeBlocks.length} code snippets detected. You MUST include these using Pattern D. Here are the first lines of each:`);
-    analysis.codeBlocks.forEach((block, i) => {
+    parts.push(`- CODE FOUND: ${analysis.codeBlocks.length} code snippets. Use "code-block" content blocks for these.`);
+    analysis.codeBlocks.slice(0, 3).forEach((block, i) => {
       const preview = block.split('\n').slice(0, 3).join(' | ');
       parts.push(`  Code ${i + 1}: ${preview}`);
     });
+  } else {
+    parts.push(`- NO CODE in source. Do NOT use "code-block" content blocks.`);
   }
 
   if (analysis.hasStats) {
-    parts.push(`- STATISTICS FOUND: ${analysis.stats.join(', ')}. Use Pattern F or K for these.`);
+    parts.push(`- STATISTICS: ${analysis.stats.join(', ')}. Use "stats-grid" or "metric-callout" for these.`);
   }
 
   if (analysis.hasQuotes) {
-    parts.push(`- QUOTES FOUND: ${analysis.quotes.length} quotes. Use Pattern L for these.`);
+    parts.push(`- QUOTES: ${analysis.quotes.length} found. Use "quote-card" for these.`);
   }
 
   if (analysis.hasComparison) {
-    parts.push(`- COMPARISON DETECTED: Use Pattern G (Before/After) for comparison sections.`);
+    parts.push(`- COMPARISON DETECTED: Use "before-after" content block.`);
   }
 
   if (analysis.hasList) {
-    parts.push(`- LISTS DETECTED: Use Pattern B (Icon Cards) or Pattern C (Numbered List) for list sections.`);
+    parts.push(`- LISTS DETECTED: Use "icon-cards" or "numbered-list" content blocks.`);
   }
 
   return parts.join('\n');
 }
+
+// ── Color Utilities ──────────────────────────────────────────────────────────
 
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace('#', '');
@@ -512,7 +269,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// Rotate hue of a hex color by `degrees` to generate a complementary accent
 function rotateHue(hex: string, degrees: number): string {
   const h = hex.replace('#', '');
   const r = parseInt(h.substring(0, 2), 16) / 255;
@@ -551,7 +307,6 @@ function rotateHue(hex: string, degrees: number): string {
   return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
 }
 
-// Derive a muted text color appropriate for the slide's background
 function deriveMutedColor(backgroundColor: string): string {
   const h = backgroundColor.replace('#', '');
   const r = parseInt(h.substring(0, 2), 16);
@@ -561,37 +316,78 @@ function deriveMutedColor(backgroundColor: string): string {
   return luminance < 0.5 ? '#9BA8C0' : '#64748b';
 }
 
-function replaceColorTokens(html: string, accent: string, accent2: string, muted: string, text: string): string {
-  if (!html) return html;
-  return html
-    .replace(/\{\{ACCENT_BG\}\}/g, hexToRgba(accent, 0.06))
-    .replace(/\{\{ACCENT_BORDER\}\}/g, hexToRgba(accent, 0.15))
-    .replace(/\{\{ACCENT2\}\}/g, accent2)
-    .replace(/\{\{ACCENT\}\}/g, accent)
-    .replace(/\{\{MUTED\}\}/g, muted)
-    .replace(/\{\{TEXT\}\}/g, text);
+function buildThemeTokens(accent: string, backgroundColor: string, textColor: string): ThemeTokens {
+  return {
+    accent,
+    accent2: rotateHue(accent, 150),
+    muted: deriveMutedColor(backgroundColor),
+    text: textColor,
+    accentBg: hexToRgba(accent, 0.06),
+    accentBorder: hexToRgba(accent, 0.15),
+  };
 }
 
-// Helper to strip markdown from text
-function stripMarkdown(text: string): string {
-  if (!text) return text;
-  return text
-    .replace(/^#{1,6}\s+/gm, '') // Remove markdown headers (### Header)
-    .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold **text**
-    .replace(/\*([^*]+)\*/g, '$1') // Remove italic *text*
-    .replace(/__([^_]+)__/g, '$1') // Remove bold __text__
-    .replace(/_([^_]+)_/g, '$1') // Remove italic _text_
-    .replace(/~~([^~]+)~~/g, '$1') // Remove strikethrough
-    .replace(/`([^`]+)`/g, '$1') // Remove inline code
-    .replace(/^\s*[-*+]\s+/gm, '• ') // Convert markdown list to bullet
-    .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered list prefixes
-    .trim();
-}
+// ── Outline Prompt ───────────────────────────────────────────────────────────
 
 const OUTLINE_PROMPT = (sections: string[]) => `
 When applicable, respect the following outline extracted from the user's document. Treat each bullet as a slide candidate, but feel free to merge or expand if it improves the story:
 ${sections.map((section, idx) => `${idx + 1}. ${section}`).join('\n')}
 `;
+
+// ── Infographic Data Extraction ──────────────────────────────────────────────
+// For 'visual' slide types, extract structured items for the Infographic component.
+
+function extractInfographicData(
+  aiSlide: AISlide,
+): { items: string[]; layout: string } | undefined {
+  const kind = aiSlide.content.kind;
+
+  const layoutMap: Record<string, string> = {
+    'icon-cards': 'icon-cards',
+    'numbered-list': 'numbered-list',
+    'timeline': 'timeline',
+    'stats-grid': 'metrics-row',
+    'arrow-list': 'checklist',
+  };
+
+  const layout = layoutMap[kind] || 'cards-grid';
+  let items: string[] = [];
+
+  switch (kind) {
+    case 'icon-cards': {
+      const block = aiSlide.content as Extract<ContentBlock, { kind: 'icon-cards' }>;
+      items = block.cards.map(c => `${c.emoji} ${c.title}: ${c.description}`);
+      break;
+    }
+    case 'numbered-list': {
+      const block = aiSlide.content as Extract<ContentBlock, { kind: 'numbered-list' }>;
+      items = block.items.map(item => `${item.title}: ${item.description}`);
+      break;
+    }
+    case 'timeline': {
+      const block = aiSlide.content as Extract<ContentBlock, { kind: 'timeline' }>;
+      items = block.phases.map(p => `${p.title}: ${p.description}`);
+      break;
+    }
+    case 'stats-grid': {
+      const block = aiSlide.content as Extract<ContentBlock, { kind: 'stats-grid' }>;
+      items = block.stats.map(s => `${s.value} — ${s.description}`);
+      break;
+    }
+    case 'arrow-list': {
+      const block = aiSlide.content as Extract<ContentBlock, { kind: 'arrow-list' }>;
+      items = block.items.map(item => `${item.title}: ${item.description}`);
+      break;
+    }
+    default:
+      return undefined;
+  }
+
+  if (items.length === 0) return undefined;
+  return { items: items.slice(0, 8), layout };
+}
+
+// ── Main POST Handler ────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -600,10 +396,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!checkRateLimit(session.user.id)) {
+    // Initialize rate limiting table
+    await initRateLimitDB();
+    await initDB();
+    
+    // Use database-backed rate limiting with memory fallback
+    const rateLimitResult = await checkRateLimitWithDB(session.user.id);
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
-        { error: 'Too many requests. Please wait a minute before generating again.' },
-        { status: 429 }
+        { 
+          error: 'Too many requests', 
+          message: 'Please wait a minute before generating again.',
+          retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000)
+        },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000)) } }
       );
     }
 
@@ -626,6 +432,28 @@ export async function POST(request: NextRequest) {
     // Track AI generation
     await trackUsage(session.user.id, 'ai_generation', 1);
 
+    // Validate request body with Zod
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+    
+    const validationResult = generateRequestSchema.safeParse(body);
+    if (!validationResult.success) {
+      const errorDetails = validationResult.error.issues.map((err) => ({
+        path: err.path.join('.'),
+        message: err.message,
+      }));
+      return NextResponse.json(
+        { error: 'Validation failed', details: errorDetails },
+        { status: 400 }
+      );
+    }
+    
+    // Use validated data (fixes double request.json() bug)
+    const validated = validationResult.data;
     const { 
       text, 
       slideCount, 
@@ -639,75 +467,60 @@ export async function POST(request: NextRequest) {
       smartColors = false,
       accessibility = false,
       includeStats = false,
-      patternOrder: incomingPatternOrder,
       creativeAngle: incomingCreativeAngle,
-      // Active theme colors from the frontend (preferred over DB brand_settings)
       accentColor: requestAccentColor,
       textColor: requestTextColor,
       backgroundColor: requestBackgroundColor,
-      // Context awareness: who is this for and what's the goal (e.g. "LinkedIn pros", "investors", "beginners")
       audience = '',
       goal = '',
-    } = await request.json();
+    } = validated;
+
     const requestedSlideCount = Math.max(3, Math.min(100, Number(slideCount) || 6));
     const rawText = (text || '').trim();
 
-    // Cap source content to ~12K chars (~3K tokens) to stay within token budgets
-    // For very long articles, keep the first part (intro + key sections) and summarize
+    // Cap source content to ~12K chars (~3K tokens)
     const maxSourceChars = Math.min(12000, 2000 * requestedSlideCount);
     const combinedText = rawText.length > maxSourceChars
       ? rawText.slice(0, maxSourceChars) + '\n\n[Content truncated for processing — focus on the sections above.]'
       : rawText;
 
-    // Detect thin-content inputs (short topic prompts with little substance)
+    // Detect thin-content inputs
     const inputWordCount = combinedText.split(/\s+/).filter((w: string) => w.length > 0).length;
     const isThinContent = inputWordCount < 120;
     const thinContentInstruction = isThinContent
-      ? `IMPORTANT: The user provided a brief topic prompt (${inputWordCount} words). Do NOT just rephrase what they wrote.
-Treat this as a TOPIC SEED and generate a full, authoritative, information-dense carousel using your own knowledge.
-- Add real statistics, expert insights, and concrete examples the user didn't provide.
-- Every slide must contain substantial, valuable content a professional would recognize as accurate.
-- Write like a subject-matter expert, not a summarizer.`
+      ? `IMPORTANT: The user provided a brief topic prompt (${inputWordCount} words). Treat this as a TOPIC SEED and generate a full, authoritative, information-dense carousel using your own knowledge. Add real statistics, expert insights, and concrete examples.`
       : '';
 
-    // Analyze content to make smarter pattern and prompt decisions
+    // Analyze content for smarter AI guidance
     const contentAnalysis = analyzeContent(combinedText);
     const contentBrief = buildContentBrief(contentAnalysis);
 
-    const patternOrder = generatePatternOrder(
-      requestedSlideCount,
-      Array.isArray(incomingPatternOrder) ? incomingPatternOrder : undefined,
-      contentAnalysis.hasCode,
-    );
+    // Pick creative angle
+    const creativeAngleIndex = (typeof incomingCreativeAngle === 'number' && incomingCreativeAngle >= 0 && incomingCreativeAngle < CREATIVE_ANGLES.length)
+      ? incomingCreativeAngle
+      : Math.floor(Math.random() * CREATIVE_ANGLES.length);
+    const creativeAngle = CREATIVE_ANGLES[creativeAngleIndex];
+    const creativeSeed = `\n\nCREATIVE DIRECTION (make this carousel unique):\n${creativeAngle}\n`;
 
+    // Build instructions
     const styleInstruction = writingStyle ? `Writing Style: ${writingStyle}.` : '';
     const wordCountInstruction = wordCount
-      ? `Target approximately ${wordCount} words per slide. Fill every HTML pattern completely with 2-3 sentences per card/item.`
-      : `Aim for dense content: at least 40-60 words per content slide. Every card/item = 2-3 full sentences. Fill every pattern completely—no one-line cards, no half-filled grids.`;
+      ? `Target approximately ${wordCount} words per slide.`
+      : `Aim for dense content: at least 40-60 words per content slide.`;
     
-    // Language instruction
     const languageNames: Record<string, string> = {
       'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian',
       'pt': 'Portuguese', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic',
       'hi': 'Hindi', 'ru': 'Russian', 'nl': 'Dutch', 'sv': 'Swedish', 'pl': 'Polish'
     };
-    const languageInstruction = language !== 'en' ? `IMPORTANT: Generate all content in ${languageNames[language] || 'the specified language'}. All text, titles, and content must be in this language.` : '';
-    
-    // Tone instruction
+    const languageInstruction = language !== 'en' ? `IMPORTANT: Generate all content in ${languageNames[language] || 'the specified language'}.` : '';
     const toneInstruction = tone !== 'neutral' ? `Tone: Write in a ${tone} tone throughout.` : '';
     
-    // Additional feature instructions
     const featureInstructions = [];
-    if (autoHashtags) {
-      featureInstructions.push('Add relevant hashtags at the end of each slide where appropriate.');
-    }
-    if (includeStats) {
-      featureInstructions.push('Include data, statistics, and numbers to support key points where relevant.');
-    }
-    if (accessibility) {
-      featureInstructions.push('Ensure all text has sufficient contrast (WCAG AA compliance). Use clear, readable fonts and avoid color-only information.');
-    }
-    const featuresInstruction = featureInstructions.length > 0 ? featureInstructions.join(' ') : '';
+    if (autoHashtags) featureInstructions.push('Add relevant hashtags at the end of descriptions where appropriate.');
+    if (includeStats) featureInstructions.push('Include data, statistics, and numbers to support key points.');
+    if (accessibility) featureInstructions.push('Use clear, simple language. Ensure all content is easy to understand.');
+    const featuresInstruction = featureInstructions.join(' ');
 
     if (!combinedText) {
       return NextResponse.json({ slides: [] });
@@ -715,21 +528,11 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
 
     // Check for available API keys
     const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
-
     if (availableProviders.length === 0) {
       return NextResponse.json({
         slides: [
-          {
-            type: 'cover',
-            title: 'MISSING API KEY',
-            subtitle: 'Add GROQ_API_KEY (free) or OPENROUTER_API_KEY to .env.',
-          },
-          {
-            type: 'content',
-            title: 'Configuration Needed',
-            content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY (free at groq.com) or OPENROUTER_API_KEY</p><p>3. Restart the server</p>',
-            emoji: '⚙️'
-          }
+          { type: 'cover', title: 'MISSING API KEY', subtitle: 'Add GROQ_API_KEY (free) or OPENROUTER_API_KEY to .env.' },
+          { type: 'content', title: 'Configuration Needed', content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY (free at groq.com) or OPENROUTER_API_KEY</p><p>3. Restart the server</p>', emoji: '⚙️' }
         ]
       });
     }
@@ -740,18 +543,18 @@ Treat this as a TOPIC SEED and generate a full, authoritative, information-dense
       ? `CONTEXT (tailor depth, examples, and tone): Audience / use case — ${audienceGoal}.`
       : '';
 
-    const { prompt: systemPrompt, creativeAngleIndex: usedCreativeAngle } = getSystemPrompt(
-      slideStyle,
-      patternOrder,
-      typeof incomingCreativeAngle === 'number' ? incomingCreativeAngle : undefined,
+    // Build the system prompt — lean and schema-focused
+    const systemPrompt = BASE_SYSTEM_PROMPT + creativeSeed + (
       contentAnalysis.hasCode
+        ? `\nCODE RULES: The source contains ${contentAnalysis.codeBlocks.length} code snippets. Use "code-block" content blocks to present actual code. Include 8-15 lines of real code per block.\n`
+        : `\nDo NOT use "code-block" content blocks. The source has no code.\n`
     );
 
     const messages = [
       { role: 'system' as const, content: systemPrompt },
-        {
+      {
         role: 'user' as const,
-          content: `
+        content: `
 ${contentBrief}
 ${thinContentInstruction ? `\n${thinContentInstruction}\n` : ''}
 ${contextInstruction ? `\n${contextInstruction}\n` : ''}
@@ -764,26 +567,26 @@ ${featuresInstruction}
 ${outlineHint}
 
 DEPTH REQUIREMENT (critical):
-- Every slide must feel substantial. No one-line cards or single-sentence bullets. Each Icon Card = title + 2–3 full sentences. Each list item = title + 2–3 sentences. Pull numbers, names, and quotes from the source.
-- If a slide would be scanty, expand it using the source before moving on. Half-filled patterns are invalid.
+- Every slide must feel substantial. Fill every content block completely.
+- If a slide would be thin, expand it using the source before moving on.
 
 REMINDERS:
-- Use the HTML design patterns from the system prompt. Pick the pattern that fits each slide's content.
-- For lists, use the pattern HTML (Icon Cards, Numbered List, Arrow List) — NOT raw <ul>/<ol>.
-- Deliver exactly ${requestedSlideCount} slides. Each slide = real, specific content from the source—no placeholders, no generic one-liners.
-${contentAnalysis.hasCode ? `- This content has ${contentAnalysis.codeBlocks.length} code snippets. Include them using Pattern D with 8-15 lines of actual code per slide. NEVER stub code as "const x = {...}".` : '- The source has NO code. Do NOT use Pattern D (code block). Use only patterns that fit the content (lists, stats, quotes, comparisons, tips).'}
-${contentAnalysis.hasStats ? `- Include these statistics: ${contentAnalysis.stats.slice(0, 5).join(', ')}. Use Pattern F or K.` : ''}
+- Return ONLY valid JSON matching the schema. No HTML, no markdown.
+- Deliver exactly ${requestedSlideCount} slides with structured content blocks.
+- NEVER use the same content block kind on consecutive slides.
+${contentAnalysis.hasCode ? `- Include code snippets using "code-block" kind with 8-15 lines of actual code.` : '- The source has NO code. Do NOT use "code-block" kind.'}
+${contentAnalysis.hasStats ? `- Include these stats: ${contentAnalysis.stats.slice(0, 5).join(', ')}. Use "stats-grid" or "metric-callout".` : ''}
 
 SOURCE CONTENT:
 ${combinedText}`,
-        },
+      },
     ];
 
-    // Generous token budget so model can output dense content (2-3 sentences per card, not scanty)
-    const outputTokens = Math.min(Math.max(requestedSlideCount * 1600, 8000), 32768);
+    // Token budget
+    const outputTokens = Math.min(Math.max(requestedSlideCount * 1200, 6000), 32768);
 
-    // Try each provider with retry logic
-    let completion: any = null;
+    // ── Call AI Providers ──────────────────────────────────────────────────
+    let completion: ChatCompletion | null = null;
     let lastError: Error | null = null;
 
     for (const provider of availableProviders) {
@@ -794,7 +597,6 @@ ${combinedText}`,
           baseURL: provider.baseURL,
         });
 
-        // Lower temperature for Groq/Llama = follow "write more" rules; reduces scanty output
         const temperature = provider.name === 'groq' ? 0.45 : 0.65;
         completion = await generateWithRetry(async () => {
           return client.chat.completions.create({
@@ -821,22 +623,21 @@ ${combinedText}`,
       throw lastError || new Error('All providers failed');
     }
 
+    // ── Parse AI Response ─────────────────────────────────────────────────
     const content = completion.choices[0]?.message?.content || '{}';
 
-    let jsonResult;
+    let jsonResult: unknown;
     try {
       jsonResult = JSON.parse(content);
     } catch {
-      // Try cleaning markdown wrappers
       let cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       try {
         jsonResult = JSON.parse(cleaned);
       } catch {
-        // Truncated JSON — try to salvage by finding the last complete slide
+        // Truncated JSON — try to salvage
         const lastBrace = cleaned.lastIndexOf('}');
         if (lastBrace > 0) {
           cleaned = cleaned.substring(0, lastBrace + 1);
-          // Close any open arrays/objects
           const openBrackets = (cleaned.match(/\[/g) || []).length - (cleaned.match(/\]/g) || []).length;
           const openBraces = (cleaned.match(/\{/g) || []).length - (cleaned.match(/\}/g) || []).length;
           cleaned += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces));
@@ -852,13 +653,42 @@ ${combinedText}`,
       }
     }
 
-    const trimmedSlides = (jsonResult.slides || []).slice(0, requestedSlideCount);
+    // ── Validate Against Schema ───────────────────────────────────────────
+    const parseResult = AIOutputSchema.safeParse(jsonResult);
+    let aiSlides: AISlide[];
 
-    // Fetch user's brand settings for enhanced styling
-    let brandSettings: any = null;
+    if (parseResult.success) {
+      aiSlides = parseResult.data.slides.slice(0, requestedSlideCount);
+      console.log(`Schema validation passed: ${aiSlides.length} slides`);
+    } else {
+      // Graceful fallback: try to extract slides even if schema doesn't fully match
+      console.warn('Schema validation failed, attempting graceful extraction:', parseResult.error.issues.slice(0, 5));
+      const raw = jsonResult as Record<string, unknown>;
+      const rawSlides = Array.isArray(raw?.slides) ? raw.slides : [];
+      aiSlides = rawSlides.slice(0, requestedSlideCount).map((slide: Record<string, unknown>) => {
+        // Best-effort mapping for slides that don't fully conform
+        return {
+          role: (slide.role as AISlide['role']) || 'value',
+          title: String(slide.title || 'Untitled'),
+          emphasisWord: slide.emphasisWord as string | undefined,
+          subtitle: slide.subtitle as string | undefined,
+          slideLabel: slide.slideLabel as string | undefined,
+          icon: slide.icon as string | undefined,
+          content: (slide.content && typeof slide.content === 'object' && 'kind' in (slide.content as Record<string, unknown>))
+            ? slide.content as ContentBlock
+            : { kind: 'paragraph' as const, text: String(slide.content || slide.title || '') },
+        } as AISlide;
+      }).filter((s: AISlide) => s.title && s.title !== 'Untitled');
+    }
+
+    if (aiSlides.length === 0) {
+      return NextResponse.json({ slides: [] });
+    }
+
+    // ── Fetch Brand Settings ──────────────────────────────────────────────
+    let brandSettings: BrandSettings | null = null;
     try {
-      const { initDB, getPool } = await import('@/lib/db');
-      await initDB();
+      const { getPool } = await import('@/lib/db');
       const db = getPool();
       const result = await db.query(
         'SELECT brand_settings FROM user_settings WHERE user_id = $1',
@@ -867,335 +697,114 @@ ${combinedText}`,
       if (result.rows.length > 0) {
         brandSettings = result.rows[0].brand_settings || {};
       }
-    } catch (err) {
+    } catch {
       console.log('Could not fetch brand settings, using defaults');
     }
 
-    // Prefer colors sent by the frontend (active theme) over DB brand_settings
     const accentColor = requestAccentColor || brandSettings?.accentColor || '#ffd700';
     const backgroundColor = requestBackgroundColor || brandSettings?.backgroundColor || '#0B0F19';
     const textColor = requestTextColor || brandSettings?.textColor || '#ffffff';
     const fontFamily = brandSettings?.fontFamily || 'var(--font-inter)';
 
-    // Default icons for visual slides based on common topics
+    // ── Build Theme Tokens ────────────────────────────────────────────────
+    const tokens = buildThemeTokens(accentColor, backgroundColor, textColor);
+
+    // ── Route Layouts ─────────────────────────────────────────────────────
+    // Each user/project gets a different design seed → different visual variants
+    const designSeed = generateDesignSeed(session.user.id);
+    const layoutDecisions = routeLayouts(aiSlides, designSeed, slideStyle as 'text' | 'visual' | 'mixed');
+
+    // ── Render Slides ─────────────────────────────────────────────────────
     const defaultIcons = ['lightbulb', 'target', 'rocket', 'star', 'zap', 'brain', 'trophy', 'heart', 'check-circle', 'trending-up'];
-    
-    // Photo filter presets for background images (professional, modern, engaging)
-    const photoFilters = [
-      'brightness(1.1) contrast(1.15) saturate(1.1)',
-      'brightness(1.05) contrast(1.1) saturate(1.2)',
-      'brightness(1.08) contrast(1.2) saturate(0.95)',
-      'brightness(1.1) contrast(1.05) saturate(1.15)',
-      'brightness(1.12) contrast(1.18) saturate(1.05)',
-    ];
-
-    // Text animation options
     const textAnimations = ['fadeIn', 'slideUp', 'zoomIn', 'slideRight', 'bounce'];
-    
-    // Box shadow presets for depth and visual appeal
-    const boxShadows = [
-      '0 4px 20px rgba(0, 0, 0, 0.3)',
-      '0 8px 30px rgba(0, 0, 0, 0.4)',
-      '0 6px 25px rgba(0, 0, 0, 0.35)',
-      '0 10px 40px rgba(0, 0, 0, 0.45)',
-      '0 5px 20px rgba(0, 0, 0, 0.3)',
-    ];
 
-    // Helper function to generate background image URL
-    const generateBackgroundImage = async (slideTitle: string, slideContent: string, index: number): Promise<string | null> => {
-      try {
-        // Create a descriptive prompt for the background
-        const contentText = slideContent 
-          ? slideContent.replace(/<[^>]+>/g, ' ').substring(0, 100)
-          : slideTitle;
-        
-        const themeWords = (slideTitle + ' ' + contentText)
-          .replace(/[^\w\s]/g, '')
-          .split(/\s+/)
-          .filter((w: string) => w.length > 3)
-          .slice(0, 5)
-          .join(' ');
-        
-        const imagePrompt = `Professional abstract background for ${themeWords}, modern minimalist design, ${accentColor} accent colors, high quality, 4k, studio lighting`;
-        const encodedPrompt = encodeURIComponent(imagePrompt);
-        const seed = (Date.now() + index) % 10000;
-        
-        return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1080&height=1080&nologo=true&model=flux&seed=${seed}`;
-      } catch (err) {
-        console.log('Background image generation failed:', err);
-        return null;
-      }
-    };
+    const slidesWithIds: Partial<SlideData>[] = aiSlides.map((aiSlide, index) => {
+      const decision: LayoutDecision = layoutDecisions[index] || { variant: 0, slideType: 'content', useInfographic: false };
 
-    // Helper function to extract colors from image URL (client-side will do actual extraction)
-    const extractColorsFromImageUrl = async (imageUrl: string): Promise<string[]> => {
-      // This is a placeholder - actual extraction happens client-side
-      // Returns common vibrant colors that work well with images
-      return [accentColor, '#4A90E2', '#50C878', '#FF6B6B', '#FFD93D'];
-    };
+      // Render structured content → HTML
+      const renderedContent = renderContentBlock(aiSlide.content, tokens, decision.variant);
 
-    // Process slides with all enhancements - automatically applying:
-    // - Brand colors and fonts from user settings
-    // - AI-generated background images for visual appeal
-    // - Professional photo filters for depth
-    // - Text animations for engagement
-    // - Box shadows and borders for modern styling
-    // - Text opacity and overlay effects for readability
-    // - Infographic layouts for visual slides
-    // - Smart color extraction from images (if enabled)
-    // - Bulk apply settings (if enabled)
-    const slidesWithIds = await Promise.all(trimmedSlides.map(async (slide: any, index: number) => {
-      // Skip 3D icon generation for speed - use default icons instead
-      // Icon generation adds significant latency per slide
-      let infographicIcons: string[] = [];
-      // Icons are now handled client-side or use default icon set
+      // Apply title emphasis
+      const processedTitle = applyTitleEmphasis(aiSlide.title, aiSlide.emphasisWord);
 
-      // For visual slideStyle, ensure non-cover slides have type 'visual' and an icon
-      let slideType = slide.type;
-      let slideIcon = slide.icon;
-      
-      if (slideStyle === 'visual' && slide.type !== 'cover' && slide.type !== 'chart') {
-        slideType = 'visual';
-        if (!slideIcon) {
-          slideIcon = defaultIcons[index % defaultIcons.length];
-        }
-      }
-      
-      if (slideStyle === 'mixed' && slide.type === 'visual' && !slideIcon) {
+      // Determine slide type
+      const slideType = decision.slideType;
+
+      // Icon for visual slides
+      let slideIcon = aiSlide.icon;
+      if (slideType === 'visual' && !slideIcon) {
         slideIcon = defaultIcons[index % defaultIcons.length];
       }
 
-      // Generate background image for visual appeal (skip for chart slides and first slide)
-      let backgroundImage: string | null = null;
-      let backgroundImageFilter: string = '';
-      let extractedColors: string[] = [];
-      
-      // Skip background image generation by default for speed
-      // Only generate if explicitly requested (smartColors enabled or visual style specifically requests it)
-      // Background images add 2-5 seconds per slide, so we skip them for the "fast" experience
-      if (false && slideType !== 'chart' && index !== 0 && (slideStyle === 'visual' || slideStyle === 'mixed')) {
-        // Generate background for visual slides (but not the first slide)
-        if (slideType === 'visual') {
-          backgroundImage = await generateBackgroundImage(
-            slide.title || '',
-            slide.content || '',
-            index
-          );
-          // Apply a professional filter
-          backgroundImageFilter = photoFilters[index % photoFilters.length];
-          
-          // Extract colors from image if smartColors is enabled
-          if (smartColors && backgroundImage) {
-            extractedColors = await extractColorsFromImageUrl(backgroundImage!);
-          }
+      // Infographic data for visual slides
+      let infographicData: Partial<SlideData>['infographicData'] = undefined;
+      if (decision.useInfographic) {
+        const extracted = extractInfographicData(aiSlide);
+        if (extracted) {
+          infographicData = {
+            items: extracted.items,
+            layout: extracted.layout as 'cards-grid' | 'timeline' | 'process-steps',
+          };
         }
       }
 
-      // Determine text animation based on slide type and position
-      const textAnimation = slideType === 'cover' 
-        ? 'zoomIn' 
+      // Text animation
+      const textAnimation = slideType === 'cover'
+        ? 'zoomIn'
         : textAnimations[index % textAnimations.length];
 
-      // Don't apply box shadow or borders to text elements - removed for cleaner look
-      const boxShadow = undefined;
-      const borderRadius = undefined;
-
-      // Set text opacity for layered effects (slightly reduced on background images)
-      const textOpacity = backgroundImage ? 0.95 : 1;
-
-      // Apply brand colors, or use extracted colors if smartColors is enabled
-      let slideAccentColor = accentColor;
-      let slideBackgroundColor = backgroundColor;
-      const slideTextColor = textColor;
-      const slideFontFamily = fontFamily;
-      
-      // If smart color extraction is enabled and we have extracted colors, use them
-      if (smartColors && extractedColors.length > 0) {
-        slideAccentColor = extractedColors[0]; // Use primary extracted color
-        // Optionally adjust background based on extracted colors
-        if (extractedColors.length > 1) {
-          // Use a darker version of extracted color for background
-          slideBackgroundColor = extractedColors[1];
-        }
-      }
-
-      // Set background overlay opacity for better text readability on images
-      const backgroundOverlayOpacity = backgroundImage ? 0.3 : 0;
-
-      // Extract infographic data for visual slides
-      let infographicData: any = undefined;
-      if (slideType === 'visual' && slide.content) {
-        // Robust <li> extraction: ([\s\S]*?) handles nested HTML tags like <strong>, <em>
-        const liMatches = slide.content.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
-        let items = liMatches
-          .map((li: string) =>
-            li
-              .replace(/<\/?[^>]+>/g, '') // strip all HTML tags
-              .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '')
-              .replace(/\s+/g, ' ')
-              .trim()
-          )
-          .filter((text: string) => text.length > 1);
-
-        // Fallback: if no <li> found, try extracting from bullet-like <div> or <p> blocks
-        if (items.length === 0 && slide.content) {
-          const stripped = slide.content.replace(/<[^>]+>/g, '\n').replace(/&[a-z]+;/gi, ' ');
-          items = stripped
-            .split('\n')
-            .map((s: string) => s.replace(/^[•\-→✅❌\d.]+\s*/, '').trim())
-            .filter((s: string) => s.length > 3 && s.length < 120);
-        }
-
-        if (items.length > 0) {
-          const layoutMap: Record<string, string> = {
-            'cards-grid': 'cards-grid',
-            'timeline': 'timeline',
-            'process-steps': 'process-steps',
-            'cycle': 'cycle',
-            'icon-cards': 'icon-cards',
-            'numbered-list': 'numbered-list',
-            'feature-list': 'feature-list',
-            'pyramid': 'pyramid',
-            'comparison': 'comparison',
-            'checklist': 'checklist',
-          };
-          const infographicLayout = slide.infographicLayout || 'cards-grid';
-          const mappedLayout = layoutMap[infographicLayout] || 'cards-grid';
-          infographicData = {
-            items: items.slice(0, 8), // cap at 8 items to prevent overflow
-            layout: mappedLayout as any,
-          };
-        }
-      }
-
       return {
-        ...slide,
-        type: slideType,
-        icon: slideIcon,
-        infographicIcons,
-        infographicData,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        title: stripMarkdown(slide.title || ''),
-        subtitle: stripMarkdown(slide.subtitle || ''),
-        content: slide.content 
-          ? (() => {
-              let processed = slide.content;
-              
-              // First, preserve existing HTML lists and tables by temporarily replacing them
-              const listPlaceholders: string[] = [];
-              const tablePlaceholders: string[] = [];
-              
-              // Store HTML lists
-              processed = processed.replace(/<ul[^>]*>[\s\S]*?<\/ul>/gi, (match: string) => {
-                listPlaceholders.push(match);
-                return `__LIST_PLACEHOLDER_${listPlaceholders.length - 1}__`;
-              });
-              
-              processed = processed.replace(/<ol[^>]*>[\s\S]*?<\/ol>/gi, (match: string) => {
-                listPlaceholders.push(match);
-                return `__LIST_PLACEHOLDER_${listPlaceholders.length - 1}__`;
-              });
-              
-              // Store HTML tables
-              processed = processed.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, (match: string) => {
-                tablePlaceholders.push(match);
-                return `__TABLE_PLACEHOLDER_${tablePlaceholders.length - 1}__`;
-              });
-              
-              // Now process markdown formatting
-              processed = processed
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
-                // Convert markdown lists to HTML (only if not already HTML)
-                .replace(/^[-*+]\s+(.+)$/gm, '<li>$1</li>');
-              
-              // Wrap orphaned <li> tags in <ul>
-              processed = processed.replace(/(<li>.*?<\/li>\s*)+/g, (match: string) => {
-                if (!match.includes('<ul>') && !match.includes('<ol>')) {
-                  return '<ul>' + match + '</ul>';
-                }
-                return match;
-              });
-              
-              // Restore HTML lists
-              listPlaceholders.forEach((list, index) => {
-                processed = processed.replace(`__LIST_PLACEHOLDER_${index}__`, list);
-              });
-              
-              // Restore HTML tables
-              tablePlaceholders.forEach((table, index) => {
-                processed = processed.replace(`__TABLE_PLACEHOLDER_${index}__`, table);
-              });
-              
-              // Replace color tokens with the slide's actual accent colors
-              const ac = slideAccentColor || '#00D4FF';
-              const ac2 = rotateHue(ac, 150);
-              const mt = deriveMutedColor(slideBackgroundColor || backgroundColor);
-              const tx = slideTextColor || '#EEF2FF';
-              processed = replaceColorTokens(processed, ac, ac2, mt, tx);
-              
-              return processed;
-            })()
-          : slide.content,
-        // Apply all enhanced features
-        backgroundImage,
-        backgroundImageFilter,
-        backgroundOverlayOpacity,
-        accentColor: slideAccentColor,
-        backgroundColor: slideBackgroundColor,
-        textColor: slideTextColor,
-        fontFamily: slideFontFamily,
-        textOpacity,
-        boxShadow,
-        borderRadius,
-        textAnimation, // Store animation type for frontend to apply
-        extractedColors: smartColors ? extractedColors : undefined, // Store extracted colors for reference
+        type: slideType,
+        title: processedTitle,
+        subtitle: aiSlide.subtitle || '',
+        content: renderedContent,
+        icon: slideIcon,
+        infographicData,
+        slideLabel: aiSlide.slideLabel,
+        accentColor,
+        backgroundColor,
+        textColor,
+        fontFamily,
+        textAnimation,
+        mediaType: null,
+        mediaAspectRatio: 16 / 9,
+        mediaWidthPercent: 100,
+        mediaAlignment: 'center' as const,
+        elementOrder: ['title', 'content', 'media'],
+        customBlocks: [],
+        textOpacity: 1,
       };
-    }));
+    });
 
-    // Bulk apply settings to all slides if enabled
-    if (smartColors || accessibility || includeStats) {
-      // Apply consistent styling across all slides
-      slidesWithIds.forEach((slide: any, index: number) => {
-        // If bulk apply is enabled, ensure consistency
-        if (index > 0 && slidesWithIds[0]) {
-          const firstSlide = slidesWithIds[0];
-          
-          // Apply consistent colors if smartColors extracted colors from first slide
-          if (smartColors && firstSlide.extractedColors && firstSlide.extractedColors.length > 0) {
-            slide.accentColor = firstSlide.extractedColors[index % firstSlide.extractedColors.length] || slide.accentColor;
-          }
-          
-          // Apply accessibility settings consistently
-          if (accessibility) {
-            // Ensure WCAG AA contrast (dark background with light text or vice versa)
-            if (!slide.backgroundImage) {
-              // For solid backgrounds, ensure good contrast
-              slide.textColor = '#ffffff'; // High contrast white text
-              slide.backgroundColor = slide.backgroundColor || '#0B0F19'; // Dark background
-            }
-            // Ensure text opacity is high for readability
-            slide.textOpacity = Math.max(slide.textOpacity || 1, 0.95);
-          }
+    // ── Accessibility Pass ────────────────────────────────────────────────
+    if (accessibility) {
+      slidesWithIds.forEach((slide) => {
+        if (!slide.backgroundImage) {
+          slide.textColor = '#ffffff';
+          slide.backgroundColor = slide.backgroundColor || '#0B0F19';
         }
+        slide.textOpacity = Math.max(slide.textOpacity || 1, 0.95);
       });
     }
 
-    // Post-processing: drop empty or near-empty slides so we never return blank slides
-    const validatedSlides = slidesWithIds.filter((slide: any) => {
+    // ── Validate: Drop empty slides ───────────────────────────────────────
+    const validatedSlides = slidesWithIds.filter((slide) => {
       const titleText = (slide.title || '').replace(/<[^>]*>/g, '').trim();
       const contentText = (slide.content || '').replace(/<[^>]*>/g, '').trim();
       const hasTitle = titleText.length > 0;
-      const hasContent = contentText.length > 15; // meaningful content, not a few chars
+      const hasContent = contentText.length > 15;
       const isCover = slide.type === 'cover';
-      if (isCover) return hasTitle; // cover must have at least a title
-      return hasTitle && hasContent; // content slides must have both title and real content
+      if (isCover) return hasTitle;
+      return hasTitle && hasContent;
     });
 
     incrementAndGetMetrics().catch(console.error);
 
-    return NextResponse.json({ slides: validatedSlides, patternOrder, creativeAngle: usedCreativeAngle });
+    return NextResponse.json({
+      slides: validatedSlides,
+      creativeAngle: creativeAngleIndex,
+    });
   } catch (error) {
     console.error('AI Generation Error:', error);
     const errMsg = (error as Error)?.message || '';

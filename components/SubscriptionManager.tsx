@@ -16,6 +16,18 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+interface SubscriptionLimits {
+  maxExports: number;
+  maxAiGenerations: number;
+  maxProjects: number;
+  maxSlidesPerProject: number;
+  maxStorageMb: number;
+  hasPrioritySupport: boolean;
+  hasAdvancedAI: boolean;
+  hasCustomBranding: boolean;
+  hasTeamAccess: boolean;
+}
+
 interface SubscriptionData {
   plan: string;
   status: string;
@@ -27,7 +39,7 @@ interface SubscriptionData {
     aiGenerations: { current: number; limit: number };
     projects: { current: number; limit: number };
   };
-  limits: any;
+  limits: SubscriptionLimits;
   isActive: boolean;
 }
 

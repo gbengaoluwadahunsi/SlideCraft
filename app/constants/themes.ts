@@ -1,3 +1,5 @@
+import { SlideData } from '@/lib/types';
+
 export interface Theme {
   id: string;
   name: string;
@@ -9,8 +11,7 @@ export interface Theme {
   previewColors: string[];
   defaultCategory?: string;
   isFullTemplate?: boolean;
-  templateSlides?: any[];
-  // Unique design properties
+  templateSlides?: SlideData[];
   fontScale?: number;
   textAlign?: 'left' | 'center' | 'right';
   elementOrder?: string[];

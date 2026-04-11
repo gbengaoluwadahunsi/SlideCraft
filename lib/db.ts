@@ -21,7 +21,7 @@ export function getPool() {
     });
     
     // Handle pool errors to prevent crashes
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
       console.error('Unexpected error on idle database client', err);
       // Reset pool on critical errors
       if (err.message.includes('Connection terminated')) {

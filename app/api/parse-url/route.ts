@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 
+interface CaptionTrack {
+  languageCode?: string;
+  baseUrl?: string;
+}
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -248,8 +253,8 @@ export async function POST(request: NextRequest) {
         let transcript = '';
 
         if (captionsMatch) {
-          const captionTracks = JSON.parse(captionsMatch[1]);
-          const enTrack = captionTracks.find((t: any) => t.languageCode === 'en' || t.languageCode?.startsWith('en'))
+          const captionTracks = JSON.parse(captionsMatch[1]) as CaptionTrack[];
+          const enTrack = captionTracks.find((t) => t.languageCode === 'en' || t.languageCode?.startsWith('en'))
             || captionTracks[0];
           if (enTrack?.baseUrl) {
             const capRes = await fetch(enTrack.baseUrl);
@@ -315,9 +320,9 @@ export async function POST(request: NextRequest) {
         },
       });
       clearTimeout(timeoutId);
-    } catch (fetchError: any) {
+    } catch (fetchError) {
       clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         return NextResponse.json(
           { error: 'Request timed out. The website took too long to respond.' },
           { status: 408 }

@@ -40,7 +40,7 @@ export const BOLD_TEMPLATES: CarouselTemplate[] = [
       {
         type: 'content',
         title: 'PEOPLE SCAN',
-        content: '<p style="font-size: 1.4em; line-height: 1.5;"><strong style="background: #FFA500; color: #000; padding: 4px 12px; display: inline-block;">NOT READ</strong></p><p style="margin-top: 1rem;">Most visitors don\'t read every word. They skim for value, clarity, and quick answers.</p>',
+        content: '<p style="font-size: 1.4em; line-height: 1.5;"><strong style="background: var(--slide-accent); color: var(--slide-bg); padding: 4px 12px; display: inline-block;">NOT READ</strong></p><p style="margin-top: 1rem;">Most visitors don\'t read every word. They skim for value, clarity, and quick answers.</p>',
         emoji: '',
         category: '',
         accentColor: '#FFA500',

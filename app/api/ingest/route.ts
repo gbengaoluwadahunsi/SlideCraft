@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import matter from 'gray-matter';
 import mammoth from 'mammoth';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const SUPPORTED_EXTENSIONS = ['.md', '.markdown', '.docx', '.txt', '.pdf'];
 
-// pdf-parse doesn't have proper ESM exports
+interface PdfParseModule {
+  default?: (buffer: Buffer) => Promise<{ text: string }>;
+}
+
 const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
-  const mod = await import('pdf-parse');
-  const pdf = (mod as any).default || mod;
+  const mod = await import('pdf-parse') as PdfParseModule;
+  const pdf = mod.default || (() => { throw new Error('pdf-parse not available'); });
   return pdf(buffer);
 };
 const MAX_CHAR_COUNT = 20000;

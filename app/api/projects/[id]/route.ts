@@ -72,7 +72,7 @@ export async function PUT(
 
     // Single optimized query: update and verify ownership in one operation
     const updateFields: string[] = [];
-    const updateValues: any[] = [];
+    const updateValues: unknown[] = [];
     let paramIndex = 1;
 
     if (name !== undefined) {

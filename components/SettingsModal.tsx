@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
+import Image from 'next/image';
 import { Settings, X, Loader2, Upload, Trash2, Palette } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 
@@ -153,7 +154,7 @@ export const SettingsModal = React.memo(function SettingsModal({
           {brandSettings.logoUrl ? (
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] overflow-hidden flex items-center justify-center">
-                <img src={brandSettings.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                <Image src={brandSettings.logoUrl!} alt="Logo" width={48} height={48} className="max-w-full max-h-full object-contain" unoptimized />
               </div>
               <button
                 onClick={onLogoDelete}

@@ -84,11 +84,26 @@ export interface SlideData {
   slideJustify?: 'center' | 'start' | 'between' | 'end';
 }
 
+export interface ProjectOptions {
+  category?: string;
+  handle?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  accentColor?: string;
+  fontFamily?: string;
+  fontScale?: number;
+  coverBackgroundColor?: string;
+  coverTextColor?: string;
+  coverAccentColor?: string;
+  backgroundImage?: string;
+  backgroundOverlayOpacity?: number;
+}
+
 export interface Project {
   id: string;
   name: string;
   slides: SlideData[];
-  options: any;
+  options: ProjectOptions;
   createdAt: string;
   updatedAt: string;
   isShared?: boolean;

@@ -8,6 +8,7 @@ import { THEMES } from '@/app/constants/themes';
 import { BOLD_TEMPLATES } from '@/lib/templates';
 import type { SlideData } from '@/lib/types';
 import { remapColors, deriveAccent2, DEFAULT_THEME_COLORS, type ThemeColors } from '@/lib/colorTokens';
+import type { CarouselTemplate } from '@/lib/templates';
 
 interface BrandSettings {
   handle: string;
@@ -155,7 +156,7 @@ export const ThemeGalleryModal = React.memo(function ThemeGalleryModal({
         prevSlides.map((s) => {
           const oldColors = detectOldColors(s);
           const remappedContent = s.content ? remapColors(s.content, oldColors, newColors) : s.content;
-          const updatedSlide: any = {
+          const updatedSlide: SlideData = {
             ...s,
             content: remappedContent,
             backgroundColor: theme.backgroundColor,
@@ -263,7 +264,7 @@ function ThemePreview({
   fullTemplate,
 }: {
   theme: (typeof THEMES)[number];
-  fullTemplate: any;
+  fullTemplate: CarouselTemplate | null | undefined;
 }) {
   const alignClass =
     theme.textAlign === 'center'

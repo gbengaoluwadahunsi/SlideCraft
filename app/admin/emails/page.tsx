@@ -455,7 +455,7 @@ export default function AdminEmailsPage() {
             Admin emails receive <span className="text-purple-400 font-medium">Enterprise-level access</span> for free.
           </p>
           <Link href="/dashboard" className="text-purple-400 hover:text-purple-300 hover:underline">
-            Go to Dashboard →
+            Go to Dashboard &rarr;
           </Link>
         </motion.div>
       </div>

@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+interface ChatCompletion {
+  choices: Array<{
+    message: {
+      content: string | null;
+    };
+  }>;
+}
 
 const PROVIDERS = [
   { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
@@ -217,7 +226,7 @@ ${isVisualSlide ? visualSlideInstructions : `- Preferred pattern: ${pattern || '
 - The content must be FULLY FILLED — no empty items or stub text.
 - Return ONLY the JSON object, no code blocks or extra text.`;
 
-    let completion: any = null;
+    let completion: ChatCompletion | null = null;
     for (const provider of availableProviders) {
       try {
         const OpenAI = (await import('openai')).default;

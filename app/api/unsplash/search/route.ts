@@ -4,6 +4,33 @@ import { auth } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+interface UnsplashPhoto {
+  id: string;
+  urls: {
+    thumb: string;
+    small: string;
+    regular: string;
+    full: string;
+  };
+  alt_description: string | null;
+  description: string | null;
+  color: string;
+  user: {
+    name: string;
+    username: string;
+    links: { html: string };
+  };
+  width: number;
+  height: number;
+  links: { download: string; html: string; download_location: string };
+}
+
+interface UnsplashResponse {
+  results: UnsplashPhoto[];
+  total: number;
+  total_pages: number;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -56,10 +83,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
+    const data = await response.json() as UnsplashResponse;
 
     // Transform the response to only include what we need
-    const photos = data.results.map((photo: any) => ({
+    const photos = data.results.map((photo) => ({
       id: photo.id,
       urls: {
         thumb: photo.urls.thumb,

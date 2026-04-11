@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { 
   Lightbulb, Target, Zap, CheckCircle, ArrowRight, ArrowDown,
@@ -38,6 +39,11 @@ interface InfographicProps {
 
 // Derive N theme-aware colors from a base accent color using hue rotation
 function deriveThemeColors(accentColor: string, count: number): string[] {
+  // If it's a CSS variable or doesn't look like a hex, return the color repeated
+  if (!accentColor || accentColor.startsWith('var') || !accentColor.startsWith('#')) {
+    return Array(count).fill(accentColor || '#ffd700');
+  }
+
   const h = (accentColor || '#ffd700').replace('#', '').padEnd(6, '0');
   const r = parseInt(h.substring(0, 2), 16) / 255;
   const g = parseInt(h.substring(2, 4), 16) / 255;
@@ -237,7 +243,11 @@ const GlowOrb: React.FC<{ color: string; size?: number; className?: string }> = 
 // ============ LAYOUTS ============
 
 // Cards Grid - Premium modern cards
-const CardsGridLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const CardsGridLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 6);
   const cols = displayItems.length <= 2 ? 2 : displayItems.length <= 4 ? 2 : 3;
   
@@ -305,7 +315,11 @@ const CardsGridLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ff
 };
 
 // Timeline - Elegant vertical progression
-const TimelineLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const TimelineLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 5);
   
   return (
@@ -471,7 +485,7 @@ const PosterProcessLayout: React.FC<InfographicProps> = ({ items, accentColor = 
                 </span>
                 <div className="w-6 h-6 rounded-full bg-white/40 flex items-center justify-center overflow-hidden">
                    {iconUrl ? (
-                     <img src={iconUrl} alt="" className="w-full h-full object-cover" />
+                     <Image src={iconUrl} alt="" fill className="w-full h-full object-cover" unoptimized />
                    ) : (
                      <div className="w-2 h-2 rounded-full bg-white" />
                    )}
@@ -493,7 +507,11 @@ const PosterProcessLayout: React.FC<InfographicProps> = ({ items, accentColor = 
 };
 
 // Feature List - Premium two-column checklist
-const FeatureListLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const FeatureListLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 6);
   
   return (
@@ -547,7 +565,11 @@ const FeatureListLayout: React.FC<InfographicProps> = ({ items, accentColor = '#
 };
 
 // Metrics Row - Impactful numbers with visual flair
-const MetricsRowLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const MetricsRowLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 4);
   const colors = deriveThemeColors(accentColor, 4);
   
@@ -621,7 +643,11 @@ const MetricsRowLayout: React.FC<InfographicProps> = ({ items, accentColor = '#f
 };
 
 // Icon Cards - Compact premium grid
-const IconCardsLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const IconCardsLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 6);
   
   return (
@@ -666,7 +692,11 @@ const IconCardsLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ff
 };
 
 // Numbered List - Premium numbered items
-const NumberedListLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const NumberedListLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 5);
   
   return (
@@ -720,7 +750,11 @@ const NumberedListLayout: React.FC<InfographicProps> = ({ items, accentColor = '
 };
 
 // Pyramid - Hierarchical pyramid layout
-const PyramidLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const PyramidLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 4);
   
   return (
@@ -770,7 +804,11 @@ const PyramidLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd7
 };
 
 // Cycle - Circular hub and spoke diagram (Designer style)
-const CycleLayout: React.FC<InfographicProps> = ({ items, accentColor = '#ffd700', textColor = '#ffffff' }) => {
+const CycleLayout: React.FC<InfographicProps> = ({ 
+  items, 
+  accentColor = 'var(--slide-accent)', 
+  textColor = 'var(--slide-text)' 
+}) => {
   const displayItems = items.slice(0, 5);
   const colors = deriveThemeColors(accentColor, 5);
   

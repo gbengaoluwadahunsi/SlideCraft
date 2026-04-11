@@ -92,7 +92,7 @@ function CheckEmailContent() {
             </div>
             <h1 className="text-2xl font-bold mb-2">Check Your Email</h1>
             <p className="text-gray-400 mb-6">
-              We've sent a verification link to <strong className="text-white">{email || 'your email'}</strong>
+              We&apos;ve sent a verification link to <strong className="text-white">{email || 'your email'}</strong>
             </p>
             <p className="text-sm text-gray-500 mb-6">
               Click the link in the email to verify your account and start using Carouslk.

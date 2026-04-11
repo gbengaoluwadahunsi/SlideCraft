@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import {
   Image as ImageIcon,
   Upload,
@@ -190,9 +191,10 @@ export const ImagePickerModal = React.memo(function ImagePickerModal({
                   className="group relative aspect-square rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--accent)] transition"
                   style={{ backgroundColor: photo.color }}
                 >
-                  <img
+                  <Image
                     src={photo.urls.small}
-                    alt={photo.alt}
+                    alt={photo.alt || ''}
+                    fill
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     loading="lazy"
                   />

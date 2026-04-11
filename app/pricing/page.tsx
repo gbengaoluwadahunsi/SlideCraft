@@ -96,8 +96,16 @@ export default function PricingPage() {
     }
   ];
 
-  const FeatureRow = ({ feature, category }: { feature: any, category: string }) => {
-    const getValue = (tier: string) => {
+  interface FeatureItem {
+    name: string;
+    free: string | boolean;
+    starter: string | boolean;
+    pro: string | boolean;
+    enterprise: string | boolean;
+  }
+
+  const FeatureRow = ({ feature, category }: { feature: FeatureItem; category: string }) => {
+    const getValue = (tier: 'free' | 'starter' | 'pro' | 'enterprise') => {
       if (category === 'ai' && typeof feature[tier] === 'string') {
         return feature[tier];
       }

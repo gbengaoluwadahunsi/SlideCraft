@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { z } from 'zod';
+
+interface CloudinaryUploadResult {
+  secure_url: string;
+  public_id: string;
+  resource_type: string;
+  format: string;
+  width: number;
+  height: number;
+}
 
 // Configure Cloudinary
 cloudinary.config({
@@ -11,80 +21,72 @@ cloudinary.config({
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // 2 minutes for large video uploads
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       return NextResponse.json(
-        { error: 'Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.' },
+        { error: 'Cloudinary is not configured' },
         { status: 500 }
       );
     }
 
     const contentType = request.headers.get('content-type') || '';
-    const MAX_FILE_MB = 100; // Reasonable default for most Cloudinary plans
+    const MAX_FILE_MB = 100;
 
-    // Handle file upload (multipart/form-data)
     if (contentType.includes('multipart/form-data')) {
         const formData = await request.formData();
-        const file = formData.get('file') as File;
+        const file = formData.get('file');
         
-        if (!file) {
+        if (!file || !(file instanceof File)) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
-        // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const sizeMb = buffer.length / 1024 / 1024;
 
         if (sizeMb > MAX_FILE_MB) {
             return NextResponse.json(
-              { error: `File too large (${sizeMb.toFixed(1)} MB). Please upload a file <= ${MAX_FILE_MB} MB.` },
+              { error: `File too large (${sizeMb.toFixed(1)} MB). Max: ${MAX_FILE_MB} MB.` },
               { status: 413 }
             );
         }
         
-        // Determine resource type
         const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
 
-        console.log(`Uploading ${resourceType} to Cloudinary (${(buffer.length / 1024 / 1024).toFixed(2)} MB)...`);
+        console.log(`Uploading ${resourceType} to Cloudinary (${sizeMb.toFixed(2)} MB)...`);
 
-        // Upload to Cloudinary using the SDK (Server-to-Server, no CORS)
-        const result = await new Promise<any>((resolve, reject) => {
+        const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
             const options = {
               resource_type: resourceType as 'video' | 'image' | 'raw' | 'auto',
               folder: 'carousel-generator',
-              // Chunk size helps with larger videos
-              chunk_size: 6_000_000, // ~6MB
-              // Timeout for upload (2 minutes for large files)
+              chunk_size: 6_000_000,
               timeout: 120000,
-              // Use eager transformation for videos to generate thumbnails
               ...(resourceType === 'video' && {
                 eager: [{ format: 'jpg', transformation: [{ quality: 'auto' }] }],
                 eager_async: true,
               }),
             };
 
-            const callback = (error: any, result: any) => {
+            const callback = (error: unknown, result: unknown) => {
                 if (error) {
                     console.error('Cloudinary upload error:', error);
-                    reject(error);
+                    const errMsg = error instanceof Error ? error.message : 'Upload failed';
+                    reject(new Error(errMsg));
+                } else if (result) {
+                    const res = result as CloudinaryUploadResult;
+                    console.log('Cloudinary upload success:', res.secure_url);
+                    resolve(res);
                 } else {
-                    console.log('Cloudinary upload success:', result?.secure_url);
-                    resolve(result);
+                    reject(new Error('Upload failed - no result'));
                 }
             };
 
-            // IMPORTANT: Use upload_stream for all files
-            // - upload_large_stream is not compatible with Turbopack bundling
-            // - upload_stream handles large files automatically with chunking
-            // - Works for both images and videos up to 100MB
-            const uploadStream = cloudinary.uploader.upload_stream(options, callback);
+            const uploadStream = cloudinary.uploader.upload_stream(options, callback as never);
 
-            uploadStream.on('error', (err) => {
+            uploadStream.on('error', (err: Error) => {
                 console.error('Upload stream error:', err);
                 reject(err);
             });
@@ -107,20 +109,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Upload API error:', error);
     
-    // Cloudinary errors often come as plain objects, not Error instances
-    const message =
-      (error as any)?.message ||
-      (error as any)?.error?.message ||
-      (error instanceof Error ? error.message : 'Unknown error');
-    
-    // Log full error for debugging
-    if (error && typeof error === 'object') {
-      console.error('Full error details:', JSON.stringify(error, null, 2));
-    }
+    const message = error instanceof Error 
+      ? error.message 
+      : 'Unknown error';
     
     return NextResponse.json({ 
       error: `Upload failed: ${message}`,
-      details: process.env.NODE_ENV === 'development' ? error : undefined
+      details: process.env.NODE_ENV === 'development' ? String(error) : undefined
     }, { status: 500 });
   }
 }

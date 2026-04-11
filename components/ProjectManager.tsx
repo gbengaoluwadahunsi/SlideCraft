@@ -24,14 +24,14 @@ import {
   ArrowUpDown,
   Files
 } from 'lucide-react';
-import { SlideData } from '@/lib/types';
+import { SlideData, ProjectOptions } from '@/lib/types';
 
 interface ProjectManagerProps {
   currentProjectId?: string;
   projectName: string;
   slides: SlideData[];
-  options: any;
-  onProjectLoad: (project: { id: string; name: string; slides: SlideData[]; options: any }) => void;
+  options: ProjectOptions;
+  onProjectLoad: (project: { id: string; name: string; slides: SlideData[]; options: ProjectOptions }) => void;
   onProjectNameChange: (name: string) => void;
 }
 
@@ -228,8 +228,9 @@ export function ProjectManager({
       // Optionally open the duplicated project
       router.push(`/dashboard?project=${data.project.id}`);
       setIsOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to duplicate project');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to duplicate project';
+      toast.error(message);
     } finally {
       setDuplicatingId(null);
     }

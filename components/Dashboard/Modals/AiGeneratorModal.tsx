@@ -26,7 +26,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border border-[var(--border-hover)] rounded-2xl shadow-2xl z-[101] outline-none">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-1rem)] max-w-3xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border border-[var(--border-hover)] rounded-2xl shadow-2xl z-[101] outline-none">
           <div className="flex flex-col h-full">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-hover)] bg-[var(--surface-2)]/30">
@@ -35,8 +35,8 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                   <Sparkles size={24} />
                 </div>
                 <div>
-                  <Dialog.Title className="text-xl font-bold text-white">Magic Carousel Generator</Dialog.Title>
-                  <p className="text-sm text-[var(--text-muted)]">AI-powered presentations from any source.</p>
+                  <Dialog.Title className="text-xl font-bold text-white">Create a Carousel</Dialog.Title>
+                  <p className="text-sm text-[var(--text-muted)]">Start with an idea, document, or link.</p>
                 </div>
               </div>
               <Dialog.Close className="p-2 hover:bg-[var(--surface-3)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-white">
@@ -61,7 +61,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                       {tab === 'prompt' && <MessageSquare size={16} />}
                       {tab === 'document' && <Upload size={16} />}
                       {tab === 'url' && <LinkIcon size={16} />}
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      {tab === 'prompt' ? 'Type an idea' : tab === 'document' ? 'Upload file' : 'Paste link'}
                     </button>
                   ))}
                 </div>
@@ -72,10 +72,10 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                     <div className="space-y-3">
                       <div className="relative">
                         <textarea
-                          placeholder="Describe your carousel idea (e.g., '10 Tips for Remote Productivity' or 'History of SpaceX')"
+                          placeholder="Example: Turn my blog post about remote work into a LinkedIn carousel"
                           value={aiGenerator.aiPrompt}
                           onChange={(e) => aiGenerator.setAiPrompt(e.target.value)}
-                          className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-xl px-4 py-4 text-white focus:outline-none focus:border-[var(--accent)] transition min-h-[140px] resize-none pr-12"
+                          className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-xl px-4 py-4 text-white focus:outline-none focus:border-[var(--accent)] transition min-h-[150px] resize-none pr-12"
                         />
                         <div className="absolute bottom-4 right-4 text-[var(--text-muted)]">
                           <Wand2 size={20} className="animate-pulse text-[var(--accent)]" />
@@ -94,7 +94,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                             </div>
                             <div className="overflow-hidden">
                               <p className="text-sm font-medium text-white truncate">{aiGenerator.docAttachment.name}</p>
-                              <p className="text-xs text-[var(--text-muted)]">Successfully attached document</p>
+                              <p className="text-xs text-[var(--text-muted)]">Ready to turn into slides</p>
                             </div>
                           </div>
                           <button 
@@ -113,7 +113,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                             {aiGenerator.isUploadingDoc ? <Loader2 size={32} className="animate-spin" /> : <Upload size={32} />}
                           </div>
                           <div className="text-center">
-                            <p className="text-white font-medium">Click to upload or drag & drop</p>
+                            <p className="text-white font-medium">Upload your content</p>
                             <p className="text-xs text-[var(--text-muted)] mt-1">PDF, DOCX, TXT or Markdown (Max 10MB)</p>
                           </div>
                           <input 
@@ -124,8 +124,8 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                // Logic to trigger the ingest API
-                                // Normally we'd pass the function from the hook
+                                aiGenerator.handleDocUpload(file);
+                                e.currentTarget.value = '';
                               }
                             }}
                           />
@@ -139,7 +139,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                       <div className="flex gap-2">
                         <input
                           type="url"
-                          placeholder="Paste a link (Article, Blog, or Wikipedia)"
+                          placeholder="Paste an article, blog post, or page link"
                           value={aiGenerator.urlInput}
                           onChange={(e) => aiGenerator.setUrlInput(e.target.value)}
                           className="flex-1 bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] transition"
@@ -149,7 +149,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                           disabled={aiGenerator.isParsingUrl || !aiGenerator.urlInput}
                           className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 disabled:opacity-50"
                         >
-                          {aiGenerator.isParsingUrl ? <Loader2 size={18} className="animate-spin" /> : 'Fetch'}
+                          {aiGenerator.isParsingUrl ? <Loader2 size={18} className="animate-spin" /> : 'Use Link'}
                         </button>
                       </div>
                       
@@ -177,92 +177,138 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                 </div>
               </div>
 
-              {/* Main Settings Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
-                    <Layout size={14} /> Slide Count
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[4, 6, 8, 10].map((count) => (
-                      <button
-                        key={count}
-                        onClick={() => aiGenerator.setAiSlideCount(count)}
-                        className={`py-2 px-1 text-sm font-medium rounded-lg border transition ${
-                          aiGenerator.aiSlideCount === count 
-                            ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
-                            : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]'
-                        }`}
-                      >
-                        {count}
-                      </button>
-                    ))}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                      Where will this be used?
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['Auto', 'LinkedIn', 'Instagram', 'Sales Deck', 'Education'] as const).map((platform) => (
+                        <button
+                          key={platform}
+                          onClick={() => aiGenerator.setAiPlatformTarget(platform)}
+                          className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition ${
+                            aiGenerator.aiPlatformTarget === platform
+                              ? 'border-white bg-white text-black'
+                              : 'border-[var(--border-hover)] bg-[var(--surface-2)] text-white hover:border-white'
+                          }`}
+                        >
+                          {platform}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
-                    <Palette size={14} /> Design Style
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['visual', 'mixed', 'text'] as const).map((style) => (
-                      <button
-                        key={style}
-                        onClick={() => aiGenerator.setAiSlideStyle(style)}
-                        className={`py-2 px-1 text-xs font-medium rounded-lg border capitalize transition ${
-                          aiGenerator.aiSlideStyle === style 
-                            ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
-                            : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]'
-                        }`}
-                      >
-                        {style}
-                      </button>
-                    ))}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                      What kind of carousel?
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['General Carousel', 'Educational', 'Sales', 'Tips/Listicle', 'Founder LinkedIn', 'Authority LinkedIn'] as const).map((preset) => (
+                        <button
+                          key={preset}
+                          onClick={() => aiGenerator.applyPreset(preset)}
+                          className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition ${
+                            aiGenerator.aiOutputPreset === preset
+                              ? 'border-[var(--accent)] bg-[var(--accent)] text-black'
+                              : 'border-[var(--border-hover)] bg-[var(--surface-2)] text-white hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
-                    <Globe size={14} /> Language
-                  </label>
-                  <select
-                    value={aiGenerator.aiLanguage}
-                    onChange={(e) => aiGenerator.setAiLanguage(e.target.value)}
-                    className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition h-[42px]"
-                  >
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="hi">Hindi</option>
-                  </select>
                 </div>
               </div>
 
-              {/* Advanced Toggle */}
+              {/* Optional Toggle */}
               <div className="pt-2 border-t border-[var(--border-hover)]/30">
                 <button
                   onClick={() => aiGenerator.setIsAdvancedOptionsOpen(!aiGenerator.isAdvancedOptionsOpen)}
                   className="flex items-center gap-2 text-sm font-bold text-[var(--accent)] hover:text-[var(--accent-hover)] transition group"
                 >
                   {aiGenerator.isAdvancedOptionsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  Advanced Refinement Options
+                  More options
                 </button>
 
                 {aiGenerator.isAdvancedOptionsOpen && (
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-top-2 duration-300">
+                  <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
+                          <Layout size={14} /> Number of slides
+                        </label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[4, 6, 8, 10].map((count) => (
+                            <button
+                              key={count}
+                              onClick={() => aiGenerator.setAiSlideCount(count)}
+                              className={`py-2 px-1 text-sm font-medium rounded-lg border transition ${
+                                aiGenerator.aiSlideCount === count 
+                                  ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
+                                  : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]'
+                              }`}
+                            >
+                              {count}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
+                          <Palette size={14} /> Layout
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['mixed', 'visual', 'text'] as const).map((style) => (
+                            <button
+                              key={style}
+                              onClick={() => aiGenerator.setAiSlideStyle(style)}
+                              className={`py-2 px-1 text-xs font-medium rounded-lg border capitalize transition ${
+                                aiGenerator.aiSlideStyle === style 
+                                  ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
+                                  : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]'
+                              }`}
+                            >
+                              {style === 'mixed' ? 'Balanced' : style === 'visual' ? 'Visual' : 'Text'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
+                          <Globe size={14} /> Language
+                        </label>
+                        <select
+                          value={aiGenerator.aiLanguage}
+                          onChange={(e) => aiGenerator.setAiLanguage(e.target.value)}
+                          className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition h-[42px]"
+                        >
+                          <option value="en">English</option>
+                          <option value="es">Spanish</option>
+                          <option value="fr">French</option>
+                          <option value="de">German</option>
+                          <option value="hi">Hindi</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="space-y-3">
                         <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
-                          <History size={14} /> Writing Style
+                          <History size={14} /> Tone
                         </label>
                         <div className="grid grid-cols-2 gap-2">
-                          {['Professional', 'Engaging', 'Direct', 'Storytelling'].map((style) => (
+                          {['Professional', 'Engaging', 'Simple', 'Storytelling'].map((style) => (
                             <button
                               key={style}
-                              onClick={() => aiGenerator.setAiWritingStyle(style)}
+                              onClick={() => aiGenerator.setAiWritingStyle(style === 'Simple' ? 'Direct' : style)}
                               className={`py-2.5 px-3 text-xs font-medium rounded-lg border text-left transition ${
-                                aiGenerator.aiWritingStyle === style 
+                                aiGenerator.aiWritingStyle === (style === 'Simple' ? 'Direct' : style) 
                                   ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
                                   : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]'
                               }`}
@@ -275,11 +321,11 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
 
                       <div className="space-y-3">
                         <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
-                          <Users size={14} /> Target Audience
+                          <Users size={14} /> Who is this for?
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. CMOs, New Developers, Students"
+                          placeholder="e.g. founders, students, marketers"
                           value={aiGenerator.aiAudience}
                           onChange={(e) => aiGenerator.setAiAudience(e.target.value)}
                           className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[var(--accent)] transition"
@@ -290,13 +336,13 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                     <div className="space-y-4">
                       {/* AI Switches */}
                       <div className="space-y-4 bg-[var(--surface-2)]/30 p-5 rounded-2xl border border-[var(--border-hover)]/50">
-                        <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-4">Generation Guardrails</h4>
+                        <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-4">Extra help</h4>
                         <div className="grid grid-cols-1 gap-4">
                           {[
-                            { id: 'smartColors', label: 'Use Brand Colors', icon: Palette },
-                            { id: 'freshDesign', label: 'Surprise Me', icon: Sparkles },
-                            { id: 'includeStats', label: 'Data & Statistics', icon: BarChart3 },
-                            { id: 'autoHashtags', label: 'Add Viral Hashtags', icon: Hash }
+                            { id: 'smartColors', label: 'Use my brand colors', icon: Palette },
+                            { id: 'freshDesign', label: 'Try a fresh design', icon: Sparkles },
+                            { id: 'includeStats', label: 'Add useful numbers', icon: BarChart3 },
+                            { id: 'autoHashtags', label: 'Add hashtags', icon: Hash }
                           ].map((item) => (
                             <div key={item.id} className="flex items-center justify-between group">
                               <div className="flex items-center gap-3">
@@ -324,6 +370,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                         </div>
                       </div>
                     </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -331,9 +378,29 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
 
             {/* Footer */}
             <div className="p-6 border-t border-[var(--border-hover)] bg-[var(--surface-2)]/50 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
-                <span className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-green-400" /> GPU Powered</span>
-                <span className="flex items-center gap-1.5"><MousePointer2 size={12} className="text-blue-400" /> Direct-to-Edit</span>
+              <div className="space-y-2 text-xs text-[var(--text-muted)]">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-green-400" /> Editable slides</span>
+                  <span className="flex items-center gap-1.5"><MousePointer2 size={12} className="text-blue-400" /> Download ready</span>
+                </div>
+                {(aiGenerator.isGenerating || aiGenerator.generationStatus || aiGenerator.generationError) && (
+                  <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                    aiGenerator.generationError
+                      ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                      : 'border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--text-secondary)]'
+                  }`}>
+                    {aiGenerator.isGenerating && <Loader2 size={14} className="animate-spin text-[var(--accent)]" />}
+                    <span>{aiGenerator.generationError || aiGenerator.generationStatus || 'Creating your carousel. This usually takes about a minute.'}</span>
+                    {aiGenerator.generationError && (
+                      <button
+                        onClick={aiGenerator.retryLastGeneration}
+                        className="ml-2 rounded-md bg-white px-2 py-1 text-[11px] font-black text-black"
+                      >
+                        Try again
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="flex items-center gap-4 w-full md:w-auto">
@@ -351,12 +418,12 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                   {aiGenerator.isGenerating ? (
                     <>
                       <Loader2 size={20} className="animate-spin" />
-                      Weaving Magic...
+                      Creating...
                     </>
                   ) : (
                     <>
                       <Wand2 size={20} />
-                      Generate Carousel
+                      Create Carousel
                     </>
                   )}
                 </button>

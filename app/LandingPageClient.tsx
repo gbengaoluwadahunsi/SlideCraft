@@ -1,573 +1,193 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { Sparkles, Zap, Layout, Download, ArrowRight, Settings, Type, Image as ImageIcon, Palette, MousePointer2, RefreshCw, Menu, X, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Check, Download, FileText, Layers, MessageSquareText, PenLine, Sparkles } from 'lucide-react';
 
-const numberFormatter = new Intl.NumberFormat('en-US');
+const platformOptions = ['General', 'Instagram', 'LinkedIn', 'Sales', 'Education'];
 
 export default function LandingPageClient() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [metrics, setMetrics] = useState<{ todayCreations: number; totalCreations: number } | null>(null);
-  const [metricsLoading, setMetricsLoading] = useState(true);
-  const [metricsError, setMetricsError] = useState(false);
-  const [currentYear] = useState(() => new Date().getFullYear());
 
-  // Handle "Start Creating" button click
-  const handleStartCreating = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    
-    if (status === 'loading') {
+  const startHref = session ? '/dashboard' : '/register';
+
+  const handleStart = () => {
+    if (status === 'authenticated') {
+      router.push('/dashboard');
       return;
     }
-    
-    if (status === 'unauthenticated' || !session) {
-      toast.error("Sign in required", {
-        description: 'Please sign in or create an account to start creating',
-        action: {
-          label: 'Sign In',
-          onClick: () => router.push('/login')
-        },
-        duration: 5000,
-      });
-      return;
-    }
-    
-    // If authenticated, navigate to dashboard
-    router.push('/dashboard');
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchMetrics = async () => {
-      try {
-        const response = await fetch('/api/metrics');
-        if (!response.ok) throw new Error('Failed to fetch metrics');
-        const data = await response.json();
-        if (!cancelled) {
-          setMetrics(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setMetricsError(true);
-        }
-      } finally {
-        if (!cancelled) {
-          setMetricsLoading(false);
-        }
-      }
-    };
-
-    fetchMetrics();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const renderMetricValue = (value: number | null) => {
-    if (metricsLoading) return '—';
-    if (metricsError) return 'N/A';
-    return numberFormatter.format(value ?? 0);
+    router.push('/register');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white font-sans selection:bg-[#ffd700] selection:text-black overflow-x-hidden transition-colors duration-300">
-      {/* Navbar */}
-      <motion.nav 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center"
-      >
-        <motion.div 
-          className="flex items-center gap-2"
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
-        >
-          <motion.div 
-            className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center"
-            whileHover={{ rotate: 6, scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-             <span className="text-black font-bold text-xl">C</span>
-          </motion.div>
-          <span className="text-xl font-bold tracking-tight">Carouslk</span>
-        </motion.div>
-        <div className="flex items-center gap-3">
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Link 
-              href="/pricing" 
-              className="hidden sm:inline-flex px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition"
-            >
+    <div className="min-h-screen bg-[#080B14] text-white">
+      <header className="border-b border-white/10 bg-[#080B14]/95">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ffd700] text-lg font-black text-black">C</div>
+            <span className="text-lg font-black tracking-tight">Carouslk</span>
+          </Link>
+          <nav className="flex items-center gap-2">
+            <Link href="/pricing" className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white">
               Pricing
             </Link>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <button
-              onClick={handleStartCreating}
-              className="hidden sm:inline-flex px-5 py-2.5 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm font-bold rounded-xl transition transform hover:scale-105 hover:shadow-lg items-center gap-2"
-            >
-              Start Creating <ArrowRight size={16} />
-            </button>
-          </motion.div>
-          <motion.button
-            aria-label="Toggle navigation"
-            onClick={() => setMobileMenuOpen(prev => !prev)}
-            className="sm:hidden p-2 rounded-lg bg-gray-800/60 border border-gray-700 hover:bg-gray-800 transition"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </motion.button>
-        </div>
-      </motion.nav>
-
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="sm:hidden max-w-7xl mx-auto px-6 pb-4 overflow-hidden"
-          >
-            <motion.div 
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-gray-200 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700 rounded-2xl p-4 space-y-3"
-            >
-            <Link 
-              href="/pricing" 
-              className="w-full flex justify-between items-center px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-xl transition"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Pricing
+            <Link href={session ? '/dashboard' : '/login'} className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white">
+              {session ? 'Dashboard' : 'Login'}
             </Link>
             <button
-              onClick={(e) => {
-                setMobileMenuOpen(false);
-                handleStartCreating(e);
-              }}
-              className="w-full flex justify-between items-center px-4 py-3 bg-[#ffd700] text-black font-bold rounded-xl"
+              onClick={handleStart}
+              className="hidden rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-black text-black hover:bg-yellow-400 sm:inline-flex"
             >
-              Start Creating <ArrowRight size={18} />
+              Start
             </button>
-            <a 
-              href="#how-it-works" 
-              className="block px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              See How It Works
-            </a>
-          </motion.div>
-        </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-6 pt-20 pb-32 text-center">
-        <motion.h1 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-6 leading-tight max-w-4xl mx-auto"
-        >
-          Create Professional Carousels <br />
-          <motion.span 
-            className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffd700] to-orange-400 relative"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            in 30 Seconds
-            <svg className="absolute w-full h-3 -bottom-1 left-0 text-[#ffd700] opacity-50" viewBox="0 0 200 9" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.00025 6.99997C25.5002 3.99999 77.5 0.499964 197.5 2.49999" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-          </motion.span>
-        </motion.h1>
-        
-        <motion.p 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-lg sm:text-xl lg:text-2xl text-gray-700 dark:text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed font-medium"
-        >
-          Paste your text or URL. Get a beautiful carousel. <span className="text-[#ffd700]">No design skills needed.</span>
-        </motion.p>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.45 }}
-          className="flex flex-wrap items-center justify-center gap-4 mb-12 text-sm sm:text-base"
-        >
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-            <Zap className="w-5 h-5 text-[#ffd700]" />
-            <span><strong className="text-gray-900 dark:text-white">3x faster</strong> than competitors</span>
-          </div>
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-            <Sparkles className="w-5 h-5 text-[#ffd700]" />
-            <span><strong className="text-gray-900 dark:text-white">Every output</strong> looks professional</span>
-          </div>
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-            <Layout className="w-5 h-5 text-[#ffd700]" />
-            <span><strong className="text-gray-900 dark:text-white">Works immediately</strong>—no learning curve</span>
-          </div>
-        </motion.div>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-        >
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <button
-              onClick={handleStartCreating}
-              className="px-6 py-3 text-sm bg-[#ffd700] hover:bg-yellow-400 text-black sm:text-base font-bold rounded-xl transition transform hover:scale-105 hover:shadow-lg flex items-center gap-2 sm:px-8 sm:py-4"
-            >
-              Start Creating <ArrowRight size={20} />
-            </button>
-          </motion.div>
-          <motion.a 
-            href="#how-it-works" 
-            className="px-6 py-3 text-sm bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-800 dark:text-white sm:text-base font-medium rounded-xl border border-gray-300 dark:border-gray-700 transition sm:px-8 sm:py-4"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            See How It Works
-          </motion.a>
-        </motion.div>
-
-      {/* Hero Visual */}
-      <motion.div 
-        initial={{ opacity: 0, y: 50, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.8, delay: 0.6 }}
-        className="mt-20 relative max-w-6xl mx-auto z-10"
-      >
-        <motion.div 
-          className="absolute -inset-1 bg-gradient-to-r from-[#ffd700] via-orange-500 to-purple-600 rounded-2xl opacity-20 blur-2xl"
-          animate={{ 
-            opacity: [0.2, 0.3, 0.2],
-            scale: [1, 1.05, 1]
-          }}
-          transition={{ 
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        ></motion.div>
-        
-            <div className="relative bg-[#0f1117] border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl overflow-hidden">
-            {/* Mock Window Header */}
-            <div className="h-12 border-b border-gray-200 dark:border-gray-800 bg-[#0f1117] flex items-center px-4 justify-between">
-                <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
-                    <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></div>
-                </div>
-                <div className="px-4 py-1.5 bg-gray-200 dark:bg-gray-800/50 rounded-md text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2 w-80 border border-gray-300 dark:border-gray-700/50">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    carouslk.new/untitled-project
-                </div>
-                <div className="w-16"></div>
-            </div>
-
-            {/* App Interface */}
-            <div className="flex h-[460px] sm:h-[600px] bg-[#0B0F19]">
-                {/* Left Sidebar */}
-                <div className="w-16 border-r border-gray-200 dark:border-gray-800 flex flex-col items-center py-6 gap-6 bg-[#0f1117]">
-                    <div className="w-10 h-10 bg-[#ffd700]/10 text-[#ffd700] rounded-xl flex items-center justify-center border border-[#ffd700]/20 shadow-[0_0_15px_rgba(255,215,0,0.1)]">
-                        <Layout size={20} />
-                    </div>
-                    <div className="w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
-                        <Sparkles size={20} />
-                    </div>
-                    <div className="w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
-                        <Palette size={20} />
-                    </div>
-                    <div className="mt-auto w-10 h-10 text-gray-500 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-200 dark:bg-gray-800 rounded-xl flex items-center justify-center transition cursor-pointer">
-                        <Settings size={20} />
-                    </div>
-                </div>
-
-                {/* Slide List */}
-                <div className="w-72 border-r border-gray-200 dark:border-gray-800 bg-[#0f1117] hidden md:flex flex-col">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                        <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Slides (5)</span>
-                        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-800 rounded flex items-center justify-center text-gray-600 dark:text-gray-400 cursor-pointer hover:text-white">+</div>
-                    </div>
-                    <div className="p-4 space-y-4 overflow-y-auto">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className={`group cursor-pointer rounded-xl transition-all duration-300 ${i === 1 ? 'bg-gray-200 dark:bg-gray-800/50 ring-1 ring-[#ffd700]/50 shadow-lg' : 'hover:bg-gray-200 dark:bg-gray-800/30 opacity-60 hover:opacity-100'}`}>
-                                <div className="p-3">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Slide {i}</span>
-                                        {i === 1 && <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full shadow-[0_0_5px_#ffd700]"></div>}
-                                    </div>
-                                    <div className="aspect-[4/5] bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700/50 relative overflow-hidden group-hover:border-gray-600 transition">
-                                        <div className="absolute inset-3 flex flex-col gap-2">
-                                            <div className="w-3/4 h-2 bg-gray-700/50 rounded-full"></div>
-                                            <div className="w-1/2 h-2 bg-gray-700/50 rounded-full"></div>
-                                            <div className="mt-auto w-full h-16 bg-gray-200 dark:bg-gray-800/50 rounded-md border border-gray-300 dark:border-gray-700/30"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Main Canvas */}
-                <div className="flex-1 relative flex items-center justify-center bg-[#0B0F19] overflow-hidden">
-                    {/* Grid Background */}
-                    <div className="absolute inset-0 opacity-[0.03]" 
-                         style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
-                    </div>
-
-                    {/* Floating Toolbar */}
-                    <div className="absolute top-6 bg-gray-200 dark:bg-gray-800/80 backdrop-blur-md border border-gray-300 dark:border-gray-700/50 p-1.5 rounded-full flex items-center gap-1 shadow-2xl z-20 transform -translate-y-2 opacity-0 animate-fade-in-down" style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}>
-                        <div className="w-8 h-8 flex items-center justify-center bg-[#ffd700] text-black rounded-full cursor-pointer shadow-lg"><Zap size={14} /></div>
-                        <div className="px-3 py-1 bg-[#ffd700]/20 text-[#ffd700] text-xs font-bold rounded-full border border-[#ffd700]/30">
-                            <span className="inline-flex items-center gap-1"><Clock size={10} /> 30s</span>
-                        </div>
-                    </div>
-                    
-                    {/* Active Slide */}
-                    <motion.div 
-                      className="relative w-[280px] sm:w-[380px] aspect-[4/5] bg-white rounded-2xl shadow-2xl transform transition-all duration-500 group z-10"
-                      initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
-                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                      transition={{ duration: 0.8, delay: 1 }}
-                      whileHover={{ scale: 1.02, rotate: 1 }}
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-br from-white to-gray-100 rounded-2xl overflow-hidden border-4 border-transparent group-hover:border-[#ffd700]/20 transition-all">
-                            <div className="h-full p-6 sm:p-10 flex flex-col relative">
-                                {/* Design Elements */}
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffd700]/10 rounded-bl-full -mr-8 -mt-8"></div>
-                                
-                                <div className="relative z-10">
-                                    <motion.div 
-                                      className="w-14 h-14 bg-[#ffd700] rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-[#ffd700]/30 mb-8"
-                                      initial={{ rotate: 3, scale: 0 }}
-                                      animate={{ rotate: 3, scale: 1 }}
-                                      transition={{ duration: 0.5, delay: 1.2, type: "spring" }}
-                                      whileHover={{ rotate: 6, scale: 1.1 }}
-                                    >
-                                        🚀
-                                    </motion.div>
-                                    
-                                    <h2 className="text-4xl md:text-5xl font-black text-gray-900 leading-[0.9] mb-6 tracking-tight">
-                                        THE <br/>
-                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ffd700] to-orange-500">SECRET</span> <br/>
-                                        SAUCE
-                                    </h2>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
-                                            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">✓</div>
-                                            <span className="font-bold text-gray-600">Hook your audience</span>
-                                        </div>
-                                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
-                                            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">✓</div>
-                                            <span className="font-bold text-gray-600">Tell a story</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-auto flex items-center justify-between pt-8 border-t border-gray-100">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-xs border-2 border-white shadow-md">C</div>
-                                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">@carouslk</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs font-black text-gray-900 uppercase tracking-wider bg-[#ffd700] px-3 py-1 rounded-full">
-                                        Swipe <ArrowRight size={12} />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Context Menu Mockup */}
-                    <div className="absolute right-20 bottom-32 bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg p-1 shadow-2xl w-48 opacity-0 animate-scale-in origin-top-left" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>
-                        <div className="px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700 mb-1">Slide Actions</div>
-                        <div className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded cursor-pointer text-sm text-gray-200">
-                            <RefreshCw size={14} /> Regenerate Content
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded cursor-pointer text-sm text-gray-200">
-                            <Download size={14} /> Export as PDF
-                        </div>
-                    </div>
-                </div>
-            </div>
+          </nav>
         </div>
-        
-        {/* Floating Badges */}
-        <motion.div 
-          className="absolute -top-6 -right-6 bg-[#ffd700] text-black px-6 py-3 rounded-xl shadow-xl border-4 border-[#0B0F19] z-30 flex items-center gap-3"
-          initial={{ opacity: 0, scale: 0, rotate: -10 }}
-          animate={{ opacity: 1, scale: 1, rotate: 6 }}
-          transition={{ duration: 0.6, delay: 1.4, type: "spring" }}
-          whileHover={{ scale: 1.05, rotate: 8 }}
-        >
-            <div className="bg-black/10 p-1.5 rounded-lg">
-                <Zap size={20} className="text-black" />
-            </div>
-            <div>
-                <div className="text-xs font-bold uppercase opacity-60">Generate in</div>
-                <div className="font-black text-lg leading-none">30 seconds</div>
-            </div>
-        </motion.div>
-      </motion.div>
-      </main>
+      </header>
 
-      {/* Features Grid */}
-      <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-24 border-t border-gray-200 dark:border-gray-800">
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">Why Carouslk Stands Out</h2>
-            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Three simple reasons why creators choose us over the competition.</p>
-        </motion.div>
-        
-        <div className="grid md:grid-cols-3 gap-8">
-            <motion.div 
-              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              whileHover={{ y: -10, scale: 1.02 }}
-            >
-                <div className="w-12 h-12 bg-[#ffd700]/20 rounded-xl flex items-center justify-center text-[#ffd700] mb-6 group-hover:scale-110 transition">
-                    <Zap size={24} />
-                </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">3x Faster</h3>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Generate carousels in 30 seconds—not 2 minutes. We're objectively the fastest tool in the market.
-                </p>
-            </motion.div>
-            <motion.div 
-              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              whileHover={{ y: -10, scale: 1.02 }}
-            >
-                <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition">
-                    <Sparkles size={24} />
-                </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">Professional Quality</h3>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Every carousel looks professional. No bad outputs. No wasted time regenerating. Guaranteed quality.
-                </p>
-            </motion.div>
-            <motion.div 
-              className="bg-gray-200 dark:bg-gray-800/50 p-8 rounded-2xl border border-gray-300 dark:border-gray-700 hover:border-[#ffd700]/50 transition group"
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              whileHover={{ y: -10, scale: 1.02 }}
-            >
-                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition">
-                    <Layout size={24} />
-                </div>
-                <h3 className="text-lg md:text-xl font-bold mb-3">Zero Learning Curve</h3>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Works immediately. No tutorials. No onboarding. First-time users create their first carousel in under 60 seconds.
-                </p>
-            </motion.div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6">
-         <motion.div 
-           className="max-w-4xl mx-auto bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 sm:p-12 border border-gray-300 dark:border-gray-700 text-center relative overflow-hidden"
-           initial={{ opacity: 0, scale: 0.95 }}
-           whileInView={{ opacity: 1, scale: 1 }}
-           viewport={{ once: true, margin: "-100px" }}
-           transition={{ duration: 0.6 }}
-         >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-[#ffd700]"></div>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to stand out?</h2>
-            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-xl mx-auto">Join thousands of creators, entrepreneurs, and professionals using Carouslk to captivate audiences everywhere—from social feeds to boardrooms.</p>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <button
-                onClick={handleStartCreating}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#ffd700] hover:bg-yellow-400 text-black text-sm sm:text-base lg:text-lg font-bold rounded-xl transition transform hover:scale-105 sm:px-8 sm:py-4"
+      <main>
+        <section className="mx-auto grid max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-16">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-gray-300">
+              <Sparkles size={14} className="text-[#ffd700]" />
+              AI-assisted drafts you can edit
+            </div>
+            <h1 className="max-w-3xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
+              Turn ideas, articles, and notes into editable carousel drafts.
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-300">
+              Choose the platform, paste your material, get a structured first draft, then edit the slides before download.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={startHref}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#ffd700] px-5 py-3 text-sm font-black text-black hover:bg-yellow-400"
               >
-                Start Creating for Free <ArrowRight size={18} />
-              </button>
-            </motion.div>
-         </motion.div>
-      </section>
+                Create a carousel <ArrowRight size={18} />
+              </Link>
+              <Link
+                href="#workflow"
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
+              >
+                See workflow
+              </Link>
+            </div>
 
-      {/* Simple Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-800 py-12 text-center text-gray-500 dark:text-gray-500">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center">
-            <span className="text-black font-bold text-xl">C</span>
+            <div className="mt-8 flex flex-wrap gap-2">
+              {platformOptions.map(option => (
+                <span key={option} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-bold text-gray-300">
+                  {option}
+                </span>
+              ))}
+            </div>
           </div>
-          <span className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Carouslk</span>
-        </div>
-        
-        <motion.div 
-          className="mb-8 flex justify-center gap-3 sm:gap-4"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
-          <motion.div 
-            className="bg-gray-200 dark:bg-gray-800/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-          >
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 dark:text-gray-500 font-bold">Creations Today</span>
-            <span className="text-xl sm:text-2xl font-black text-[#ffd700] leading-none mt-1">
-              {renderMetricValue(metrics?.todayCreations ?? null)}
-            </span>
-          </motion.div>
-          <motion.div 
-            className="bg-gray-200 dark:bg-gray-800/40 border border-gray-300 dark:border-gray-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[100px] sm:min-w-[120px]"
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-          >
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 dark:text-gray-500 font-bold">Total Creations</span>
-            <span className="text-xl sm:text-2xl font-black text-[#ffd700] leading-none mt-1">
-              {renderMetricValue(metrics?.totalCreations ?? null)}
-            </span>
-          </motion.div>
-        </motion.div>
 
-        <p>&copy; {currentYear} Carouslk. All rights reserved.</p>
-      </footer>
+          <div className="rounded-2xl border border-white/10 bg-[#0D1320] p-4 shadow-2xl">
+            <div className="rounded-xl border border-white/10 bg-[#080B14] p-4">
+              <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-4">
+                <div>
+                  <p className="text-sm font-black">Create carousel</p>
+                  <p className="mt-1 text-xs text-gray-400">Paste your idea, article, or notes.</p>
+                </div>
+                <div className="rounded-lg bg-[#ffd700] px-3 py-2 text-xs font-black text-black">Draft</div>
+              </div>
 
+              <div className="grid gap-4 lg:grid-cols-[0.85fr_1fr]">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Platform</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {['Auto', 'Instagram', 'LinkedIn', 'Sales'].map((item, index) => (
+                        <div key={item} className={`rounded-lg border px-3 py-2 text-xs font-bold ${index === 1 ? 'border-white bg-white text-black' : 'border-white/10 text-gray-300'}`}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Prompt</p>
+                    <div className="mt-3 h-32 rounded-lg bg-[#050813] p-3 text-sm leading-6 text-gray-300">
+                      How local restaurants can get more customer reviews without sounding pushy...
+                    </div>
+                  </div>
+                  <button className="w-full rounded-xl bg-[#ffd700] px-4 py-3 text-sm font-black text-black">
+                    Create Carousel
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['01', 'How to Get More Customer Reviews', 'Simple ways to ask without being pushy'],
+                    ['02', 'Ask at the Right Moment', 'Use clear positive customer moments'],
+                    ['03', 'Make It Easy', 'Send one direct link and one simple ask'],
+                    ['04', 'Reply to Every Review', 'Show future buyers there are real people behind the brand'],
+                  ].map(slide => (
+                    <div key={slide[0]} className="aspect-[4/5] rounded-xl border border-white/10 bg-white p-4 text-[#071127]">
+                      <div className="mb-8 inline-flex rounded-lg bg-[#075BFF] px-2 py-1 text-xs font-black text-white">{slide[0]}</div>
+                      <h3 className="text-lg font-black leading-tight">{slide[1]}</h3>
+                      <p className="mt-3 text-xs font-medium leading-5 text-slate-600">{slide[2]}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="workflow" className="border-y border-white/10 bg-white/[0.03]">
+          <div className="mx-auto grid max-w-7xl gap-4 px-5 py-10 md:grid-cols-4">
+            {[
+              [MessageSquareText, 'Paste', 'Start with an idea, article, notes, or a URL.'],
+              [Layers, 'Choose', 'Pick a platform and output type.'],
+              [PenLine, 'Edit', 'Adjust text, order, and brand before export.'],
+              [Download, 'Download', 'Export as PDF or images when it is ready.'],
+            ].map(([Icon, title, body]) => {
+              const StepIcon = Icon as typeof MessageSquareText;
+              return (
+                <div key={title as string} className="rounded-xl border border-white/10 bg-[#0D1320] p-5">
+                  <StepIcon className="text-[#ffd700]" size={24} />
+                  <h2 className="mt-4 text-lg font-black">{title as string}</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-400">{body as string}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-14">
+          <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight">Built for drafts that still need your judgment.</h2>
+              <p className="mt-4 text-gray-400">Carouslk should not pretend every AI output is perfect. It gives you a better first draft and keeps editing simple.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                'Platform-aware generation',
+                'Editable slide text',
+                'Ready-to-post checklist',
+                'General, sales, education, and LinkedIn presets',
+              ].map(item => (
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm font-bold text-gray-200">
+                  <Check size={18} className="text-green-400" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-4xl px-5 pb-16 text-center">
+          <div className="rounded-2xl border border-white/10 bg-[#0D1320] p-8">
+            <FileText className="mx-auto text-[#ffd700]" size={34} />
+            <h2 className="mt-4 text-3xl font-black">Create your first carousel draft.</h2>
+            <p className="mx-auto mt-3 max-w-xl text-gray-400">Start with the general preset, then choose a more specific style when you know where the carousel will be used.</p>
+            <Link href={startHref} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#ffd700] px-5 py-3 text-sm font-black text-black hover:bg-yellow-400">
+              Open editor <ArrowRight size={18} />
+            </Link>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
-

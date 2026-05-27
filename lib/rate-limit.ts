@@ -33,27 +33,29 @@ export async function checkRateLimitWithDB(userId: string): Promise<{ allowed: b
   try {
     const result = await db.query(
       `INSERT INTO rate_limits (user_id, count, window_start, updated_at)
-       VALUES ($1, 1, $2, NOW())
+       VALUES ($1, 1, NOW(), NOW())
        ON CONFLICT (user_id) 
        DO UPDATE SET 
          count = CASE 
-           WHEN rate_limits.window_start + interval '1 minute' > NOW() 
+           WHEN rate_limits.window_start <= NOW()
+            AND rate_limits.window_start + interval '1 minute' > NOW()
            THEN rate_limits.count + 1 
            ELSE 1 
          END,
          window_start = CASE 
-           WHEN rate_limits.window_start + interval '1 minute' > NOW() 
+           WHEN rate_limits.window_start <= NOW()
+            AND rate_limits.window_start + interval '1 minute' > NOW()
            THEN rate_limits.window_start 
            ELSE NOW() 
          END,
          updated_at = NOW()
-       RETURNING count, window_start`,
-      [userId, new Date(now)]
+       RETURNING count, EXTRACT(EPOCH FROM (window_start + interval '1 minute')) * 1000 AS reset_at_ms`,
+      [userId]
     );
     
     const row = result.rows[0];
-    const count = row.count;
-    const resetAt = new Date(row.window_start).getTime() + RATE_LIMIT_WINDOW;
+    const count = Number(row.count);
+    const resetAt = Number(row.reset_at_ms) || now + RATE_LIMIT_WINDOW;
     const remaining = Math.max(0, RATE_LIMIT_MAX - count);
     
     return {

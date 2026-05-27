@@ -152,6 +152,8 @@ export const generateRequestSchema = z.object({
   text: z.string().min(1),
   slideCount: z.number().int().min(3).max(100).default(6),
   wordCount: z.number().optional(),
+  platformTarget: z.enum(['Auto', 'LinkedIn', 'Instagram', 'Sales Deck', 'Education']).default('Auto'),
+  outputPreset: z.enum(['General Carousel', 'Authority LinkedIn', 'Educational', 'Sales', 'Founder LinkedIn', 'Tips/Listicle']).default('General Carousel'),
   writingStyle: z.string().optional(),
   slideStyle: z.enum(['text', 'visual', 'mixed']).default('mixed'),
   sections: z.array(z.string()).optional(),

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus, ChevronUp, ChevronDown, Copy, Clipboard,
-  Download, ZoomIn, Trash2, Loader2, RefreshCw, Sparkles, Send,
+  Download, ZoomIn, Trash2, Loader2, RefreshCw, Sparkles, Send, MoreHorizontal,
 } from 'lucide-react';
 import { Slide } from '@/components/Slide';
 import type { SlideData } from '@/lib/types';
@@ -52,6 +52,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
 }: SlideListSidebarProps) {
   const [refineSlideId, setRefineSlideId] = useState<string | null>(null);
   const [refineText, setRefineText] = useState('');
+  const [openMenuSlideId, setOpenMenuSlideId] = useState<string | null>(null);
   const refineInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
             key={slide.id}
             ref={(el) => { slideRefs.current[slide.id] = el; }}
             onClick={() => onSelectSlide(slide.id)}
-            className={`group cursor-pointer rounded-xl transition-all duration-200 border ${
+            className={`group relative cursor-pointer rounded-xl transition-all duration-200 border ${
               activeSlideId === slide.id
                 ? 'bg-[var(--surface-2)]/50 border-[var(--accent)]/50 shadow-lg'
                 : 'border-transparent hover:bg-[var(--surface-2)]/30 hover:border-[var(--border)]'
@@ -188,7 +189,22 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
               {/* Actions row */}
               <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                 <span className="uppercase tracking-wide text-[10px]">{slide.type}</span>
-                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuSlideId(openMenuSlideId === slide.id ? null : slide.id);
+                  }}
+                  className="rounded-md border border-[var(--border)] p-1.5 text-[var(--text-secondary)] opacity-0 transition hover:border-[var(--accent)] hover:text-white group-hover:opacity-100"
+                  title="Slide actions"
+                  aria-label="Slide actions"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+                {openMenuSlideId === slide.id && (
+                <div
+                  className="absolute right-3 bottom-10 z-30 grid grid-cols-3 gap-1.5 rounded-xl border border-[var(--border-hover)] bg-[var(--surface-1)] p-2 shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {onRegenerateSlide && (
                     <>
                       <SlideAction
@@ -196,6 +212,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                           e.stopPropagation();
                           setRefineSlideId(refineSlideId === slide.id ? null : slide.id);
                           setRefineText('');
+                          setOpenMenuSlideId(null);
                         }}
                         title="Refine with AI instructions"
                         hoverClass="hover:text-purple-400 hover:border-purple-500"
@@ -205,7 +222,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                       </SlideAction>
 
                       <SlideAction
-                        onClick={(e) => { e.stopPropagation(); onRegenerateSlide(slide.id); }}
+                        onClick={(e) => { e.stopPropagation(); onRegenerateSlide(slide.id); setOpenMenuSlideId(null); }}
                         title="Regenerate slide (random)"
                         hoverClass="hover:text-yellow-400 hover:border-yellow-500"
                         disabled={regeneratingSlideId !== null}
@@ -216,7 +233,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                   )}
 
                   <SlideAction
-                    onClick={(e) => { e.stopPropagation(); onDuplicateSlide(slide.id); }}
+                    onClick={(e) => { e.stopPropagation(); onDuplicateSlide(slide.id); setOpenMenuSlideId(null); }}
                     title="Duplicate slide (Ctrl+D)"
                     hoverClass="hover:text-[var(--accent)] hover:border-[var(--accent)]"
                   >
@@ -224,7 +241,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                   </SlideAction>
 
                   <SlideAction
-                    onClick={(e) => { e.stopPropagation(); onCopySlide(slide, index); }}
+                    onClick={(e) => { e.stopPropagation(); onCopySlide(slide, index); setOpenMenuSlideId(null); }}
                     title="Copy slide to clipboard"
                     hoverClass="hover:text-green-400 hover:border-green-500"
                     disabled={copyingSlideId !== null}
@@ -233,7 +250,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                   </SlideAction>
 
                   <SlideAction
-                    onClick={(e) => { e.stopPropagation(); onDownloadSlide(slide, index); }}
+                    onClick={(e) => { e.stopPropagation(); onDownloadSlide(slide, index); setOpenMenuSlideId(null); }}
                     title="Download slide as PNG"
                     hoverClass="hover:text-white hover:border-gray-500"
                     disabled={downloadingSlideId !== null && downloadingSlideId !== slide.id}
@@ -243,7 +260,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
 
                   {slide.mediaUrl && slide.mediaType === 'image' && (
                     <SlideAction
-                      onClick={(e) => { e.stopPropagation(); onPreviewImage(slide.mediaUrl || null); }}
+                      onClick={(e) => { e.stopPropagation(); onPreviewImage(slide.mediaUrl || null); setOpenMenuSlideId(null); }}
                       title="View infographic full size"
                       hoverClass="hover:text-[var(--accent)] hover:border-[var(--accent)]"
                     >
@@ -252,7 +269,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                   )}
 
                   <SlideAction
-                    onClick={(e) => { e.stopPropagation(); onDeleteSlide(slide.id); }}
+                    onClick={(e) => { e.stopPropagation(); onDeleteSlide(slide.id); setOpenMenuSlideId(null); }}
                     title={slides.length === 1 ? 'You need at least one slide' : 'Delete slide (Del)'}
                     hoverClass="hover:text-red-300 hover:border-red-500"
                     disabled={slides.length === 1}
@@ -260,6 +277,7 @@ export const SlideListSidebar = React.memo(function SlideListSidebar({
                     <Trash2 size={14} />
                   </SlideAction>
                 </div>
+                )}
               </div>
             </div>
           </div>

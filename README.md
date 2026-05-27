@@ -26,8 +26,8 @@ This is a Next.js application that transforms ideas into stunning carousels for 
 
 To use the AI feature:
 1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. Click "AI Generate" in the app and enter your key.
-3. Or, create a `.env.local` file with `GOOGLE_API_KEY=AIza...` to set it globally.
+2. Add it to `.env` as `GOOGLE_API_KEY=AIza...`.
+3. Optionally add `GROQ_API_KEY=...` as a fallback provider.
 
 ## Project Structure
 

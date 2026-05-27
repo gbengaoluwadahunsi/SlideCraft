@@ -51,7 +51,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const PAGE_NAMES: Record<string, string> = {
   '/': 'Landing Page',
-  '/dashboard': 'Carousel Editor',
+  '/dashboard': 'Carouslk Studio',
   '/dashboard/billing': 'Billing & Subscription',
   '/login': 'Login Page',
   '/register': 'Registration Page',
@@ -265,7 +265,7 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     const tips: ProactiveTip[] = [];
     
     // First-time user on dashboard
-    if (state.currentPage === 'Carousel Editor' && state.isFirstTimeUser && !state.hasCompletedOnboarding) {
+    if (state.currentPage === 'Carouslk Studio' && state.isFirstTimeUser && !state.hasCompletedOnboarding) {
       tips.push({
         id: 'welcome',
         message: "Welcome! 👋 I'm here to help you create your first carousel. Want a quick tour?",
@@ -276,7 +276,7 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     }
     
     // Idle on editor with no slides
-    if (state.currentPage === 'Carousel Editor' && state.isIdle && state.slideCount <= 1) {
+    if (state.currentPage === 'Carouslk Studio' && state.isIdle && state.slideCount <= 1) {
       tips.push({
         id: 'idle-suggest-ai',
         message: "Need inspiration? Try AI Generate to create a carousel from any topic! ✨",
@@ -287,7 +287,7 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     }
     
     // Been on editor for a while without exporting
-    if (state.currentPage === 'Carousel Editor' && state.timeOnCurrentPage > 300 && !state.hasExported && state.slideCount >= 2) {
+    if (state.currentPage === 'Carouslk Studio' && state.timeOnCurrentPage > 300 && !state.hasExported && state.slideCount >= 2) {
       tips.push({
         id: 'suggest-export',
         message: "Your carousel is looking great! Ready to export it? 📥",

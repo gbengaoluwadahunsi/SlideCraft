@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { SlideData } from '@/lib/types';
+import { applyAuthorityLinkedInStyle, type OutputPreset, type PlatformTarget } from '@/lib/authorityCarousel';
 
 interface AiGeneratorProps {
   slides: SlideData[];
@@ -26,12 +27,17 @@ export function useAiGenerator({
   // --- UI State ---
   const [isGenerating, setIsGenerating] = useState(false);
   const [regeneratingSlideId, setRegeneratingSlideId] = useState<string | null>(null);
+  const [generationStatus, setGenerationStatus] = useState('');
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [aiOutputPreset, setAiOutputPreset] = useState<OutputPreset>('General Carousel');
+  const [aiPlatformTarget, setAiPlatformTarget] = useState<PlatformTarget>('Auto');
+  const lastGenerationInputRef = useRef<{ text: string; sections: string[] } | null>(null);
 
   // --- Generation Settings ---
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlideCount, setAiSlideCount] = useState(6);
   const [aiWritingStyle, setAiWritingStyle] = useState<string>('Professional');
-  const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('text');
+  const [aiSlideStyle, setAiSlideStyle] = useState<'visual' | 'text' | 'mixed'>('mixed');
   const [aiLanguage, setAiLanguage] = useState<string>('en');
   const [aiWordCount, setAiWordCount] = useState<number | null>(null);
   const [aiTone, setAiTone] = useState<string>('neutral');
@@ -70,43 +76,110 @@ export function useAiGenerator({
 
   // --- Implementation Logic ---
 
-  const handleGenerateCarousel = async () => {
-    if (!aiPrompt && !docAttachment && !urlAttachment) {
-      toast.error('Please provide a prompt, document, or URL');
+  const plainError = (message: string) => message.replace(/^Error:\s*/i, '').trim();
+
+  const applyPreset = (preset: OutputPreset) => {
+    const presets = {
+      'General Carousel': {
+        writingStyle: 'Clear',
+        audience: 'General social media audience',
+        goal: 'Create a useful, easy-to-read carousel that works across platforms',
+      },
+      'Authority LinkedIn': {
+        writingStyle: 'Authoritative',
+        audience: 'Professionals and decision-makers on LinkedIn',
+        goal: 'Create a high-trust thought leadership carousel with comparison slides, metrics, checklists, and a strong takeaway',
+      },
+      Educational: {
+        writingStyle: 'Professional',
+        audience: 'People who are new to this topic',
+        goal: 'Teach the idea clearly with practical examples',
+      },
+      Sales: {
+        writingStyle: 'Persuasive',
+        audience: 'Potential customers',
+        goal: 'Explain the offer clearly and move people to take action',
+      },
+      'Founder LinkedIn': {
+        writingStyle: 'Storytelling',
+        audience: 'Founders, operators, and professionals on LinkedIn',
+        goal: 'Share a useful point of view with a clear lesson',
+      },
+      'Tips/Listicle': {
+        writingStyle: 'Direct',
+        audience: 'Busy people who want quick practical tips',
+        goal: 'Give useful tips people can save and apply',
+      },
+    }[preset];
+
+    setAiOutputPreset(preset);
+    setAiWritingStyle(presets.writingStyle);
+    setAiAudience(presets.audience);
+    setAiGoal(presets.goal);
+  };
+
+  const handleGenerateCarousel = async (overrideText?: string) => {
+    const sourceText = overrideText || docAttachment?.text || urlAttachment?.text || aiPrompt;
+    const sourceSections = overrideText ? [] : docAttachment?.sections || urlAttachment?.sections || [];
+
+    if (!sourceText.trim()) {
+      const message = 'Paste your idea, article, or notes first';
+      setGenerationError(message);
+      toast.error(message);
       return;
     }
 
     setIsGenerating(true);
+    setGenerationError(null);
+    setGenerationStatus('Creating your carousel. This usually takes about a minute.');
+    lastGenerationInputRef.current = { text: sourceText, sections: sourceSections };
     try {
+      const requestBody = {
+        text: sourceText,
+        slideCount: aiSlideCount,
+        platformTarget: aiPlatformTarget,
+        outputPreset: aiOutputPreset,
+        writingStyle: aiWritingStyle,
+        slideStyle: aiSlideStyle,
+        language: aiLanguage,
+        ...(aiWordCount ? { wordCount: aiWordCount } : {}),
+        tone: aiTone,
+        autoHashtags: aiAutoHashtags,
+        includeStats: aiIncludeStats,
+        accessibility: aiAccessibility,
+        smartColors: aiSmartColors,
+        freshDesign: aiFreshDesign,
+        audience: aiAudience,
+        goal: aiGoal,
+        sections: sourceSections,
+        ...(aiSmartColors ? {
+          accentColor: brandSettings.accentColor,
+          backgroundColor: brandSettings.backgroundColor,
+          textColor: brandSettings.textColor,
+        } : {}),
+      };
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: aiPrompt,
-          slideCount: aiSlideCount,
-          writingStyle: aiWritingStyle,
-          slideStyle: aiSlideStyle,
-          language: aiLanguage,
-          wordCount: aiWordCount,
-          tone: aiTone,
-          autoHashtags: aiAutoHashtags,
-          includeStats: aiIncludeStats,
-          accessibility: aiAccessibility,
-          smartColors: aiSmartColors,
-          freshDesign: aiFreshDesign,
-          audience: aiAudience,
-          goal: aiGoal,
-          documentText: docAttachment?.text,
-          urlText: urlAttachment?.text,
-          brandSettings: aiSmartColors ? brandSettings : undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to generate');
+      if (!response.ok) {
+        const detailMessage = Array.isArray(data.details)
+          ? data.details.map((detail: { path?: string; message?: string }) => `${detail.path || 'field'}: ${detail.message || 'invalid'}`).join(', ')
+          : '';
+        throw new Error(detailMessage || data.message || data.error || 'Failed to generate');
+      }
+
+      if (data.fallbackUsed) {
+        setGenerationStatus('Gemini failed, trying Groq');
+        toast.message('Gemini failed, trying Groq');
+      }
 
       // Update state with new slides
-      const newSlides = data.slides.map((s: any, i: number) => ({
+      const generatedSlides = data.slides.map((s: any, i: number) => ({
         ...s,
         id: `gen-${Date.now()}-${i}`,
         // Map any extra fields from generation
@@ -115,6 +188,10 @@ export function useAiGenerator({
         textColor: data.theme?.textColor || s.textColor || brandSettings.textColor,
         fontFamily: data.theme?.fontFamily || s.fontFamily || brandSettings.fontFamily,
       }));
+
+      const newSlides = aiOutputPreset === 'Authority LinkedIn'
+        ? applyAuthorityLinkedInStyle(generatedSlides, brandSettings)
+        : generatedSlides;
 
       if (data.theme && aiSmartColors) {
         setBrandSettings({
@@ -127,11 +204,58 @@ export function useAiGenerator({
       if (newSlides.length > 0) setActiveSlideId(newSlides[0].id);
       addToHistory(newSlides);
       setIsAiModalOpen(false);
-      toast.success('Carousel generated successfully!');
+      setGenerationStatus('Carousel created');
+      toast.success('Carousel created');
     } catch (error: any) {
-      toast.error(error.message || 'Generation failed');
+      const message = plainError(error.message || 'Generation failed');
+      const displayMessage = `Generation failed: ${message}`;
+      setGenerationError(displayMessage);
+      setGenerationStatus(displayMessage);
+      toast.error(displayMessage);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const retryLastGeneration = () => {
+    if (lastGenerationInputRef.current?.text) {
+      void handleGenerateCarousel(lastGenerationInputRef.current.text);
+      return;
+    }
+    void handleGenerateCarousel();
+  };
+
+  const handleDocUpload = async (file: File | null) => {
+    if (!file) return;
+
+    setIsUploadingDoc(true);
+    setDocUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/ingest', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to process document');
+
+      setDocAttachment({
+        name: data.fileName || file.name,
+        text: data.text,
+        sections: data.sections,
+        wordCount: data.wordCount,
+        truncated: data.truncated,
+      });
+      setAiInputTab('document');
+      toast.success('Document attached');
+    } catch (error: any) {
+      const message = error.message || 'Failed to process document';
+      setDocUploadError(message);
+      toast.error(message);
+    } finally {
+      setIsUploadingDoc(false);
     }
   };
 
@@ -172,7 +296,11 @@ export function useAiGenerator({
     isGenerating,
     regeneratingSlideId,
     setRegeneratingSlideId,
+    generationStatus,
+    generationError,
     aiPrompt, setAiPrompt,
+    aiOutputPreset, setAiOutputPreset,
+    aiPlatformTarget, setAiPlatformTarget,
     aiSlideCount, setAiSlideCount,
     aiWritingStyle, setAiWritingStyle,
     aiSlideStyle, setAiSlideStyle,
@@ -199,6 +327,9 @@ export function useAiGenerator({
 
     // Actions
     handleGenerateCarousel,
+    retryLastGeneration,
+    applyPreset,
+    handleDocUpload,
     handleParseUrl
   };
 }

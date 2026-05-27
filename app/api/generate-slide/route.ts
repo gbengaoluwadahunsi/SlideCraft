@@ -13,10 +13,60 @@ interface ChatCompletion {
   }>;
 }
 
+type AiProvider =
+  | { name: 'gemini'; model: string; envKey: 'GOOGLE_API_KEY'; type: 'gemini' }
+  | { name: 'groq'; model: string; envKey: 'GROQ_API_KEY'; baseURL: string; type: 'openai-compatible' };
+
 const PROVIDERS = [
-  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
-  { name: 'openrouter', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
-];
+  { name: 'gemini', model: 'gemini-2.0-flash', envKey: 'GOOGLE_API_KEY', type: 'gemini' },
+  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1', type: 'openai-compatible' },
+] satisfies AiProvider[];
+
+async function runProviderCompletion(
+  provider: AiProvider,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+): Promise<ChatCompletion> {
+  if (provider.type === 'gemini') {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env[provider.envKey] || '');
+    const model = genAI.getGenerativeModel({
+      model: provider.model,
+      systemInstruction: messages.find(message => message.role === 'system')?.content,
+    });
+
+    const result = await model.generateContent({
+      contents: messages
+        .filter(message => message.role !== 'system')
+        .map(message => ({
+          role: 'user',
+          parts: [{ text: message.content }],
+        })),
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 2500,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    return {
+      choices: [{ message: { content: result.response.text() } }],
+    };
+  }
+
+  const OpenAI = (await import('openai')).default;
+  const client = new OpenAI({
+    apiKey: process.env[provider.envKey],
+    baseURL: provider.baseURL,
+  });
+
+  return client.chat.completions.create({
+    model: provider.model,
+    messages,
+    temperature: 0.6,
+    max_tokens: 2500,
+    response_format: { type: 'json_object' },
+  });
+}
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(userId: string): boolean {
@@ -229,18 +279,10 @@ ${isVisualSlide ? visualSlideInstructions : `- Preferred pattern: ${pattern || '
     let completion: ChatCompletion | null = null;
     for (const provider of availableProviders) {
       try {
-        const OpenAI = (await import('openai')).default;
-        const client = new OpenAI({ apiKey: process.env[provider.envKey], baseURL: provider.baseURL });
-        completion = await client.chat.completions.create({
-          model: provider.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.6,
-          max_tokens: 2500,
-          response_format: { type: 'json_object' },
-        });
+        completion = await runProviderCompletion(provider, [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ]);
         if (completion) break;
       } catch (err) {
         console.error(`Provider ${provider.name} failed for single slide:`, (err as Error).message?.substring(0, 100));

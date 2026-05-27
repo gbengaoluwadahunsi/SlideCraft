@@ -26,16 +26,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-[var(--surface-1)] border border-[var(--border-hover)] rounded-3xl shadow-2xl z-[101] outline-none overflow-hidden">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-1rem)] max-w-xl bg-[var(--surface-1)] border border-[var(--border-hover)] rounded-2xl shadow-2xl z-[101] outline-none overflow-hidden">
           <div className="flex flex-col h-full">
             {/* Header */}
             <div className="p-8 pb-4 flex items-center justify-between">
               <div>
                 <Dialog.Title className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
                   <Download size={28} className="text-[var(--accent)]" />
-                  Export Your Creation
+                  Download Carousel
                 </Dialog.Title>
-                <p className="text-sm text-[var(--text-muted)] mt-1">Choose your preferred format for {projectName}</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Choose where you want to use {projectName}</p>
               </div>
               <Dialog.Close className="p-2 hover:bg-[var(--surface-3)] rounded-xl transition-colors text-[var(--text-secondary)] hover:text-white">
                 <X size={24} />
@@ -80,8 +80,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <div className="w-12 h-12 rounded-xl bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <FileText size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">Professional PDF</h3>
-                  <p className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">Best for sharing as document or posting on LinkedIn.</p>
+                  <h3 className="text-lg font-bold text-white mb-1">LinkedIn PDF</h3>
+                  <p className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">Best for LinkedIn carousel posts and document sharing.</p>
                   
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                     <ChevronRight size={20} className="text-[var(--accent)]" />
@@ -97,8 +97,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <ImageIcon size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">Image Bundle (ZIP)</h3>
-                  <p className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">Individual high-res PNGs for Instagram/Twitter threads.</p>
+                  <h3 className="text-lg font-bold text-white mb-1">Images</h3>
+                  <p className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">One PNG per slide for Instagram, X, and other platforms.</p>
                   
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                     <ChevronRight size={20} className="text-purple-400" />
@@ -112,9 +112,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <Info size={20} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white mb-1">LinkedIn Tip</h4>
+                  <h4 className="text-sm font-bold text-white mb-1">Best choice for LinkedIn</h4>
                   <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                    Choose <strong>PDF</strong> for the horizontal scrolling "Carousel" effect on LinkedIn. It generates higher engagement than individual images.
+                    Choose <strong>LinkedIn PDF</strong>. LinkedIn turns it into a swipeable carousel automatically.
                   </p>
                 </div>
               </div>
@@ -124,7 +124,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <div className="p-8 border-t border-[var(--border-hover)] flex items-center justify-between bg-[var(--surface-2)]/20">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-widest">Enterprise Ready</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-widest">Ready to share</span>
               </div>
               
               <button

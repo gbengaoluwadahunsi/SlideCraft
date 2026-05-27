@@ -43,7 +43,6 @@ import { useProject } from '@/lib/hooks/useProject';
 import { THEMES } from '@/app/constants/themes';
 import type { EmojiClickData } from 'emoji-picker-react';
 const LazyEmojiPicker = React.lazy(() => import('emoji-picker-react'));
-import { BOLD_TEMPLATES } from '@/lib/templates';
 // Core feature components
 import { ExportModal } from '@/components/Dashboard/Modals/ExportModal';
 import { SettingsModal } from '@/components/Dashboard/Modals/SettingsModal';
@@ -75,11 +74,17 @@ const sanitizeEmoji = (value: string | undefined | null) => {
     .trim();
 };
 
+const dataUrlToBlob = async (dataUrl: string) => {
+  const response = await fetch(dataUrl);
+  return response.blob();
+};
+
 import { useSlideEditor } from '@/lib/hooks/dashboard/useSlideEditor';
 import { useUiState } from '@/lib/hooks/dashboard/useUiState';
 import { useBrandSettings } from '@/lib/hooks/dashboard/useBrandSettings';
 import { useAiGenerator } from '@/lib/hooks/dashboard/useAiGenerator';
 import { useExportManager } from '@/lib/hooks/dashboard/useExportManager';
+import { createGeneralSampleSlides, type OutputPreset, type PlatformTarget } from '@/lib/authorityCarousel';
 
 // Mobile-friendly contentEditable component
 function ContentEditableDiv({ 
@@ -144,13 +149,18 @@ function ContentEditableDiv({
 
 function DashboardContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { status } = useSession();
   const appContext = useAppContextSafe();
   const projectId = searchParams.get('project') || undefined;
 
   const [copyingSlideId, setCopyingSlideId] = useState<string | null>(null);
   const [downloadingSlideId, setDownloadingSlideId] = useState<string | null>(null);
+  const [quickPrompt, setQuickPrompt] = useState('');
+  const [quickPreset, setQuickPreset] = useState<OutputPreset>('General Carousel');
+  const [quickPlatform, setQuickPlatform] = useState<PlatformTarget>('Auto');
   const slideRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sidebarSlideRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
 
   // --- Initializing Modular Hooks ---
@@ -170,6 +180,18 @@ function DashboardContent() {
 
   const { slides, activeSlideId, setActiveSlideId } = editor;
 
+  useEffect(() => {
+    if (slides.length > 0) return;
+
+    editor.initializeSlides(createGeneralSampleSlides(brand.brandSettings));
+  }, [brand.brandSettings, editor, slides.length]);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login?next=/dashboard');
+    }
+  }, [router, status]);
+
   // Sync scroll on active slide change
   useEffect(() => {
     if (activeSlideId) {
@@ -188,76 +210,195 @@ function DashboardContent() {
     );
   }
 
-  if (status === 'unauthenticated') return null;
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-[var(--surface-1)] text-white flex flex-col items-center justify-center gap-3">
+        <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
+        <p className="text-sm text-[var(--text-muted)]">Taking you to login...</p>
+      </div>
+    );
+  }
+
+  const applyQuickPreset = (preset: typeof quickPreset) => {
+    setQuickPreset(preset);
+    ai.applyPreset(preset);
+  };
+
+  const applyQuickPlatform = (platform: PlatformTarget) => {
+    setQuickPlatform(platform);
+    ai.setAiPlatformTarget(platform);
+  };
+
+  const handleQuickGenerate = () => {
+    ai.applyPreset(quickPreset);
+    ai.setAiPlatformTarget(quickPlatform);
+    void ai.handleGenerateCarousel(quickPrompt);
+  };
+
+  const handleUseSample = () => {
+    const sampleSlides = createGeneralSampleSlides(brand.brandSettings);
+    editor.initializeSlides(sampleSlides);
+    setActiveSlideId(sampleSlides[0]?.id || '');
+    toast.success('Sample loaded');
+  };
+
+  const captureSlidePng = async (slideId: string) => {
+    const node = slideRefs.current[slideId];
+    if (!node) throw new Error('Slide is not ready yet');
+
+    return lazyToPng(node, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#0B0F19',
+    });
+  };
+
+  const handleCopySlide = async (slide: SlideData) => {
+    setActiveSlideId(slide.id);
+    setCopyingSlideId(slide.id);
+    try {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const png = await captureSlidePng(slide.id);
+      const blob = await dataUrlToBlob(png);
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Clipboard image copy is not supported in this browser');
+      }
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      toast.success('Slide copied');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to copy slide');
+    } finally {
+      setCopyingSlideId(null);
+    }
+  };
+
+  const handleDownloadSlide = async (slide: SlideData, index: number) => {
+    setActiveSlideId(slide.id);
+    setDownloadingSlideId(slide.id);
+    try {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const png = await captureSlidePng(slide.id);
+      const link = document.createElement('a');
+      link.href = png;
+      link.download = `slide-${String(index + 1).padStart(2, '0')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Slide downloaded');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to download slide');
+    } finally {
+      setDownloadingSlideId(null);
+    }
+  };
+
+  const handleExportImages = async () => {
+    if (slides.length === 0) return;
+    exporter.setIsExporting(true);
+    exporter.setExportProgress({ current: 0, total: slides.length, status: 'Rendering images...' });
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      for (let index = 0; index < slides.length; index++) {
+        const slide = slides[index];
+        setActiveSlideId(slide.id);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const png = await captureSlidePng(slide.id);
+        zip.file(`slide-${String(index + 1).padStart(2, '0')}.png`, png.split(',')[1], { base64: true });
+        exporter.setExportProgress({ current: index + 1, total: slides.length, status: 'Rendering images...' });
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${editor.projectName || 'carousel'}-images.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Image bundle exported');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to export images');
+    } finally {
+      exporter.setIsExporting(false);
+    }
+  };
+
+  const exportManager = {
+    ...exporter,
+    handleExportPDF: () => exporter.handleExportToPdf(slides, editor.projectName || 'carousel', 'pdf'),
+    handleExportImages,
+  };
+
+  const readyChecks = [
+    { label: 'Hook slide', done: slides.length > 0 && Boolean(slides[0]?.title?.replace(/<[^>]*>/g, '').trim()) },
+    { label: 'Enough slides', done: slides.length >= 4 },
+    { label: 'Clear body text', done: slides.slice(1).every(slide => (slide.content || slide.subtitle || '').replace(/<[^>]*>/g, '').trim().length > 35) },
+    { label: 'Ready to download', done: slides.length > 0 },
+  ];
+  const readyCount = readyChecks.filter(check => check.done).length;
 
   return (
     <div className="h-screen bg-[#0B0F19] text-white flex flex-col overflow-hidden font-sans">
       {/* Header */}
-      <header className="h-16 border-b border-[var(--border)] bg-[var(--surface-1)]/80 backdrop-blur-md flex items-center px-6 justify-between shrink-0 z-50">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="p-2 hover:bg-[var(--surface-2)] rounded-xl transition">
+      <header className="min-h-20 border-b border-[var(--border)] bg-[var(--surface-1)]/95 backdrop-blur-md flex flex-col gap-4 px-4 py-4 shrink-0 z-50 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="p-2 hover:bg-[var(--surface-2)] rounded-lg transition" title="Back home">
             <ChevronLeft size={20} className="text-[var(--text-muted)] hover:text-white" />
           </Link>
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 bg-[var(--accent)] rounded-xl rotate-6 flex items-center justify-center shadow-[0_0_20px_rgba(var(--accent-rgb),0.3)]">
+             <div className="w-8 h-8 bg-[var(--accent)] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(var(--accent-rgb),0.25)]">
                 <span className="text-black font-black text-sm">S</span>
              </div>
              <div>
-               <h1 className="font-black tracking-tight text-lg leading-none">SlideCraft</h1>
-               <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mt-1">
+               <h1 className="font-black tracking-tight text-lg leading-none">Carouslk Studio</h1>
+               <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
                  {editor.projectName || 'Untitled Project'}
                </p>
              </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center bg-[var(--surface-2)] rounded-xl p-1 border border-[var(--border-hover)]">
-            <button onClick={editor.undo} disabled={!editor.canUndo} className="p-2 hover:bg-[var(--surface-3)] rounded-lg disabled:opacity-20 transition">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
+          <div className="flex items-center bg-[var(--surface-2)] rounded-lg p-1 border border-[var(--border-hover)]">
+            <button onClick={editor.undo} disabled={!editor.canUndo} className="p-2 hover:bg-[var(--surface-3)] rounded-md disabled:opacity-20 transition" title="Undo">
               <Undo2 size={18} />
             </button>
-            <button onClick={editor.redo} disabled={!editor.canRedo} className="p-2 hover:bg-[var(--surface-3)] rounded-lg disabled:opacity-20 transition">
+            <button onClick={editor.redo} disabled={!editor.canRedo} className="p-2 hover:bg-[var(--surface-3)] rounded-md disabled:opacity-20 transition" title="Redo">
               <Redo2 size={18} />
             </button>
           </div>
+
+          <button
+            onClick={() => ui.setIsSettingsOpen(true)}
+            className="px-4 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-white text-sm font-bold rounded-lg transition flex items-center gap-2 border border-[var(--border-hover)]"
+          >
+            <Palette size={18} />
+            Brand
+          </button>
           
           <button 
             onClick={() => ui.setIsAiModalOpen(true)}
-            className="px-6 py-2.5 bg-gradient-to-br from-[var(--accent)] to-amber-500 hover:scale-105 active:scale-95 text-black text-sm font-black rounded-xl transition duration-300 flex items-center gap-2 shadow-[0_0_30px_rgba(var(--accent-rgb),0.3)]"
+            className="px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black text-sm font-black rounded-lg transition flex items-center gap-2 shadow-[0_0_24px_rgba(var(--accent-rgb),0.22)]"
           >
             <Sparkles size={18} />
-            Magic Create
+            New Draft
           </button>
           
           <button 
             onClick={() => ui.setIsExportOpen(true)}
-            className="px-5 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-white text-sm font-bold rounded-xl transition flex items-center gap-2 border border-[var(--border-hover)]"
+            className="px-5 py-2.5 bg-white hover:bg-gray-100 text-black text-sm font-bold rounded-lg transition flex items-center gap-2"
           >
             <Download size={18} />
-            Export
+            Download
           </button>
         </div>
       </header>
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Activity Bar */}
-        <aside className="w-20 border-r border-[var(--border)] bg-[var(--surface-1)] flex flex-col items-center py-6 gap-6 z-40">
-          <button onClick={() => ui.setIsAiModalOpen(true)} className="w-12 h-12 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl flex items-center justify-center hover:scale-110 transition active:scale-95 border border-[var(--accent)]/20 shadow-lg shadow-[var(--accent)]/5">
-            <Sparkles size={24} />
-          </button>
-          <div className="w-8 h-px bg-[var(--border)] opacity-30" />
-          <button onClick={() => ui.setIsSettingsOpen(true)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${ui.isSettingsOpen ? 'bg-[var(--accent)] text-black shadow-lg shadow-[var(--accent)]/30' : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-white'}`}>
-            <Palette size={22} />
-          </button>
-          <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-white transition-all">
-            <Layout size={22} />
-          </button>
-          <button onClick={() => ui.setIsExportOpen(true)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-white transition-all mt-auto">
-            <Download size={22} />
-          </button>
-        </aside>
-
         {/* Slide List Sidebar */}
         <SlideListSidebar
           slides={slides}
@@ -282,43 +423,180 @@ function DashboardContent() {
           }}
           onDuplicateSlide={(id) => editor.handleDuplicateSlide(id, editor.updateSlides)}
           onDeleteSlide={(id) => editor.handleDeleteSlide(id, editor.updateSlides)}
-          onCopySlide={() => {}}
-          onDownloadSlide={() => {}}
+          onCopySlide={handleCopySlide}
+          onDownloadSlide={handleDownloadSlide}
           onPreviewImage={ui.setPreviewImageUrl}
           copyingSlideId={copyingSlideId}
           downloadingSlideId={downloadingSlideId}
-          slideRefs={slideRefs}
+          slideRefs={sidebarSlideRefs}
         />
 
         {/* Canvas Area */}
         <main className="flex-1 relative bg-[#080B14] overflow-hidden flex flex-col">
-          {/* Subtle Grid Pattern */}
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-               style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+          <div className="shrink-0 border-b border-[var(--border)] bg-[#0B0F19] px-4 py-3 lg:px-8">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-bold text-white">Edit your carousel</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Click any text on the slide to change it. Use the left panel to reorder or duplicate slides.</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 border border-[var(--border)]">1. Create</span>
+                <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 border border-[var(--border)]">2. Edit</span>
+                <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 border border-[var(--border)]">3. Download</span>
+              </div>
+            </div>
+          </div>
           
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-12 scroll-smooth custom-scrollbar">
-            <div className="max-w-4xl mx-auto flex flex-col items-center gap-24 pb-48">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 scroll-smooth custom-scrollbar lg:p-10">
+            <div className="max-w-4xl mx-auto flex flex-col items-center gap-14 pb-32">
+              <section className="w-full rounded-2xl border border-[var(--border-hover)] bg-[var(--surface-1)] p-4 shadow-2xl lg:p-6">
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-xl font-black tracking-tight text-white lg:text-2xl">Paste your idea, article, or notes.</h2>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">Create a first draft, then edit any text directly on the slides.</p>
+                  </div>
+
+                  <textarea
+                    value={quickPrompt}
+                    onChange={(event) => setQuickPrompt(event.target.value)}
+                    placeholder="Example: How local restaurants can get more Google reviews from happy customers"
+                    className="min-h-36 w-full resize-none rounded-xl border border-[var(--border-hover)] bg-[#080B14] px-4 py-4 text-base text-white outline-none transition focus:border-[var(--accent)]"
+                  />
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Where will you post or use it?</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(['Auto', 'LinkedIn', 'Instagram', 'Sales Deck', 'Education'] as const).map((platform) => (
+                        <button
+                          key={platform}
+                          onClick={() => applyQuickPlatform(platform)}
+                          className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                            quickPlatform === platform
+                              ? 'border-white bg-white text-black'
+                              : 'border-[var(--border-hover)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-white'
+                          }`}
+                        >
+                          {platform}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      {(['General Carousel', 'Educational', 'Sales', 'Tips/Listicle', 'Founder LinkedIn', 'Authority LinkedIn'] as const).map((preset) => (
+                        <button
+                          key={preset}
+                          onClick={() => applyQuickPreset(preset)}
+                          className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                            quickPreset === preset
+                              ? 'border-[var(--accent)] bg-[var(--accent)] text-black'
+                              : 'border-[var(--border-hover)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-white'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        onClick={handleUseSample}
+                        className="rounded-lg border border-[var(--border-hover)] bg-[var(--surface-2)] px-4 py-3 text-sm font-bold text-white transition hover:bg-[var(--surface-3)]"
+                      >
+                        Use this sample
+                      </button>
+                      <button
+                        onClick={handleQuickGenerate}
+                        disabled={ai.isGenerating || !quickPrompt.trim()}
+                        className="rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-black text-black transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {ai.isGenerating ? 'Creating...' : 'Create Carousel'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {(ai.isGenerating || ai.generationStatus || ai.generationError) && (
+                    <div className={`rounded-xl border px-4 py-3 text-sm ${
+                      ai.generationError
+                        ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                        : 'border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--text-secondary)]'
+                    }`}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="flex items-center gap-2">
+                          {ai.isGenerating && <Loader2 size={16} className="animate-spin text-[var(--accent)]" />}
+                          {ai.generationError || ai.generationStatus || 'Creating your carousel. This usually takes about a minute.'}
+                        </span>
+                        {ai.generationError && (
+                          <button
+                            onClick={ai.retryLastGeneration}
+                            className="rounded-lg bg-white px-3 py-2 text-xs font-black text-black transition hover:bg-gray-100"
+                          >
+                            Try again
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {slides.length === 0 && (
+                <div className="w-full rounded-2xl border border-dashed border-[var(--border-hover)] bg-[var(--surface-1)]/60 px-6 py-12 text-center">
+                  <p className="text-lg font-bold text-white">No carousel yet</p>
+                  <p className="mt-2 text-sm text-[var(--text-muted)]">Paste an idea above or load the sample deck to start editing.</p>
+                </div>
+              )}
+
+              {slides.length > 0 && (
+                <section className="w-full rounded-2xl border border-[var(--border-hover)] bg-[var(--surface-1)] p-4 lg:p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-white">Ready-to-post check</p>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">{readyCount} of {readyChecks.length} basics are ready. Edit any weak slide before downloading.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {readyChecks.map((check) => (
+                        <span
+                          key={check.label}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                            check.done
+                              ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                              : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-200'
+                          }`}
+                        >
+                          {check.done ? '✓ ' : '! '}{check.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {slides.map((slide, index) => (
                 <div 
                   key={slide.id}
                   id={`slide-${slide.id}`}
                   onClick={() => setActiveSlideId(slide.id)}
-                  className={`relative group transition-all duration-700 ease-out transform ${
+                  className={`relative group transition-all duration-300 ease-out transform ${
                     slide.id === activeSlideId 
                       ? 'scale-100 opacity-100 z-10' 
-                      : 'scale-[0.85] opacity-20 hover:opacity-40 grayscale blur-[2px] cursor-pointer'
+                      : 'scale-[0.96] opacity-70 hover:opacity-90 cursor-pointer'
                   }`}
                 >
                   {/* Floating Slide Index Indicator */}
-                  <div className="absolute -left-16 top-0 h-full flex flex-col items-center">
-                    <span className={`text-4xl font-black transition-colors duration-500 ${slide.id === activeSlideId ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] opacity-20'}`}>
-                      {String(index + 1).padStart(2, '0')}
+                  <div className="absolute -left-3 -top-3 z-20 lg:-left-14 lg:top-0 lg:h-full lg:flex lg:flex-col lg:items-center">
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-black transition-colors duration-300 lg:h-auto lg:w-auto lg:border-0 lg:text-3xl ${slide.id === activeSlideId ? 'bg-[var(--accent)] text-black border-[var(--accent)] lg:bg-transparent lg:text-[var(--accent)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)] lg:bg-transparent lg:opacity-50'}`}>
+                      {index + 1}
                     </span>
-                    <div className={`w-0.5 flex-1 my-4 rounded-full transition-colors duration-500 ${slide.id === activeSlideId ? 'bg-[var(--accent)]/50' : 'bg-[var(--border)] opacity-20'}`} />
+                    <div className={`hidden lg:block w-0.5 flex-1 my-4 rounded-full transition-colors duration-300 ${slide.id === activeSlideId ? 'bg-[var(--accent)]/50' : 'bg-[var(--border)] opacity-20'}`} />
                   </div>
 
-                  <div className={`p-1 rounded-[40px] transition-all duration-500 bg-gradient-to-br ${slide.id === activeSlideId ? 'from-[var(--accent)] to-transparent shadow-[0_40px_100px_rgba(0,0,0,0.8)]' : 'from-transparent to-transparent'}`}>
-                    <div className="rounded-[38px] overflow-hidden shadow-2xl relative">
+                  <div className={`p-1 rounded-3xl transition-all duration-300 ${slide.id === activeSlideId ? 'bg-[var(--accent)] shadow-[0_24px_70px_rgba(0,0,0,0.55)]' : 'bg-transparent'}`}>
+                    <div
+                      ref={(el) => { slideRefs.current[slide.id] = el; }}
+                      className="rounded-[22px] overflow-hidden shadow-2xl relative"
+                    >
                       <Slide 
                         {...slide} 
                         isEditable={slide.id === activeSlideId}
@@ -334,21 +612,21 @@ function DashboardContent() {
           </div>
 
           {/* Bottom Context Bar */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--surface-2)]/90 backdrop-blur-xl border border-[var(--border-hover)] rounded-2xl px-6 py-3 flex items-center gap-8 shadow-2xl z-40 animate-in slide-in-from-bottom-4 duration-500">
-             <div className="flex items-center gap-3 pr-8 border-r border-[var(--border-hover)]">
-                <span className="text-[10px] font-black uppercase text-[var(--accent)] tracking-widest">Active Slide</span>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[var(--surface-2)]/95 backdrop-blur-xl border border-[var(--border-hover)] rounded-xl px-4 py-3 flex items-center gap-5 shadow-2xl z-40">
+             <div className="flex items-center gap-2 pr-5 border-r border-[var(--border-hover)]">
+                <span className="text-xs font-bold text-[var(--accent)]">Slide</span>
                 <span className="text-sm font-bold text-white">
                   {slides.findIndex(s => s.id === activeSlideId) + 1} of {slides.length}
                 </span>
              </div>
              
              <div className="flex items-center gap-4">
-                <button onClick={editor.addSlide} className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] hover:text-white transition">
+                <button onClick={() => editor.addSlide(brand.brandSettings)} className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] hover:text-white transition">
                    <Plus size={16} /> Add Slide
                 </button>
                 <div className="w-1 h-1 rounded-full bg-[var(--text-muted)]" />
                 <button onClick={() => ui.setIsAiModalOpen(true)} className="flex items-center gap-2 text-xs font-bold text-[var(--accent)] hover:text-[var(--accent-hover)] transition">
-                   <Sparkles size={16} /> Magic Refine
+                   <Sparkles size={16} /> New Draft
                 </button>
              </div>
           </div>
@@ -365,7 +643,7 @@ function DashboardContent() {
       <ExportModal 
         isOpen={ui.isExportOpen} 
         onClose={() => ui.setIsExportOpen(false)} 
-        exportManager={exporter}
+        exportManager={exportManager}
         projectName={editor.projectName || 'carousel'}
       />
 

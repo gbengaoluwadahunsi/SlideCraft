@@ -9,23 +9,67 @@ export function useSlideEditor() {
   const [activeSlideId, setActiveSlideId] = useState<string>('');
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectOptions, setProjectOptions] = useState<ProjectOptions>({});
+  const [history, setHistory] = useState<SlideData[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   
   const [currentScale, setCurrentScale] = useState(0.6);
   const [activeTool, setActiveTool] = useState<'select' | 'text' | 'image' | 'color'>('select');
   
   // Ref to always have latest slides for export / background tasks
   const slidesRef = useRef<SlideData[]>([]);
+  const historyRef = useRef<SlideData[][]>([]);
+  const historyIndexRef = useRef(-1);
   useEffect(() => {
     slidesRef.current = slides;
   }, [slides]);
 
-  const updateSlides = useCallback((newSlides: SlideData[] | ((prev: SlideData[]) => SlideData[])) => {
-    setSlides(newSlides);
+  const cloneSlides = useCallback((items: SlideData[]): SlideData[] => {
+    try {
+      return structuredClone(items);
+    } catch {
+      return JSON.parse(JSON.stringify(items));
+    }
   }, []);
+
+  const pushHistory = useCallback((nextSlides: SlideData[]) => {
+    const snapshot = cloneSlides(nextSlides);
+    const current = historyRef.current[historyIndexRef.current];
+    if (current && JSON.stringify(current) === JSON.stringify(snapshot)) return;
+
+    const base = historyRef.current.slice(0, historyIndexRef.current + 1);
+    base.push(snapshot);
+    const nextHistory = base.length > 50 ? base.slice(-50) : base;
+    const nextIndex = nextHistory.length - 1;
+
+    historyRef.current = nextHistory;
+    historyIndexRef.current = nextIndex;
+    setHistory(nextHistory);
+    setHistoryIndex(nextIndex);
+  }, [cloneSlides]);
+
+  const updateSlides = useCallback((newSlides: SlideData[] | ((prev: SlideData[]) => SlideData[]), recordHistory = true) => {
+    setSlides(prev => {
+      const nextSlides = typeof newSlides === 'function' ? newSlides(prev) : newSlides;
+      slidesRef.current = nextSlides;
+      if (recordHistory) pushHistory(nextSlides);
+      return nextSlides;
+    });
+  }, [pushHistory]);
+
+  const initializeSlides = useCallback((initialSlides: SlideData[]) => {
+    const snapshot = cloneSlides(initialSlides);
+    slidesRef.current = snapshot;
+    historyRef.current = [cloneSlides(snapshot)];
+    historyIndexRef.current = 0;
+    setSlides(snapshot);
+    setHistory([cloneSlides(snapshot)]);
+    setHistoryIndex(0);
+    if (snapshot[0]) setActiveSlideId(snapshot[0].id);
+  }, [cloneSlides]);
 
   const addNewSlide = useCallback((brandSettings: any) => {
     const newId = Date.now().toString();
-    setSlides(prevSlides => [...prevSlides, {
+    updateSlides(prevSlides => [...prevSlides, {
       id: newId,
       type: 'content',
       title: 'New Slide',
@@ -49,7 +93,7 @@ export function useSlideEditor() {
       customBlocks: [],
     }]);
     setActiveSlideId(newId);
-  }, []);
+  }, [updateSlides]);
 
   const handleDeleteSlide = useCallback((id: string, commitImmediate: (slides: SlideData[]) => void) => {
     if (slides.length === 1) {
@@ -89,8 +133,38 @@ export function useSlideEditor() {
     toast.success('Slide duplicated');
   }, [slides]);
 
+  const undo = useCallback(() => {
+    const currentIndex = historyIndexRef.current;
+    if (currentIndex <= 0) return;
+
+    const nextIndex = currentIndex - 1;
+    const snapshot = cloneSlides(historyRef.current[nextIndex]);
+    historyIndexRef.current = nextIndex;
+    slidesRef.current = snapshot;
+    setHistoryIndex(nextIndex);
+    setSlides(snapshot);
+    if (!snapshot.some(s => s.id === activeSlideId) && snapshot[0]) {
+      setActiveSlideId(snapshot[0].id);
+    }
+  }, [activeSlideId, cloneSlides]);
+
+  const redo = useCallback(() => {
+    const currentIndex = historyIndexRef.current;
+    if (currentIndex >= historyRef.current.length - 1) return;
+
+    const nextIndex = currentIndex + 1;
+    const snapshot = cloneSlides(historyRef.current[nextIndex]);
+    historyIndexRef.current = nextIndex;
+    slidesRef.current = snapshot;
+    setHistoryIndex(nextIndex);
+    setSlides(snapshot);
+    if (!snapshot.some(s => s.id === activeSlideId) && snapshot[0]) {
+      setActiveSlideId(snapshot[0].id);
+    }
+  }, [activeSlideId, cloneSlides]);
+
   return {
-    slides, setSlides,
+    slides, setSlides: updateSlides,
     slidesRef,
     activeSlideId, setActiveSlideId,
     projectName, setProjectName,
@@ -98,12 +172,13 @@ export function useSlideEditor() {
     currentScale, setCurrentScale,
     activeTool, setActiveTool,
     updateSlides,
+    initializeSlides,
     addSlide: addNewSlide,
     handleDeleteSlide,
     handleDuplicateSlide,
-    undo: () => {},
-    redo: () => {},
-    canUndo: false,
-    canRedo: false
+    undo,
+    redo,
+    canUndo: historyIndex > 0,
+    canRedo: historyIndex >= 0 && historyIndex < history.length - 1
   };
 }

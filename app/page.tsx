@@ -2,33 +2,33 @@ import { Metadata } from 'next';
 import LandingPageWrapper from './LandingPageWrapper';
 
 export const metadata: Metadata = {
-  title: "Carouslk – Create Professional Carousels in 30 Seconds",
-  description: "The fastest carousel generator. Create professional carousels in 30 seconds—3x faster than competitors. No design skills needed. Works immediately.",
-  keywords: ["LinkedIn Carousel Generator", "Instagram Carousel Maker", "AI Content Creation", "PDF Slider Tool", "Social Media Marketing", "Carousel Templates", "LinkedIn PDF", "free carousel maker", "AI carousel generator"],
+  title: 'Carouslk - Editable AI Carousel Drafts',
+  description: 'Create editable carousel drafts from ideas, articles, or notes. Simple workflow, AI-assisted structure, and export-ready slides.',
+  keywords: ['carousel generator', 'Instagram carousel maker', 'LinkedIn carousel generator', 'AI content creation', 'PDF slider tool', 'social media marketing', 'carousel templates'],
   openGraph: {
-    title: "Carouslk – Create Viral Carousels in Seconds",
-    description: "Transform your ideas into multi-platform carousels instantly. AI-powered, customizable, and free to try.",
-    url: "https://www.carouslk.com",
-    siteName: "Carouslk",
+    title: 'Carouslk - Editable AI Carousel Drafts',
+    description: 'Turn ideas, articles, and notes into editable carousel drafts for multiple platforms.',
+    url: 'https://www.carouslk.com',
+    siteName: 'Carouslk',
     images: [
       {
-        url: "https://www.carouslk.com/og-image.png",
+        url: 'https://www.carouslk.com/og-image.png',
         width: 1200,
         height: 630,
-        alt: "Carouslk - AI Carousel Generator Dashboard",
+        alt: 'Carouslk - AI Carousel Generator Dashboard',
       },
     ],
-    locale: "en_US",
-    type: "website",
+    locale: 'en_US',
+    type: 'website',
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Carouslk – AI Carousel Generator",
-    description: "Stop wasting hours on design. Generate LinkedIn & Instagram carousels instantly with AI.",
-    images: ["https://www.carouslk.com/og-image.png"],
+    card: 'summary_large_image',
+    title: 'Carouslk - AI Carousel Drafts',
+    description: 'Create editable carousel drafts for LinkedIn, Instagram, sales, education, and general content.',
+    images: ['https://www.carouslk.com/og-image.png'],
   },
   alternates: {
-    canonical: "https://www.carouslk.com",
+    canonical: 'https://www.carouslk.com',
   },
   robots: {
     index: true,

@@ -25,6 +25,10 @@ interface ChatCompletion {
   choices: ChatCompletionChoice[];
 }
 
+type AiProvider =
+  | { name: 'gemini'; model: string; envKey: 'GOOGLE_API_KEY'; type: 'gemini' }
+  | { name: 'groq'; model: string; envKey: 'GROQ_API_KEY'; baseURL: string; type: 'openai-compatible' };
+
 interface BrandSettings {
   accentColor?: string;
   backgroundColor?: string;
@@ -36,10 +40,9 @@ interface BrandSettings {
 // ── Provider Configuration ───────────────────────────────────────────────────
 
 const PROVIDERS = [
-  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1' },
-  { name: 'openrouter_claude', model: 'anthropic/claude-3.5-sonnet', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
-  { name: 'openrouter_gemini', model: 'google/gemini-2.0-flash-001', envKey: 'OPENROUTER_API_KEY', baseURL: 'https://openrouter.ai/api/v1' },
-];
+  { name: 'gemini', model: 'gemini-2.0-flash', envKey: 'GOOGLE_API_KEY', type: 'gemini' },
+  { name: 'groq', model: 'llama-3.3-70b-versatile', envKey: 'GROQ_API_KEY', baseURL: 'https://api.groq.com/openai/v1', type: 'openai-compatible' },
+] satisfies AiProvider[];
 
 // ── Retry Logic ──────────────────────────────────────────────────────────────
 
@@ -70,6 +73,53 @@ async function generateWithRetry<T>(
   throw new Error('Max retries exceeded');
 }
 
+async function runProviderCompletion(
+  provider: AiProvider,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+  outputTokens: number,
+): Promise<ChatCompletion> {
+  if (provider.type === 'gemini') {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env[provider.envKey] || '');
+    const model = genAI.getGenerativeModel({
+      model: provider.model,
+      systemInstruction: messages.find(message => message.role === 'system')?.content,
+    });
+
+    const result = await model.generateContent({
+      contents: messages
+        .filter(message => message.role !== 'system')
+        .map(message => ({
+          role: 'user',
+          parts: [{ text: message.content }],
+        })),
+      generationConfig: {
+        temperature: 0.55,
+        maxOutputTokens: outputTokens,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    return {
+      choices: [{ message: { content: result.response.text() } }],
+    };
+  }
+
+  const OpenAI = (await import('openai')).default;
+  const client = new OpenAI({
+    apiKey: process.env[provider.envKey],
+    baseURL: provider.baseURL,
+  });
+
+  return client.chat.completions.create({
+    model: provider.model,
+    messages,
+    temperature: 0.45,
+    max_tokens: outputTokens,
+    response_format: { type: 'json_object' },
+  });
+}
+
 // ── System Prompt (Schema-First — NO HTML) ───────────────────────────────────
 
 const BASE_SYSTEM_PROMPT = `
@@ -85,6 +135,7 @@ CRITICAL RULES:
 2. EVERY slide must have REAL, SPECIFIC content from the source — no placeholders, no filler.
 3. Fill every content block completely: icon-cards = 3-4 cards each with description, stats-grid = 3-4 stats, etc.
 4. Return ONLY as many slides as you can fill with real content.
+5. Do not invent precise statistics, fake customer quotes, fake testimonials, fake named people, or fake case studies. If the user gives a brief topic, use practical examples and label them as examples instead of pretending they are proven facts.
 
 ENGAGEMENT-OPTIMIZED SLIDE SEQUENCE:
 
@@ -92,7 +143,7 @@ SLIDE 1 — THE HOOK (role: "hook"):
 - Title: 6-8 words MAX. Benefit-driven. Create curiosity.
 - Set emphasisWord to ONE power word from the title.
 - Subtitle: 1 sentence expanding the hook.
-- Content block: Use "paragraph" with a compelling opening statement.
+- Content block: Use "paragraph" with one short supporting sentence. Keep the cover clean and scannable.
 - VARY the hook style:
   1. NUMBER HOOK: "X things/ways/mistakes that outcome"
   2. QUESTION HOOK: An open question
@@ -413,25 +464,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check AI generation limit
-    const limits = await getUserPlanLimits(session.user.id);
-    const usage = await trackUsage(session.user.id, 'ai_generation', 0);
-    
-    if (!usage.canUse) {
-      return NextResponse.json(
-        { 
-          error: 'AI generation limit reached',
-          message: `You've used all ${limits.maxAiGenerations} AI generations this month. Upgrade to Pro for unlimited AI generations.`,
-          limit: limits.maxAiGenerations,
-          current: usage.current
-        },
-        { status: 403 }
-      );
-    }
-
-    // Track AI generation
-    await trackUsage(session.user.id, 'ai_generation', 1);
-
     // Validate request body with Zod
     let body: unknown;
     try {
@@ -439,8 +471,16 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
-    
-    const validationResult = generateRequestSchema.safeParse(body);
+
+    const normalizedBody = body && typeof body === 'object' && !Array.isArray(body)
+      ? {
+          ...(body as Record<string, unknown>),
+          text: (body as Record<string, unknown>).text ?? (body as Record<string, unknown>).prompt,
+          slideCount: (body as Record<string, unknown>).slideCount ?? (body as Record<string, unknown>).numSlides,
+        }
+      : body;
+
+    const validationResult = generateRequestSchema.safeParse(normalizedBody);
     if (!validationResult.success) {
       const errorDetails = validationResult.error.issues.map((err) => ({
         path: err.path.join('.'),
@@ -458,6 +498,8 @@ export async function POST(request: NextRequest) {
       text, 
       slideCount, 
       wordCount, 
+      platformTarget = 'Auto',
+      outputPreset = 'General Carousel',
       writingStyle, 
       slideStyle = 'mixed', 
       sections = [],
@@ -504,6 +546,22 @@ export async function POST(request: NextRequest) {
 
     // Build instructions
     const styleInstruction = writingStyle ? `Writing Style: ${writingStyle}.` : '';
+    const platformInstructions: Record<string, string> = {
+      Auto: 'Platform: General carousel. Make it useful across LinkedIn, Instagram, and PDF sharing.',
+      LinkedIn: 'Platform: LinkedIn. Use professional framing, stronger hooks, specific insights, and credible takeaways. Avoid slang-heavy captions.',
+      Instagram: 'Platform: Instagram. Use shorter punchier slides, simple language, save-worthy tips, and visual rhythm. Keep each slide easy to scan on mobile.',
+      'Sales Deck': 'Platform: Sales deck. Focus on pain, solution, proof, objections, benefits, and a clear CTA. Make each slide useful in a sales conversation.',
+      Education: 'Platform: Education. Teach step-by-step with definitions, examples, recap slides, and beginner-friendly explanations.',
+    };
+    const presetInstructions: Record<string, string> = {
+      'General Carousel': 'Preset: General Carousel. Prioritize clarity, practical value, and broad audience fit.',
+      'Authority LinkedIn': 'Preset: Authority LinkedIn. Produce thought-leadership content with a strong point of view, comparison slides, metric/proof slides, checklists, and a memorable final takeaway.',
+      Educational: 'Preset: Educational. Teach the topic clearly with examples, frameworks, and practical application.',
+      Sales: 'Preset: Sales. Make the value proposition clear, persuasive, and action-oriented without sounding spammy.',
+      'Founder LinkedIn': 'Preset: Founder LinkedIn. Use founder/operator language, lessons learned, sharp opinions, and business context.',
+      'Tips/Listicle': 'Preset: Tips/Listicle. Create save-worthy practical tips with clear numbering and direct language.',
+    };
+    const targetInstruction = `${platformInstructions[platformTarget] || platformInstructions.Auto}\n${presetInstructions[outputPreset] || presetInstructions['General Carousel']}`;
     const wordCountInstruction = wordCount
       ? `Target approximately ${wordCount} words per slide.`
       : `Aim for dense content: at least 40-60 words per content slide.`;
@@ -526,13 +584,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ slides: [] });
     }
 
+    // Check AI generation limit after request validation so bad payloads do not consume quota.
+    const limits = await getUserPlanLimits(session.user.id);
+    const usage = await trackUsage(session.user.id, 'ai_generation', 0);
+    
+    if (!usage.canUse) {
+      return NextResponse.json(
+        { 
+          error: 'AI generation limit reached',
+          message: `You've used all ${limits.maxAiGenerations} AI generations this month. Upgrade to Pro for unlimited AI generations.`,
+          limit: limits.maxAiGenerations,
+          current: usage.current
+        },
+        { status: 403 }
+      );
+    }
+
     // Check for available API keys
     const availableProviders = PROVIDERS.filter(p => process.env[p.envKey]);
     if (availableProviders.length === 0) {
       return NextResponse.json({
         slides: [
-          { type: 'cover', title: 'MISSING API KEY', subtitle: 'Add GROQ_API_KEY (free) or OPENROUTER_API_KEY to .env.' },
-          { type: 'content', title: 'Configuration Needed', content: '<p>1. Create a .env.local file</p><p>2. Add GROQ_API_KEY (free at groq.com) or OPENROUTER_API_KEY</p><p>3. Restart the server</p>', emoji: '⚙️' }
+          { type: 'cover', title: 'MISSING API KEY', subtitle: 'Add GOOGLE_API_KEY or GROQ_API_KEY to .env.' },
+          { type: 'content', title: 'Configuration Needed', content: '<p>1. Open your .env file</p><p>2. Add GOOGLE_API_KEY for Gemini</p><p>3. Optionally add GROQ_API_KEY as fallback</p><p>4. Restart the server</p>', emoji: '⚙️' }
         ]
       });
     }
@@ -559,6 +633,7 @@ ${contentBrief}
 ${thinContentInstruction ? `\n${thinContentInstruction}\n` : ''}
 ${contextInstruction ? `\n${contextInstruction}\n` : ''}
 Create exactly ${requestedSlideCount} slides from the content below.
+${targetInstruction}
 ${styleInstruction}
 ${wordCountInstruction}
 ${languageInstruction}
@@ -569,6 +644,10 @@ ${outlineHint}
 DEPTH REQUIREMENT (critical):
 - Every slide must feel substantial. Fill every content block completely.
 - If a slide would be thin, expand it using the source before moving on.
+- Make the carousel platform-ready: clear hook, logical slide-to-slide flow, useful examples, and a final CTA or takeaway.
+- Prefer concrete claims, numbers, examples, and named steps over generic advice.
+- Only use numbers, quotes, names, and case-study details when they come from the source or are widely known. Otherwise use non-fabricated practical examples.
+- Do not write vague filler like "unlock your potential", "game changer", or "revolutionize" unless the source requires it.
 
 REMINDERS:
 - Return ONLY valid JSON matching the schema. No HTML, no markdown.
@@ -588,27 +667,18 @@ ${combinedText}`,
     // ── Call AI Providers ──────────────────────────────────────────────────
     let completion: ChatCompletion | null = null;
     let lastError: Error | null = null;
+    let providerUsed: AiProvider['name'] | null = null;
+    let fallbackUsed = false;
 
     for (const provider of availableProviders) {
       try {
-        const OpenAI = (await import('openai')).default;
-        const client = new OpenAI({
-          apiKey: process.env[provider.envKey],
-          baseURL: provider.baseURL,
-        });
-
-        const temperature = provider.name === 'groq' ? 0.45 : 0.65;
         completion = await generateWithRetry(async () => {
-          return client.chat.completions.create({
-            model: provider.model,
-            messages,
-            temperature,
-            max_tokens: outputTokens,
-            response_format: { type: 'json_object' },
-          });
+          return runProviderCompletion(provider, messages, outputTokens);
         });
 
         if (completion) {
+          providerUsed = provider.name;
+          fallbackUsed = availableProviders[0]?.name !== provider.name;
           console.log(`Successfully generated with provider: ${provider.name}`);
           break;
         }
@@ -799,11 +869,14 @@ ${combinedText}`,
       return hasTitle && hasContent;
     });
 
+    await trackUsage(session.user.id, 'ai_generation', 1);
     incrementAndGetMetrics().catch(console.error);
 
     return NextResponse.json({
       slides: validatedSlides,
       creativeAngle: creativeAngleIndex,
+      providerUsed,
+      fallbackUsed,
     });
   } catch (error) {
     console.error('AI Generation Error:', error);
@@ -813,7 +886,7 @@ ${combinedText}`,
       const retryMatch = errMsg.match(/try again in ([^.]+)/i);
       const retryIn = retryMatch ? retryMatch[1] : 'a few minutes';
       return NextResponse.json(
-        { error: `Rate limit reached. Please try again in ${retryIn}. Add a free GEMINI_API_KEY from ai.google.dev as a fallback.` },
+        { error: `Rate limit reached. Please try again in ${retryIn}. Add GROQ_API_KEY as a fallback if Gemini is rate limited.` },
         { status: 429 },
       );
     }

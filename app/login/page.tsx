@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
@@ -16,6 +16,8 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedNextPath = searchParams.get('next');
+  const nextPath = requestedNextPath?.startsWith('/') ? requestedNextPath : '/dashboard';
 
   useEffect(() => {
     if (searchParams.get('registered') === 'true') {
@@ -61,7 +63,7 @@ function LoginContent() {
         
         setError('Invalid email or password');
       } else {
-        router.push('/dashboard');
+        router.push(nextPath);
         router.refresh();
       }
     } catch (err) {
@@ -72,36 +74,42 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center px-6">
+    <div className="min-h-screen bg-[#080B14] text-white flex items-center justify-center px-5 py-10">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#0D1320] shadow-2xl lg:grid-cols-[0.9fr_1.1fr]"
       >
-        <motion.div 
-          className="flex items-center gap-2 mb-8 justify-center"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <motion.div 
-            className="w-8 h-8 bg-[#ffd700] rounded-lg rotate-3 flex items-center justify-center"
-            whileHover={{ rotate: 6, scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <span className="text-black font-bold text-xl">C</span>
-          </motion.div>
-          <span className="text-2xl font-bold tracking-tight">Carouslk</span>
-        </motion.div>
+        <aside className="hidden border-r border-white/10 bg-[#090E18] p-8 lg:block">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ffd700] text-lg font-black text-black">C</div>
+            <span className="text-lg font-black">Carouslk</span>
+          </Link>
+          <h1 className="mt-16 text-4xl font-black leading-tight tracking-tight">Welcome back to your carousel workspace.</h1>
+          <p className="mt-4 text-sm leading-7 text-gray-400">Open the editor, paste your material, choose a platform, and keep control of the final slides.</p>
+          <div className="mt-8 space-y-3">
+            {['Platform-aware drafts', 'Editable before export', 'General, sales, education, and LinkedIn presets'].map(item => (
+              <div key={item} className="flex items-center gap-3 text-sm font-bold text-gray-200">
+                <Check size={17} className="text-[#ffd700]" />
+                {item}
+              </div>
+            ))}
+          </div>
+        </aside>
 
         <motion.div 
-          className="bg-gray-800/50 border border-gray-700 rounded-2xl p-8"
+          className="p-6 sm:p-8 lg:p-10"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <h1 className="text-2xl font-bold mb-6">Sign In</h1>
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ffd700] text-lg font-black text-black">C</div>
+            <span className="text-lg font-black">Carouslk</span>
+          </div>
+          <h1 className="text-2xl font-black mb-2">Sign in</h1>
+          <p className="mb-6 text-sm text-gray-400">Continue to your carousel editor.</p>
 
           {/* OAuth Buttons */}
           <motion.div 
@@ -111,7 +119,7 @@ function LoginContent() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             <GoogleSignInButton 
-              callbackUrl="/dashboard"
+              callbackUrl={nextPath}
               onError={(errorMsg) => setError(errorMsg)}
             />
           </motion.div>
@@ -136,7 +144,7 @@ function LoginContent() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-[#ffd700]"
+                className="w-full px-4 py-3 bg-[#080B14] border border-white/10 rounded-lg focus:outline-none focus:border-[#ffd700]"
                 placeholder="you@example.com"
               />
             </div>
@@ -151,7 +159,7 @@ function LoginContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-[#ffd700]"
+                className="w-full px-4 py-3 bg-[#080B14] border border-white/10 rounded-lg focus:outline-none focus:border-[#ffd700]"
                 placeholder="••••••••"
               />
             </div>

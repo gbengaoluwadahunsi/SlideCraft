@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,6 +26,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   brandSettings
 }) => {
+  const settings = brandSettings.brandSettings || {};
+  const update = (updates: Record<string, string | null>) => {
+    if (typeof brandSettings.updateBrandSettings === 'function') {
+      brandSettings.updateBrandSettings(updates);
+      return;
+    }
+    if (typeof brandSettings.setBrandSettings === 'function') {
+      brandSettings.setBrandSettings({ ...settings, ...updates });
+    }
+  };
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
@@ -56,10 +68,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <ShieldCheck size={14} className="text-[var(--accent)]" /> Brand Logo
                   </label>
                   
-                  {brandSettings.logo ? (
+                  {settings.logoUrl ? (
                     <div className="relative aspect-video rounded-2xl border border-[var(--border-hover)] bg-black/20 overflow-hidden group">
                       <Image 
-                        src={brandSettings.logo} 
+                        src={settings.logoUrl} 
                         alt="Logo" 
                         className="w-full h-full object-contain p-4" 
                         fill 
@@ -72,13 +84,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                              const file = e.target.files?.[0];
                              if (file) {
                                const reader = new FileReader();
-                               reader.onload = (ev) => brandSettings.setLogo(ev.target?.result as string);
+                               reader.onload = (ev) => update({ logoUrl: ev.target?.result as string });
                                reader.readAsDataURL(file);
                              }
                           }} />
                         </label>
                         <button 
-                          onClick={() => brandSettings.setLogo(null)}
+                          onClick={() => update({ logoUrl: null })}
                           className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"
                         >
                           <Trash2 size={18} />
@@ -91,7 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                          const file = e.target.files?.[0];
                          if (file) {
                            const reader = new FileReader();
-                           reader.onload = (ev) => brandSettings.setLogo(ev.target?.result as string);
+                           reader.onload = (ev) => update({ logoUrl: ev.target?.result as string });
                            reader.readAsDataURL(file);
                          }
                       }} />
@@ -113,9 +125,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Brand Name</label>
                     <input 
                       type="text"
-                      value={brandSettings.brandName}
-                      onChange={(e) => brandSettings.setBrandName(e.target.value)}
-                      placeholder="e.g. Acme Studio"
+                      value={settings.category || ''}
+                      onChange={(e) => update({ category: e.target.value })}
+                      placeholder="e.g. Customer Reviews"
                       className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] transition shadow-inner"
                     />
                   </div>
@@ -124,8 +136,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Handle (@)</label>
                     <input 
                       type="text"
-                      value={brandSettings.brandHandle}
-                      onChange={(e) => brandSettings.setBrandHandle(e.target.value)}
+                      value={settings.handle || ''}
+                      onChange={(e) => update({ handle: e.target.value })}
                       placeholder="@yourhandle"
                       className="w-full bg-[var(--surface-2)] border border-[var(--border-hover)] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] transition shadow-inner"
                     />
@@ -148,14 +160,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <div key={color.key} className="p-4 rounded-2xl bg-[var(--surface-2)] border border-[var(--border-hover)] flex items-center justify-between">
                         <div>
                           <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">{color.label}</p>
-                          <p className="text-sm font-mono text-white tracking-widest uppercase">{brandSettings[color.key]}</p>
+                          <p className="text-sm font-mono text-white tracking-widest uppercase">{settings[color.key] || ''}</p>
                         </div>
                         <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-white/10 shadow-lg">
                           <input 
                             type="color" 
                             className="absolute inset-0 w-[150%] h-[150%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
-                            value={brandSettings[color.key]} 
-                            onChange={(e) => brandSettings[color.set](e.target.value)}
+                            value={settings[color.key] || '#000000'} 
+                            onChange={(e) => update({ [color.key]: e.target.value })}
                           />
                         </div>
                       </div>
@@ -173,10 +185,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {FONTS.map((font) => (
                     <button
                       key={font}
-                      onClick={() => brandSettings.setFontFamily(font)}
+                      onClick={() => update({ fontFamily: font })}
                       style={{ fontFamily: font }}
                       className={`p-4 rounded-xl border transition-all text-left group ${
-                        brandSettings.fontFamily === font 
+                        settings.fontFamily === font 
                           ? 'bg-[var(--accent)] border-[var(--accent)] text-black' 
                           : 'bg-[var(--surface-2)] border-[var(--border-hover)] text-white hover:border-[var(--accent)]/50'
                       }`}
@@ -199,7 +211,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
               <button
                 onClick={() => {
-                  brandSettings.saveSettings();
+                  toast.success('Brand applied');
                   onClose();
                 }}
                 className="px-10 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black font-extrabold shadow-[0_4px_20px_rgba(var(--accent-rgb),0.3)] flex items-center gap-2 transition"

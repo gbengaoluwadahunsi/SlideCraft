@@ -316,9 +316,9 @@ export const createAuthorityLinkedInSampleSlides = (brand: BrandSettings = {}): 
 
 export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[] => {
   const base = {
-    category: brand.category || 'Customer Reviews',
+    category: '',
     accentColor: brand.accentColor || '#ffd700',
-    handle: brand.handle || '@yourbrand',
+    handle: brand.handle || '',
     fontFamily: brand.fontFamily || 'var(--font-inter)',
     backgroundColor: brand.backgroundColor || '#0B0F19',
     textColor: brand.textColor || '#ffffff',
@@ -329,7 +329,8 @@ export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[
     elementOrder: ['title', 'subtitle', 'content'],
     customBlocks: [],
     logoUrl: brand.logoUrl ?? null,
-    slidePadding: 64,
+    slidePadding: 96,
+    slideJustify: 'center' as const,
   };
 
   const now = Date.now();
@@ -341,7 +342,7 @@ export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[
       title: 'How to Get More Customer Reviews',
       subtitle: 'Simple ways to ask without being pushy',
       textAlign: 'center',
-      fontScale: 1.15,
+      fontScale: 0.95,
       slideJustify: 'center',
       customBlocks: [
         {
@@ -360,7 +361,7 @@ export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[
       type: 'content',
       title: 'Ask at the Right Moment',
       content: '<p>Ask after a clear win: a completed order, a solved support issue, or a happy customer message. That is when people are most willing to help.</p>',
-      fontScale: 1.05,
+      fontScale: 0.86,
     },
     {
       ...base,
@@ -368,7 +369,7 @@ export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[
       type: 'content',
       title: 'Make It Easy',
       content: '<p>Send one direct review link. Add a short sentence they can copy. The fewer steps people have to take, the more reviews you will collect.</p>',
-      fontScale: 1.05,
+      fontScale: 0.86,
     },
     {
       ...base,
@@ -376,7 +377,7 @@ export const createGeneralSampleSlides = (brand: BrandSettings = {}): SlideData[
       type: 'content',
       title: 'Reply to Every Review',
       content: '<p>Thank happy customers, respond calmly to complaints, and show future buyers that real people are behind the business.</p>',
-      fontScale: 1.05,
+      fontScale: 0.86,
     },
   ];
 };

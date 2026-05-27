@@ -411,7 +411,7 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                   Cancel
                 </button>
                 <button
-                  onClick={aiGenerator.handleGenerateCarousel}
+                  onClick={() => aiGenerator.handleGenerateCarousel()}
                   disabled={aiGenerator.isGenerating || (!aiGenerator.aiPrompt && !aiGenerator.docAttachment && !aiGenerator.urlAttachment)}
                   className="flex-[2] md:flex-none bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-black font-extrabold px-10 py-3 rounded-xl transition flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(var(--accent-rgb),0.3)] disabled:opacity-50 disabled:shadow-none min-w-[200px]"
                 >

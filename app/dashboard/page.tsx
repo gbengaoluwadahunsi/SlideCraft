@@ -350,7 +350,7 @@ function DashboardContent() {
           </Link>
           <div className="flex items-center gap-3">
              <div className="w-8 h-8 bg-[var(--accent)] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(var(--accent-rgb),0.25)]">
-                <span className="text-black font-black text-sm">S</span>
+                <span className="text-black font-black text-sm">C</span>
              </div>
              <div>
                <h1 className="font-black tracking-tight text-lg leading-none">Carouslk Studio</h1>

@@ -207,7 +207,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = (props) => {
                     className="font-bold leading-tight tracking-tight mb-2"
                     style={{
                         color: 'var(--slide-title)',
-                        fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
+                        fontSize: type === 'cover' ? `${4 * fontScale}rem` : `${2.35 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
@@ -223,7 +223,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = (props) => {
                     className="font-bold leading-tight tracking-tight mb-2"
                     style={{
                         color: 'var(--slide-title)',
-                        fontSize: type === 'cover' ? `${4.5 * fontScale}rem` : `${3 * fontScale}rem`,
+                        fontSize: type === 'cover' ? `${4 * fontScale}rem` : `${2.35 * fontScale}rem`,
                         textShadow: backgroundImage ? '0 4px 12px rgba(0,0,0,0.5)' : 'none',
                         textAlign: titleAlign,
                         opacity: textOpacity !== undefined ? textOpacity : 1,
@@ -242,7 +242,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = (props) => {
                         className="font-light leading-relaxed opacity-80 mb-4"
                         style={{
                             color: 'var(--slide-text)',
-                            fontSize: `${2.25 * fontScale}rem`,
+                            fontSize: `${1.7 * fontScale}rem`,
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
@@ -258,7 +258,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = (props) => {
                         className="font-light leading-relaxed opacity-80 mb-4"
                         style={{
                             color: 'var(--slide-text)',
-                            fontSize: `${2.25 * fontScale}rem`,
+                            fontSize: `${1.7 * fontScale}rem`,
                             textShadow: backgroundImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
                             textAlign: textAlign,
                             opacity: textOpacity !== undefined ? textOpacity : 0.8,
@@ -272,7 +272,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = (props) => {
         case 'content':
             const contentStripped = content?.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
             const isVisualSlide = type === 'visual';
-            const contentFontSize = isVisualSlide ? `${2.5 * fontScale}rem` : `${2.25 * fontScale}rem`;
+            const contentFontSize = isVisualSlide ? `${1.7 * fontScale}rem` : `${1.65 * fontScale}rem`;
             const contentAlign = isVisualSlide ? 'center' : textAlign;
             return (content || isEditable) ? (
                 <div className={`w-full ${isVisualSlide ? 'flex flex-col items-center justify-center' : ''}`} style={{ overflow: 'visible', width: '100%', wordWrap: 'break-word', minHeight: 'auto', height: 'auto' }}>

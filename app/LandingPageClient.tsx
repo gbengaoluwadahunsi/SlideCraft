@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, Download, Layers, MessageSquareText, PenLine, Sparkles } from 'lucide-react';
 
 const platformOptions = ['General', 'Instagram', 'LinkedIn', 'Sales', 'Education'];
 
@@ -28,13 +28,13 @@ export default function LandingPageClient() {
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-16">
+        <section className="mx-auto grid max-w-7xl gap-8 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-14">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-gray-300">
               <Sparkles size={14} className="text-[#ffd700]" />
               AI-assisted drafts you can edit
             </div>
-            <h1 className="max-w-3xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="max-w-3xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-[4.75rem]">
               Turn ideas, articles, and notes into editable carousel drafts.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-300">
@@ -58,7 +58,7 @@ export default function LandingPageClient() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0D1320] p-4 shadow-2xl">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0D1320] p-4 shadow-2xl">
             <div className="rounded-xl border border-white/10 bg-[#080B14] p-4">
               <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
@@ -82,7 +82,7 @@ export default function LandingPageClient() {
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Prompt</p>
-                    <div className="mt-3 h-32 rounded-lg bg-[#050813] p-3 text-sm leading-6 text-gray-300">
+                    <div className="mt-3 h-28 rounded-lg bg-[#050813] p-3 text-sm leading-6 text-gray-300">
                       How local restaurants can get more customer reviews without sounding pushy...
                     </div>
                   </div>
@@ -98,9 +98,9 @@ export default function LandingPageClient() {
                     ['03', 'Make It Easy', 'Send one direct link and one simple ask'],
                     ['04', 'Reply to Every Review', 'Show future buyers there are real people behind the brand'],
                   ].map(slide => (
-                    <div key={slide[0]} className="aspect-[4/5] rounded-xl border border-white/10 bg-white p-4 text-[#071127]">
-                      <div className="mb-8 inline-flex rounded-lg bg-[#075BFF] px-2 py-1 text-xs font-black text-white">{slide[0]}</div>
-                      <h3 className="text-lg font-black leading-tight">{slide[1]}</h3>
+                    <div key={slide[0]} className="aspect-[3/4] overflow-hidden rounded-xl border border-white/10 bg-white p-4 text-[#071127]">
+                      <div className="mb-6 inline-flex rounded-lg bg-[#075BFF] px-2 py-1 text-xs font-black text-white">{slide[0]}</div>
+                      <h3 className="text-base font-black leading-tight">{slide[1]}</h3>
                       <p className="mt-3 text-xs font-medium leading-5 text-slate-600">{slide[2]}</p>
                     </div>
                   ))}
@@ -110,6 +110,47 @@ export default function LandingPageClient() {
           </div>
         </section>
 
+        <section className="border-y border-white/10 bg-white/[0.03]">
+          <div className="mx-auto grid max-w-7xl gap-4 px-5 py-10 md:grid-cols-4">
+            {[
+              [MessageSquareText, 'Paste', 'Start with an idea, article, notes, or a URL.'],
+              [Layers, 'Choose', 'Pick a platform and output type.'],
+              [PenLine, 'Edit', 'Adjust text, order, and brand before download.'],
+              [Download, 'Download', 'Export as PDF or images when it is ready.'],
+            ].map(([Icon, title, body]) => {
+              const StepIcon = Icon as typeof MessageSquareText;
+              return (
+                <div key={title as string} className="rounded-xl border border-white/10 bg-[#0D1320] p-5">
+                  <StepIcon className="text-[#ffd700]" size={24} />
+                  <h2 className="mt-4 text-lg font-black">{title as string}</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-400">{body as string}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-14">
+          <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight">Built for drafts that still need your judgment.</h2>
+              <p className="mt-4 text-gray-400">Carouslk gives you a structured first draft, then keeps editing simple before download.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                'Platform-aware generation',
+                'Editable slide text',
+                'Ready-to-post checklist',
+                'General, sales, education, and LinkedIn presets',
+              ].map(item => (
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm font-bold text-gray-200">
+                  <Check size={18} className="text-green-400" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
